@@ -33,7 +33,8 @@ namespace AvekiScrum.Application.Boards.Dailys
 
         public async Task<string> BuildJsonAsync(
             Sprint selectedSprint,
-            IReadOnlyDictionary<DeveloperTeam, IReadOnlyList<WorkItemDto>> backlogByTeam)
+            IReadOnlyDictionary<DeveloperTeam, IReadOnlyList<WorkItemDto>> backlogByTeam,
+            IReadOnlySet<int>? productOwnerOwnedStoryIds = null)
         {
             var teams = new List<object>();
             foreach (var team in backlogByTeam.OrderBy(team => team.Key == DeveloperTeam.Nord ? 0 : 1))
@@ -44,7 +45,7 @@ namespace AvekiScrum.Application.Boards.Dailys
                     id = TeamId(team.Key),
                     name = metadata?.AzureDevOpsName ?? $"Team {team.Key}",
                     sprintBoardUrl = SprintBoardUrl(team.Key, selectedSprint),
-                    stories = await BuildStoriesAsync(team.Value, selectedSprint)
+                    stories = await BuildStoriesAsync(team.Value, selectedSprint, productOwnerOwnedStoryIds)
                 });
             }
 
@@ -68,7 +69,8 @@ namespace AvekiScrum.Application.Boards.Dailys
 
         private async Task<List<object>> BuildStoriesAsync(
             IReadOnlyList<WorkItemDto> sprintBacklog,
-            Sprint selectedSprint)
+            Sprint selectedSprint,
+            IReadOnlySet<int>? productOwnerOwnedStoryIds = null)
         {
             var stories = SprintBacklogMapper.MapToStories(
                     sprintBacklog,
@@ -133,6 +135,7 @@ namespace AvekiScrum.Application.Boards.Dailys
                     releaseBranchWarnings = releaseBranchValidation.Warnings,
                     webUrl = WorkItemUrl(story.Id),
                     completedDate = FormatDate(story.CompletedDate),
+                    ownedByProductOwner = productOwnerOwnedStoryIds?.Contains(story.Id) ?? false,
                     tasks = story.Tasks.Select(task => ToTask(task, testTaskTimelines)).ToList(),
                     pullRequests = story.PullRequests.Select(pr => ToPullRequest(pr, pullRequestDetails)).ToList()
                 });

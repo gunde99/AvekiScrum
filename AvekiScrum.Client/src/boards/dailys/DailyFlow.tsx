@@ -435,10 +435,11 @@ function PoTurn({
   const relevant = allStories
     .map((s) => ({
       story: s,
+      isOwner: s.ownedByProductOwner || samePerson(s.developer, poName),
       isStakeholder: (s.stakeholders ?? []).some((n) => samePerson(n, poName)),
       isTagged: (s.tags ?? []).some((t) => samePerson(t, poName)),
     }))
-    .filter((r) => r.isStakeholder || r.isTagged);
+    .filter((r) => r.isOwner || r.isStakeholder || r.isTagged);
 
   return (
     <div className="daily-flow__turn">
@@ -452,7 +453,7 @@ function PoTurn({
         <p className="daily-flow__empty">Inga kort just nu.</p>
       ) : (
         <ul className="daily-flow__list daily-flow__list--tall">
-          {relevant.map(({ story: s, isStakeholder, isTagged }) => (
+          {relevant.map(({ story: s, isOwner, isStakeholder, isTagged }) => (
             <li key={s.id}>
               <div className="df-row df-row--po">
                 <button type="button" className="daily-flow__list-id df-row__id" onClick={() => onOpenWorkItem(s.id)} title="Öppna kortet">
@@ -466,6 +467,7 @@ function PoTurn({
                   {s.title}
                 </span>
                 <span className="daily-flow__list-badges">
+                  {isOwner && <span className="daily-flow__badge">Äger kortet</span>}
                   {isStakeholder && <span className="daily-flow__badge">Stakeholder</span>}
                   {isTagged && <span className="daily-flow__badge">Taggad</span>}
                 </span>

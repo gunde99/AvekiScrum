@@ -248,21 +248,26 @@ function slugify(value: string): string {
     .replace(/^-|-$/g, "");
 }
 
-// PR reviewers are deliberately excluded from group-worthy participants: a reviewer is very often
-// on the OTHER team (cross-team code review), and giving them their own top-level group on a board
-// that isn't theirs is misleading - their name only belongs with the group of whoever actually owns
-// the card. Reviewer involvement still shows up via developerRoleText's "Granskar PR" text.
-function storyGroupOwnerKeys(s: DailyStoryDto): string[] {
-  return [s.developer, ...(s.tasks || []).map((t) => t.assignedTo)].filter((v): v is string => !!v);
+// The backend only puts a card on the board if its owner is this team's own developer (or it's
+// unowned) - so the card's own `developer` field is the one name that's always safe to hand a
+// top-level group. Everyone else who merely touches the card (a task assignee, a PR reviewer) is
+// very often NOT on this team's own roster - a QA consultant testing the card, or a developer
+// from the other team helping out - and giving them their own top-level group on a board that
+// isn't theirs is misleading. Their involvement still surfaces, just nested inside the real
+// owner's group (see storyParticipantKeys/classifyDevRole below) instead of standing alone.
+function storyOwnerKey(s: DailyStoryDto): string | null {
+  return s.developer || null;
 }
 
-// Once a person already has their own group (via storyGroupOwnerKeys above), their group should
-// still surface cards where they're "just" a Development Partner or PR reviewer - that's real,
-// useful involvement, it just shouldn't be enough on its own to spawn a top-level group for
-// someone who isn't really on this team's board (see storyGroupOwnerKeys' own comment).
+// Broader than storyOwnerKey on purpose: once a person already has their own top-level group
+// (because they own at least one card), that group should also surface every other card they
+// merely contributed to - a task, a Development Partner credit, a PR review - since that's real,
+// useful involvement. It just isn't enough on its own to spawn a top-level group for someone who
+// isn't really on this team's board (see storyOwnerKey's own comment).
 function storyParticipantKeys(s: DailyStoryDto): string[] {
   return [
-    ...storyGroupOwnerKeys(s),
+    s.developer,
+    ...(s.tasks || []).map((t) => t.assignedTo),
     s.developmentPartner,
     ...(s.pullRequests || []).flatMap((pr) => pr.reviewers || []),
   ].filter((v): v is string => !!v);
@@ -340,7 +345,10 @@ function developerRoleText(s: DailyStoryDto, dev: string): string {
   return parts.length ? `(${parts.join(", ")})` : "";
 }
 
-export function buildGroups(stories: DailyStoryDto[], mode: GroupMode): StoryGroup[] {
+/** `developerRoster` is this team's actual Developers list (from /api/team-roles) - without it
+ *  (empty array), every card participant is treated as roster-worthy, same as before this
+ *  distinction existed. */
+export function buildGroups(stories: DailyStoryDto[], mode: GroupMode, developerRoster: string[] = []): StoryGroup[] {
   if (mode === "none") {
     return [{ id: "all", label: "Alla kort", mode, stories }];
   }
@@ -359,9 +367,26 @@ export function buildGroups(stories: DailyStoryDto[], mode: GroupMode): StoryGro
     }));
   }
 
-  const devs = [...new Set(stories.flatMap((s) => uniqueNames(storyGroupOwnerKeys(s).map(fullPersonName).filter(Boolean))))].sort(
-    (a, b) => a.localeCompare(b, "sv-SE", { sensitivity: "base" }),
-  );
+  const isRosterDeveloper = (name: string) =>
+    developerRoster.length === 0 || developerRoster.some((r) => samePerson(r, name));
+
+  // A card's owner always earns a top-level group (the backend only puts this team's own
+  // developers' cards on the board). Someone who merely contributed - a task, a PR review - only
+  // earns their OWN top-level group if they're a real developer on this team's roster; otherwise
+  // (a QA consultant testing the card, a developer from the other team helping out) their
+  // involvement still surfaces, just nested inside the real owner's group below instead of
+  // standing alone.
+  const devs = [
+    ...new Set(
+      uniqueNames(
+        stories.flatMap((s) => {
+          const owner = storyOwnerKey(s);
+          const rosterParticipants = storyParticipantKeys(s).filter((k) => isRosterDeveloper(fullPersonName(k)));
+          return owner ? [owner, ...rosterParticipants] : rosterParticipants;
+        }),
+      ),
+    ),
+  ].sort((a, b) => a.localeCompare(b, "sv-SE", { sensitivity: "base" }));
   const devGroups = devs.map((dev) => {
     const devStories = stories
       .filter((s) => storyParticipantKeys(s).some((name) => samePerson(name, dev)))
@@ -387,9 +412,12 @@ export function buildGroups(stories: DailyStoryDto[], mode: GroupMode): StoryGro
     return { id: "d-" + slugify(dev), label: dev, mode, goals, stories: devStories, subGroups };
   });
 
-  // Cards with nobody attached at all would otherwise vanish from this view entirely - they get
-  // their own bucket last, since unowned work is exactly what a daily wants to surface.
-  const orphans = stories.filter((s) => storyGroupOwnerKeys(s).length === 0);
+  // Cards that landed in no dev group at all would otherwise vanish from this view entirely -
+  // whether truly unowned, or only touched by someone outside this team's roster (see isRosterDeveloper
+  // above) - they get their own bucket last, since unattributed work is exactly what a daily wants
+  // to surface rather than silently drop.
+  const groupedStoryIds = new Set(devGroups.flatMap((g) => g.stories.map((s) => s.id)));
+  const orphans = stories.filter((s) => !groupedStoryIds.has(s.id));
   if (orphans.length > 0) {
     devGroups.push({
       id: "d-unassigned",

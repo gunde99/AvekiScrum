@@ -57,6 +57,10 @@ export interface DailyStoryDto {
   releaseBranchWarnings: string[];
   webUrl: string;
   completedDate: string | null;
+  /** True when the card's owner is the team's own PO rather than a developer - such cards are
+   *  intentionally left out of the developer-focused sprint board, but should still surface
+   *  during the daily flow's PO turn. */
+  ownedByProductOwner: boolean;
   tasks: DailyTaskDto[];
   pullRequests: DailyPullRequestDto[];
 }
@@ -81,8 +85,23 @@ export interface DailysResponse {
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:5273";
 
+// On a fresh `start-local.bat` run the API (dotnet run) can still be starting up when the
+// client's first request goes out, which surfaces as a network-level "Failed to fetch" rather
+// than an HTTP error. Retry a few times with a short delay to ride out that cold-start window.
+async function fetchWithRetry(url: string, signal: AbortSignal | undefined, attempts = 6, delayMs = 750): Promise<Response> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fetch(url, { signal });
+    } catch (err) {
+      const isAbort = err instanceof DOMException && err.name === "AbortError";
+      if (isAbort || attempt >= attempts) throw err;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
 export async function fetchDailys(team: DeveloperTeamId, signal?: AbortSignal): Promise<DailysResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/dailys?team=${team}`, { signal });
+  const response = await fetchWithRetry(`${API_BASE_URL}/api/dailys?team=${team}`, signal);
   if (!response.ok) {
     throw new Error(`Failed to load dailys for team ${team}: HTTP ${response.status}`);
   }

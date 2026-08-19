@@ -4,6 +4,7 @@ import { LoadingOverlay } from "../../components/LoadingOverlay";
 import { useToast } from "../../components/Toast";
 import { fetchDailys, type DailysResponse, type DeveloperTeamId } from "../../api/dailys";
 import { fetchSprintGoals, type SprintGoal } from "../../api/sprintGoals";
+import { fetchTeamRoles } from "../../api/people";
 import { updateWorkItemFields } from "../../api/workitems";
 import { DailyFlow } from "./DailyFlow";
 import { FilterPanel, type TagFilterState } from "./FilterPanel";
@@ -38,10 +39,6 @@ const LANE_LABEL: Record<FlowLaneStage, string> = {
   Done: "Klar",
 };
 
-// ~30s of patience for a cold Api to finish building and start listening.
-const API_WAIT_ATTEMPTS = 20;
-const API_WAIT_INTERVAL_MS = 1500;
-
 const TEAMS: { id: DeveloperTeamId; label: string }[] = [
   { id: "Nord", label: "Team Nord" },
   { id: "Syd", label: "Team Syd" },
@@ -61,60 +58,34 @@ export function DailysBoard() {
   const [openWorkItemId, setOpenWorkItemId] = useState<number | null>(null);
   const [openValidationId, setOpenValidationId] = useState<number | null>(null);
   const [sprintGoals, setSprintGoals] = useState<SprintGoal[]>([]);
+  const [developerRoster, setDeveloperRoster] = useState<string[]>([]);
   const [openSprintGoalNumber, setOpenSprintGoalNumber] = useState<number | null>(null);
   const [dailyFlowActive, setDailyFlowActive] = useState(false);
   const [flowHighlightGroupId, setFlowHighlightGroupId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [waitingForApi, setWaitingForApi] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
-    let cancelled = false;
     setLoading(true);
     setError(null);
-    setWaitingForApi(false);
-
-    // The dev launcher starts the Api and this client at the same time, but a cold Api does a
-    // NuGet restore + full build first - so the very first fetch can land seconds before it's
-    // listening and fail outright. Retry connection failures for a while instead of dumping a
-    // bare "Failed to fetch" that a manual reload would have fixed.
-    (async () => {
-      for (let attempt = 0; ; attempt++) {
-        try {
-          const response = await fetchDailys(team, controller.signal);
-          if (cancelled) return;
-          setData(response);
-          setOpenGroups(new Set());
-          setSelectedStatuses(null); // reset to "all" for the freshly loaded team's status set
-          setTagFilters(new Map());
-          setDailyFlowActive(false);
-          setFlowHighlightGroupId(null);
-          setWaitingForApi(false);
-          setLoading(false);
-          return;
-        } catch (err) {
-          // An aborted request (StrictMode's double-invoke, or a fast team switch) is not a
-          // real failure - the effect that superseded it owns setting loading/data/error next.
-          if (cancelled || (err instanceof DOMException && err.name === "AbortError")) return;
-          // Only a "couldn't reach the server at all" TypeError is worth retrying; an HTTP error
-          // means the Api answered and retrying would just repeat the same failure.
-          const isConnectionFailure = err instanceof TypeError;
-          if (!isConnectionFailure || attempt >= API_WAIT_ATTEMPTS) {
-            setError(err instanceof Error ? err.message : "Something went wrong.");
-            setWaitingForApi(false);
-            setLoading(false);
-            return;
-          }
-          setWaitingForApi(true);
-          await new Promise((resolve) => setTimeout(resolve, API_WAIT_INTERVAL_MS));
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
+    fetchDailys(team, controller.signal)
+      .then((response) => {
+        setData(response);
+        setOpenGroups(new Set());
+        setSelectedStatuses(null); // reset to "all" for the freshly loaded team's status set
+        setTagFilters(new Map());
+        setDailyFlowActive(false);
+        setFlowHighlightGroupId(null);
+        setLoading(false);
+      })
+      .catch((err: unknown) => {
+        // An aborted request (StrictMode's double-invoke, or a fast team switch) is not a
+        // real failure - the effect that superseded it owns setting loading/data/error next.
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setError(err instanceof Error ? err.message : "Something went wrong.");
+        setLoading(false);
+      });
+    return () => controller.abort();
   }, [team]);
 
   useEffect(() => {
@@ -126,6 +97,21 @@ export function DailysBoard() {
         // Sprint goals are a nice-to-have overlay on top of the Azure DevOps card data - if the
         // Wiki page can't be reached, the board should keep working with plain tag labels.
         setSprintGoals([]);
+      });
+    return () => controller.abort();
+  }, [team]);
+
+  // Drives which names get their own top-level "developer" group: this team's actual developer
+  // roster, not just whoever happens to be attached to a card - a QA consultant testing a card,
+  // or a developer from the other team helping out, shouldn't get a standalone group here.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchTeamRoles(team, controller.signal)
+      .then((roles) => setDeveloperRoster(roles.developers.map((d) => d.displayName)))
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        // Falls back to buildGroups' own card-derived grouping if the roster can't be loaded.
+        setDeveloperRoster([]);
       });
     return () => controller.abort();
   }, [team]);
@@ -182,8 +168,13 @@ export function DailysBoard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stories, searchText, selectedStatuses, tagFilters]);
 
+  // PO-owned cards are intentionally excluded from the developer-focused board (they're not
+  // fetched to be worked on by a developer) but still need to reach the daily flow's PO turn, so
+  // they stay in filteredStories and are only stripped out here, right before board rendering.
+  const boardStories = useMemo(() => filteredStories.filter((s) => !s.ownedByProductOwner), [filteredStories]);
+
   const groups = useMemo(() => {
-    const built = buildGroups(filteredStories, mode);
+    const built = buildGroups(boardStories, mode, developerRoster);
     if (mode !== "goals") return built;
     // Sprint goals with zero cards right now still deserve a row - otherwise a goal nobody has
     // started work on yet would just silently never appear on the board.
@@ -206,7 +197,7 @@ export function DailysBoard() {
       (a, b) => (Number(a.label.match(/\d+/)?.[0]) || 0) - (Number(b.label.match(/\d+/)?.[0]) || 0),
     );
     return [...numbered, ...catchAll];
-  }, [filteredStories, mode, sprintGoals]);
+  }, [boardStories, mode, sprintGoals, developerRoster]);
 
   function toggleGroup(id: string) {
     setOpenGroups((prev) => {
@@ -405,24 +396,11 @@ export function DailysBoard() {
 
       {loading && (
         <LoadingOverlay
-          message={waitingForApi ? "Väntar på att API:et ska starta…" : "Hämtar data från Azure DevOps…"}
-          sub={
-            waitingForApi
-              ? "Första starten bygger om API:et - det tar en stund. Försöker igen automatiskt."
-              : data === null
-                ? "Det här kan ta några sekunder första gången."
-                : `Byter till ${TEAMS.find((t) => t.id === team)?.label ?? team}…`
-          }
+          message="Hämtar data från Azure DevOps…"
+          sub={data === null ? "Det här kan ta några sekunder första gången." : `Byter till ${TEAMS.find((t) => t.id === team)?.label ?? team}…`}
         />
       )}
-      {error && (
-        <p className="dailys-board__status dailys-board__status--error">
-          Fel: {error}{" "}
-          <button type="button" className="dailys-board__retry" onClick={refreshBoard} disabled={refreshing}>
-            {refreshing ? "Försöker…" : "Försök igen"}
-          </button>
-        </p>
-      )}
+      {error && <p className="dailys-board__status dailys-board__status--error">Fel: {error}</p>}
 
       {!loading && !error && (
         <>
@@ -439,7 +417,7 @@ export function DailysBoard() {
               onClose={() => setDailyFlowActive(false)}
             />
           )}
-          <KpiStrip stories={filteredStories} />
+          <KpiStrip stories={boardStories} />
           <div className="dailys-board__groups">
             {groups.length === 0 && <p className="dailys-board__status">Inga kort matchar filtret.</p>}
             {groups.map((group) => (

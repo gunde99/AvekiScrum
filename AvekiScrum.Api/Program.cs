@@ -3,6 +3,7 @@ using AvekiScrum.Application.Abstractions.Services;
 using AvekiScrum.Application.Boards.Dailys;
 using AvekiScrum.Application.Configuration;
 using AvekiScrum.Application.Models.DTOs.Scrum;
+using AvekiScrum.Application.Models.Enums;
 using AvekiScrum.Domain.Entities.Scrum;
 using AvekiScrum.Infrastructure.AzureDevOps;
 using AvekiScrum.Infrastructure.Configuration;
@@ -113,21 +114,58 @@ app.MapGet("/api/dailys", async (
     // show cards owned by this team's own developers - not colleagues from the other team who
     // happen to have a card filed under a shared area path. Unassigned cards stay visible since
     // they can't be attributed to either team yet.
+    // Only story/bug cards are checked against this list - a Task always stays with its parent
+    // story regardless of who it's assigned to, otherwise tasks handed off to a QA engineer (who
+    // isn't in the Developers role group) silently vanish from an otherwise-included story.
     var teamDeveloperEmails = new HashSet<string>(
         teamRoleProvider.GetTeamMembersForRoleGroup(TeamRoleType.Developers, $"Team{developerTeam}"),
         StringComparer.OrdinalIgnoreCase);
-    var scopedWorkItems = teamDeveloperEmails.Count == 0
-        ? workItems
-        : workItems
-            .Where(wi => string.IsNullOrWhiteSpace(wi.AssignedToEmail) || teamDeveloperEmails.Contains(wi.AssignedToEmail))
+
+    // Cards owned by the team's own PO don't belong on the developer-focused board either, but
+    // the daily-flow's PO turn still needs them - so they're kept (marked via
+    // ownedByProductOwner) instead of dropped outright, and the client hides them from the normal
+    // board view.
+    var teamProductOwnerEmails = new HashSet<string>(
+        teamRoleProvider.GetTeamMembersForRoleGroup(TeamRoleType.ProductOwners, $"Team{developerTeam}"),
+        StringComparer.OrdinalIgnoreCase);
+
+    bool IsOwnedByTeam(AvekiScrum.Application.Models.DTOs.Scrum.WorkItemDto wi) =>
+        string.IsNullOrWhiteSpace(wi.AssignedToEmail) || teamDeveloperEmails.Contains(wi.AssignedToEmail);
+
+    bool IsOwnedByProductOwner(AvekiScrum.Application.Models.DTOs.Scrum.WorkItemDto wi) =>
+        !string.IsNullOrWhiteSpace(wi.AssignedToEmail) && teamProductOwnerEmails.Contains(wi.AssignedToEmail);
+
+    List<AvekiScrum.Application.Models.DTOs.Scrum.WorkItemDto> scopedWorkItems;
+    HashSet<int> productOwnerStoryIds;
+    if (teamDeveloperEmails.Count == 0 && teamProductOwnerEmails.Count == 0)
+    {
+        scopedWorkItems = workItems.ToList();
+        productOwnerStoryIds = new HashSet<int>();
+    }
+    else
+    {
+        var developerOwnedStoryIds = workItems
+            .Where(wi => wi.TypeEnum != WorkItemType.Task && IsOwnedByTeam(wi))
+            .Select(wi => wi.Id)
+            .ToHashSet();
+        productOwnerStoryIds = workItems
+            .Where(wi => wi.TypeEnum != WorkItemType.Task && IsOwnedByProductOwner(wi))
+            .Select(wi => wi.Id)
+            .ToHashSet();
+        var visibleStoryIds = developerOwnedStoryIds.Union(productOwnerStoryIds).ToHashSet();
+        scopedWorkItems = workItems
+            .Where(wi => wi.TypeEnum == WorkItemType.Task
+                ? wi.ParentId.HasValue && visibleStoryIds.Contains(wi.ParentId.Value)
+                : visibleStoryIds.Contains(wi.Id))
             .ToList();
+    }
 
     var backlogByTeam = new Dictionary<DeveloperTeam, IReadOnlyList<AvekiScrum.Application.Models.DTOs.Scrum.WorkItemDto>>
     {
         [developerTeam] = scopedWorkItems
     };
 
-    var json = await builder.BuildJsonAsync(selectedSprint, backlogByTeam);
+    var json = await builder.BuildJsonAsync(selectedSprint, backlogByTeam, productOwnerStoryIds);
     return Results.Content(json, "application/json");
 })
 .WithName("GetDailys");
