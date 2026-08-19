@@ -89,6 +89,8 @@
 .wi-modal__iteration {
   font-size: 0.75rem;
   color: var(--color-text-muted);
+  font-family: "Cascadia Code", Consolas, monospace;
+  white-space: nowrap;
 }
 
 .wi-modal__check {

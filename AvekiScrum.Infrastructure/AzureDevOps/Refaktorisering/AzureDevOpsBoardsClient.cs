@@ -491,14 +491,25 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             if (fields == null || fields.Count == 0)
                 return;
 
-            // A null value clears a field (e.g. an Identity field like Development Partner) - Azure
-            // rejects "add" with a null value ("Value cannot be null"), it needs a "remove" op with
-            // no value property at all instead.
+            // Two Azure quirks decide which JSON-Patch op we emit:
+            //
+            // 1. Clearing a field needs "remove" (no value property at all), not "add". "add" with
+            //    null is rejected outright ("Value cannot be null"), and "add" with "" is worse:
+            //    Azure answers 200 but silently keeps the old value. So null and "" both mean clear.
+            //
+            // 2. "add" on System.Tags *merges* with the existing tags instead of replacing them, so
+            //    writing back the remaining tags to drop one is a silent no-op. "replace" overwrites
+            //    properly and works even when the work item has no tags yet, so tags always use it.
             var patch = fields
                 .Where(field => !string.IsNullOrWhiteSpace(field.Key))
-                .Select(field => field.Value is null
+                .Select(field => field.Value is null or ""
                     ? (object)new { op = "remove", path = "/fields/" + field.Key }
-                    : new { op = "add", path = "/fields/" + field.Key, value = field.Value })
+                    : new
+                    {
+                        op = field.Key == "System.Tags" ? "replace" : "add",
+                        path = "/fields/" + field.Key,
+                        value = field.Value
+                    })
                 .ToList();
 
             if (patch.Count == 0)

@@ -7,13 +7,20 @@ import { fetchSprintGoals, type SprintGoal } from "../../api/sprintGoals";
 import { fetchTeamRoles } from "../../api/people";
 import { updateWorkItemFields } from "../../api/workitems";
 import { DailyFlow } from "./DailyFlow";
-import { FilterPanel, type TagFilterState } from "./FilterPanel";
+import { FilterPanel, WORK_ITEM_TYPES, type TagFilterState, type WorkItemTypeKey } from "./FilterPanel";
 import { GroupCard } from "./GroupCard";
 import { KpiStrip } from "./KpiStrip";
 import { SprintGoalModal } from "./SprintGoalModal";
 import { WorkItemModal } from "../../components/workitem/WorkItemModal";
 import { WorkItemValidationModal } from "../../components/workitem/WorkItemValidationModal";
-import { buildGroups, isStaleClosed, type GroupMode, type FlowLaneStage } from "./dailysLogic";
+import {
+  buildGroups,
+  isStaleClosed,
+  matchesTestFilter,
+  type GroupMode,
+  type FlowLaneStage,
+  type TestFilterKey,
+} from "./dailysLogic";
 import "./DailysBoard.css";
 
 const LANE_TO_AZURE_STATE: Record<FlowLaneStage, string> = {
@@ -57,6 +64,10 @@ export function DailysBoard() {
   const [tagFilters, setTagFilters] = useState<Map<string, TagFilterState>>(new Map());
   // On by default: settled work shouldn't weigh down the daily view once the team has seen it.
   const [hideStaleClosed, setHideStaleClosed] = useState(true);
+  // Both types shown by default; unticking one hides that card type.
+  const [selectedTypes, setSelectedTypes] = useState<Set<WorkItemTypeKey>>(new Set(["story", "bug"]));
+  // Empty means "no test constraint" - any selected key narrows to cards matching at least one.
+  const [testFilters, setTestFilters] = useState<Set<TestFilterKey>>(new Set());
   const [openWorkItemId, setOpenWorkItemId] = useState<number | null>(null);
   const [openValidationId, setOpenValidationId] = useState<number | null>(null);
   const [sprintGoals, setSprintGoals] = useState<SprintGoal[]>([]);
@@ -76,6 +87,8 @@ export function DailysBoard() {
         setOpenGroups(new Set());
         setSelectedStatuses(null); // reset to "all" for the freshly loaded team's status set
         setTagFilters(new Map());
+        setSelectedTypes(new Set(WORK_ITEM_TYPES.map((t) => t.key)));
+        setTestFilters(new Set());
         setDailyFlowActive(false);
         setFlowHighlightGroupId(null);
         setLoading(false);
@@ -162,6 +175,9 @@ export function DailysBoard() {
     const excludeTags = [...tagFilters.entries()].filter(([, state]) => state === "exclude").map(([t]) => t);
     return stories.filter((s) => {
       if (hideStaleClosed && isStaleClosed(s)) return false;
+      if (!selectedTypes.has(s.type === "Bug" ? "bug" : "story")) return false;
+      // Selected test filters are OR-ed: show cards matching at least one of them.
+      if (testFilters.size > 0 && ![...testFilters].some((key) => matchesTestFilter(s, key))) return false;
       if (!activeStatuses.has(s.azureStatus)) return false;
       if (query && !s.title.toLowerCase().includes(query) && !String(s.id).includes(query)) return false;
       if (includeTags.some((tag) => !s.tags.includes(tag))) return false;
@@ -169,7 +185,7 @@ export function DailysBoard() {
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stories, searchText, selectedStatuses, tagFilters, hideStaleClosed]);
+  }, [stories, searchText, selectedStatuses, tagFilters, hideStaleClosed, selectedTypes, testFilters]);
 
   // Counts what this filter actually removes from view. PO-owned cards are excluded because the
   // board never shows them anyway - counting them made the label claim more hidden cards than
@@ -255,6 +271,24 @@ export function DailysBoard() {
     );
   }, []);
 
+  const handleReviewTagCleared = useCallback((storyId: number) => {
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            teams: prev.teams.map((t) => ({
+              ...t,
+              stories: t.stories.map((s) =>
+                s.id === storyId
+                  ? { ...s, tags: s.tags.filter((tag) => tag.trim().toLowerCase() !== "stäm av med teamet") }
+                  : s,
+              ),
+            })),
+          }
+        : prev,
+    );
+  }, []);
+
   const handleFlowHighlightChange = useCallback((groupId: string | null) => {
     setFlowHighlightGroupId(groupId);
     // Only the current developer's group should be expanded during the flow - collapse
@@ -274,6 +308,24 @@ export function DailysBoard() {
       }, 120);
     }
   }, []);
+
+  function toggleType(type: WorkItemTypeKey) {
+    setSelectedTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
+      return next;
+    });
+  }
+
+  function toggleTestFilter(key: TestFilterKey) {
+    setTestFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   function cycleTag(tag: string) {
     setTagFilters((prev) => {
@@ -404,6 +456,10 @@ export function DailysBoard() {
             hideStaleClosed={hideStaleClosed}
             onToggleStaleClosed={() => setHideStaleClosed((v) => !v)}
             staleClosedCount={staleClosedCount}
+            selectedTypes={selectedTypes}
+            onToggleType={toggleType}
+            testFilters={testFilters}
+            onToggleTestFilter={toggleTestFilter}
           />
         </div>
       </div>
@@ -429,6 +485,7 @@ export function DailysBoard() {
               onTaskAssigned={handleTaskAssigned}
               sprintGoalsByNumber={sprintGoalsByNumber}
               onOpenValidation={setOpenValidationId}
+              onReviewTagCleared={handleReviewTagCleared}
               onClose={() => setDailyFlowActive(false)}
             />
           )}

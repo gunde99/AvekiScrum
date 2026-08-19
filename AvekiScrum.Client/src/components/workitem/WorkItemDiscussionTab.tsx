@@ -9,9 +9,17 @@ export function WorkItemDiscussionTab({ comments }: { comments: WorkItemComment[
     return <p className="wi-empty-state">Inga kommentarer än.</p>;
   }
 
+  // Newest first, matching Azure DevOps' own discussion view. Sorted here rather than trusting
+  // the order the API happens to return - undated comments sink to the bottom.
+  const ordered = [...comments].sort((a, b) => {
+    const at = a.createdDate ? new Date(a.createdDate).getTime() : -Infinity;
+    const bt = b.createdDate ? new Date(b.createdDate).getTime() : -Infinity;
+    return bt - at;
+  });
+
   return (
     <div className="wi-discussion">
-      {comments.map((c, i) => (
+      {ordered.map((c, i) => (
         <div className="wi-comment" key={i}>
           <div className="wi-comment__meta">
             <PersonAvatar name={c.author} size={24} />

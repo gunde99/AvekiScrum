@@ -4,10 +4,32 @@
   gap: var(--space-3);
 }
 
+/* Status carries the longest text by far ("Resolved · Code complete and unit tests pass"), so it
+   gets the widest track instead of wrapping while the columns beside it sit half empty. */
 .wi-fields-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: minmax(170px, 1fr) minmax(300px, 1.7fr) minmax(100px, 0.6fr) minmax(100px, 0.6fr);
   gap: var(--space-3);
+}
+
+.wi-fields-row2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: start;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.wi-field--area {
+  justify-self: end;
+  text-align: right;
+  min-width: 0;
+}
+
+.wi-field--area .wi-field__value {
+  text-align: right;
 }
 
 .wi-field {

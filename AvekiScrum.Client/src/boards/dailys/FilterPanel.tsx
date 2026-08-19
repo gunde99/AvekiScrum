@@ -1,6 +1,13 @@
-import { useState } from "react";
-import { CLOSED_STALE_WORKING_DAYS } from "./dailysLogic";
+import { useState, type ReactNode } from "react";
+import { CLOSED_STALE_WORKING_DAYS, TEST_FILTER_LABELS, type TestFilterKey } from "./dailysLogic";
 import "./FilterPanel.css";
+
+export type WorkItemTypeKey = "story" | "bug";
+
+export const WORK_ITEM_TYPES: { key: WorkItemTypeKey; label: string }[] = [
+  { key: "story", label: "Stories" },
+  { key: "bug", label: "Buggar" },
+];
 
 function FilterIcon() {
   return (
@@ -27,6 +34,10 @@ interface FilterPanelProps {
   hideStaleClosed: boolean;
   onToggleStaleClosed: () => void;
   staleClosedCount: number;
+  selectedTypes: Set<WorkItemTypeKey>;
+  onToggleType: (type: WorkItemTypeKey) => void;
+  testFilters: Set<TestFilterKey>;
+  onToggleTestFilter: (key: TestFilterKey) => void;
 }
 
 export function FilterPanel({
@@ -44,16 +55,22 @@ export function FilterPanel({
   hideStaleClosed,
   onToggleStaleClosed,
   staleClosedCount,
+  selectedTypes,
+  onToggleType,
+  testFilters,
+  onToggleTestFilter,
 }: FilterPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  // The stale-closed filter is on by default, so it only counts as an "active filter" when the
-  // user has turned it OFF to see everything - otherwise the badge would always show at least 1.
+  // Counts deviations from the default view: the stale-closed filter and both type pills are on
+  // by default, so they only count once the user has turned something off.
   const activeFilterCount =
     (searchText.trim() ? 1 : 0) +
     (selectedStatuses.size < statuses.length ? 1 : 0) +
     tagFilters.size +
-    (hideStaleClosed ? 0 : 1);
+    (hideStaleClosed ? 0 : 1) +
+    (selectedTypes.size < WORK_ITEM_TYPES.length ? 1 : 0) +
+    testFilters.size;
 
   if (!isOpen) {
     return (
@@ -79,71 +96,123 @@ export function FilterPanel({
           <FilterIcon />
         </button>
       </div>
-      <div className="filter-panel__statuses">
-        {statuses.map((status) => {
-          const active = selectedStatuses.has(status);
-          return (
-            <button
-              key={status}
-              type="button"
-              className={"status-pill" + (active ? " status-pill--active" : "")}
-              onClick={() => onToggleStatus(status)}
-            >
-              {status}
-            </button>
-          );
-        })}
-        {statuses.length > 1 && (
-          <span className="filter-panel__quick-actions">
-            <button type="button" onClick={onSelectAll}>
-              Alla
-            </button>
-            <button type="button" onClick={onSelectNone}>
-              Ingen
-            </button>
-          </span>
-        )}
-      </div>
+      <FilterGroup
+        label="Status"
+        actions={
+          statuses.length > 1 ? (
+            <span className="filter-panel__quick-actions">
+              <button type="button" onClick={onSelectAll}>
+                Alla
+              </button>
+              <button type="button" onClick={onSelectNone}>
+                Ingen
+              </button>
+            </span>
+          ) : null
+        }
+      >
+        {statuses.map((status) => (
+          <button
+            key={status}
+            type="button"
+            className={"status-pill" + (selectedStatuses.has(status) ? " status-pill--active" : "")}
+            onClick={() => onToggleStatus(status)}
+          >
+            {status}
+          </button>
+        ))}
+      </FilterGroup>
 
-      <label className="filter-panel__stale">
-        <input type="checkbox" checked={hideStaleClosed} onChange={onToggleStaleClosed} />
-        <span>
-          Dölj kort stängda mer än {CLOSED_STALE_WORKING_DAYS} arbetsdagar
-          {staleClosedCount > 0 && <span className="filter-panel__stale-count"> ({staleClosedCount} st)</span>}
-        </span>
-      </label>
+      <FilterGroup label="Korttyp">
+        {WORK_ITEM_TYPES.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            className={"status-pill" + (selectedTypes.has(t.key) ? " status-pill--active" : "")}
+            onClick={() => onToggleType(t.key)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </FilterGroup>
+
+      <FilterGroup label="Tester" hint="Kort med testkort som…">
+        {(Object.keys(TEST_FILTER_LABELS) as TestFilterKey[]).map((key) => (
+          <button
+            key={key}
+            type="button"
+            className={"status-pill" + (testFilters.has(key) ? " status-pill--active" : "")}
+            onClick={() => onToggleTestFilter(key)}
+          >
+            {TEST_FILTER_LABELS[key]}
+          </button>
+        ))}
+      </FilterGroup>
+
+      <FilterGroup label="Stängda kort">
+        <label className="filter-panel__stale">
+          <input type="checkbox" checked={hideStaleClosed} onChange={onToggleStaleClosed} />
+          <span>
+            Dölj kort stängda mer än {CLOSED_STALE_WORKING_DAYS} arbetsdagar
+            {staleClosedCount > 0 && <span className="filter-panel__stale-count"> ({staleClosedCount} st)</span>}
+          </span>
+        </label>
+      </FilterGroup>
 
       {tags.length > 0 && (
-        <div className="filter-panel__tags">
-          <div className="filter-panel__tags-head">
-            <span className="filter-panel__tags-label">Taggar</span>
-            <span className="filter-panel__tags-hint">Klicka: tänd (måste finnas) → släckt (får ej finnas) → av</span>
-            {tagFilters.size > 0 && (
-              <button type="button" className="filter-panel__tags-clear" onClick={onClearTags}>
+        <FilterGroup
+          label="Taggar"
+          hint="Klicka: tänd (måste finnas) → släckt (får ej finnas) → av"
+          actions={
+            tagFilters.size > 0 ? (
+              <button type="button" className="filter-panel__group-clear" onClick={onClearTags}>
                 Rensa taggar
               </button>
-            )}
-          </div>
-          <div className="filter-panel__tags-list">
-            {tags.map((tag) => {
-              const state = tagFilters.get(tag);
-              const cls =
-                state === "include"
-                  ? "tag-pill tag-pill--include"
-                  : state === "exclude"
-                    ? "tag-pill tag-pill--exclude"
-                    : "tag-pill";
-              return (
-                <button key={tag} type="button" className={cls} onClick={() => onCycleTag(tag)}>
-                  {state === "include" && "+ "}
-                  {state === "exclude" && "− "}
-                  {tag}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+            ) : null
+          }
+        >
+          {tags.map((tag) => {
+            const state = tagFilters.get(tag);
+            const cls =
+              state === "include"
+                ? "tag-pill tag-pill--include"
+                : state === "exclude"
+                  ? "tag-pill tag-pill--exclude"
+                  : "tag-pill";
+            return (
+              <button key={tag} type="button" className={cls} onClick={() => onCycleTag(tag)}>
+                {state === "include" && "+ "}
+                {state === "exclude" && "− "}
+                {tag}
+              </button>
+            );
+          })}
+        </FilterGroup>
       )}
+    </div>
+  );
+}
+
+/** One labelled block of filter controls, so every group reads the same way. */
+function FilterGroup({
+  label,
+  hint,
+  actions,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="filter-panel__group">
+      <div className="filter-panel__group-head">
+        <span className="filter-panel__group-label">{label}</span>
+        {hint && <span className="filter-panel__group-hint">{hint}</span>}
+        {actions}
+      </div>
+      <div className="filter-panel__group-body">{children}</div>
     </div>
   );
 }

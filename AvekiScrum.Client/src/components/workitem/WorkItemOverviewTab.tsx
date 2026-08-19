@@ -41,7 +41,7 @@ export function WorkItemOverviewTab({ detail, editing, draft, onDraftChange }: W
             )}
           </div>
 
-          <div className="wi-field">
+          <div className="wi-field wi-field--status">
             <label>Status</label>
             {editing ? (
               <select value={draft.state} onChange={(e) => onDraftChange({ state: e.target.value })}>
@@ -75,17 +75,18 @@ export function WorkItemOverviewTab({ detail, editing, draft, onDraftChange }: W
             </div>
           )}
 
+          {/* Priority applies to every work item type, not just bugs - only Severity is
+              bug-specific. */}
+          <div className="wi-field">
+            <label>Prioritet</label>
+            <div className="wi-field__value">{detail.priority ?? "–"}</div>
+          </div>
+
           {config.showSeverityPriority && (
-            <>
-              <div className="wi-field">
-                <label>Severity</label>
-                <div className="wi-field__value">{detail.severity ?? "–"}</div>
-              </div>
-              <div className="wi-field">
-                <label>Prioritet</label>
-                <div className="wi-field__value">{detail.priority ?? "–"}</div>
-              </div>
-            </>
+            <div className="wi-field">
+              <label>Severity</label>
+              <div className="wi-field__value">{detail.severity ?? "–"}</div>
+            </div>
           )}
 
           {config.showSource && (
@@ -118,25 +119,12 @@ export function WorkItemOverviewTab({ detail, editing, draft, onDraftChange }: W
             </div>
           )}
 
-          <div className="wi-field wi-field--full">
-            <label>Area Path</label>
-            {editing ? (
-              <input type="text" value={draft.areaPath ?? ""} onChange={(e) => onDraftChange({ areaPath: e.target.value })} />
-            ) : (
-              <div className="wi-field__value wi-field__value--path">{detail.areaPath ?? "–"}</div>
-            )}
-          </div>
+        </div>
 
-          <div className="wi-field wi-field--full">
-            <label>Iteration Path</label>
-            {editing ? (
-              <input type="text" value={draft.iterationPath ?? ""} onChange={(e) => onDraftChange({ iterationPath: e.target.value })} />
-            ) : (
-              <div className="wi-field__value wi-field__value--path">{detail.iterationPath ?? "–"}</div>
-            )}
-          </div>
-
-          <div className="wi-field wi-field--full">
+        {/* Second row: tags take the width they need, Area Path sits right-aligned at the end.
+            Iteration Path lives in the card header instead - it's identity, not a field. */}
+        <div className="wi-fields-row2">
+          <div className="wi-field">
             <label>Taggar</label>
             {editing ? (
               <TagEditor tags={draft.tags ?? []} onChange={(tags) => onDraftChange({ tags })} />
@@ -152,6 +140,15 @@ export function WorkItemOverviewTab({ detail, editing, draft, onDraftChange }: W
                   "–"
                 )}
               </div>
+            )}
+          </div>
+
+          <div className="wi-field wi-field--area">
+            <label>Area Path</label>
+            {editing ? (
+              <input type="text" value={draft.areaPath ?? ""} onChange={(e) => onDraftChange({ areaPath: e.target.value })} />
+            ) : (
+              <div className="wi-field__value wi-field__value--path">{detail.areaPath ?? "–"}</div>
             )}
           </div>
         </div>

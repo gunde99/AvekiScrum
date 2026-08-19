@@ -123,8 +123,6 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--color-border);
   font-size: 0.78rem;
   color: var(--color-text);
   cursor: pointer;
@@ -134,7 +132,7 @@
   color: var(--color-text-muted);
 }
 
-.filter-panel__tags {
+.filter-panel__group {
   border-top: 1px solid var(--color-border);
   padding-top: var(--space-2);
   display: flex;
@@ -142,13 +140,18 @@
   gap: var(--space-1);
 }
 
-.filter-panel__tags-head {
+.filter-panel__group:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.filter-panel__group-head {
   display: flex;
   align-items: center;
   gap: var(--space-2);
 }
 
-.filter-panel__tags-label {
+.filter-panel__group-label {
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -156,14 +159,18 @@
   letter-spacing: 0.02em;
 }
 
-.filter-panel__tags-hint {
+.filter-panel__group-hint {
   font-size: 0.68rem;
   color: var(--color-text-muted);
   opacity: 0.8;
 }
 
-.filter-panel__tags-clear {
+.filter-panel__group-clear,
+.filter-panel__quick-actions {
   margin-left: auto;
+}
+
+.filter-panel__group-clear {
   background: none;
   border: none;
   color: var(--color-text-muted);
@@ -173,14 +180,15 @@
   padding: 0;
 }
 
-.filter-panel__tags-clear:hover {
+.filter-panel__group-clear:hover {
   color: var(--color-primary);
 }
 
-.filter-panel__tags-list {
+.filter-panel__group-body {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
+  align-items: center;
 }
 
 .tag-pill {

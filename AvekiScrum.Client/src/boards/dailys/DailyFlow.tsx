@@ -57,6 +57,8 @@ interface DailyFlowProps {
   sprintGoalsByNumber?: Map<number, SprintGoal>;
   /** Lets the embedded card's "Validering" button open the validation dialog on the board. */
   onOpenValidation?: (id: number) => void;
+  /** Lets the board drop the review tag from its local copy once it's been cleared in Azure. */
+  onReviewTagCleared?: (storyId: number) => void;
   onClose: () => void;
 }
 
@@ -70,6 +72,7 @@ export function DailyFlow({
   onTaskAssigned,
   sprintGoalsByNumber,
   onOpenValidation,
+  onReviewTagCleared,
   onClose,
 }: DailyFlowProps) {
   const [roles, setRoles] = useState<{ po: PersonOption | null; testLead: PersonOption | null } | null>(null);
@@ -79,6 +82,11 @@ export function DailyFlow({
   const [checkIns, setCheckIns] = useState<Record<string, number>>({});
   const [total, setTotal] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
+  // Ticked by default: showing the card in the daily is what the tag asked for, so it comes off
+  // afterwards. Untick to keep it for tomorrow.
+  const [clearTagOnNext, setClearTagOnNext] = useState(true);
+  const [clearedReviewIds, setClearedReviewIds] = useState<Set<string>>(new Set());
+  const { showToast } = useToast();
 
   // Build the order once, when the flow starts - later filter changes on the board don't
   // reshuffle or resize an already-running flow.
@@ -152,8 +160,34 @@ export function DailyFlow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * Leaving a review step normally clears its "Stäm av med teamet" tag - the card has now been
+   * shown, which is what the tag was asking for. Unticking the box leaves the tag in place so the
+   * card comes back tomorrow. Failure is reported but never blocks moving on: the daily shouldn't
+   * stall on a bookkeeping write.
+   */
+  async function clearReviewTag(step: FlowStep) {
+    const story = allStories.find((s) => s.id === step.workItemId);
+    if (!story) return;
+    const nextTags = (story.tags ?? []).filter((t) => t.trim().toLowerCase() !== REVIEW_TAG.toLowerCase());
+    try {
+      await updateWorkItemFields(story.id, { tags: nextTags });
+      onReviewTagCleared?.(story.id);
+      showToast(`Taggen "${REVIEW_TAG}" borttagen från #${story.id}.`, "success");
+    } catch (err) {
+      showToast(
+        `Kunde inte ta bort taggen från #${story.id}: ${err instanceof Error ? err.message : "Okänt fel"}`,
+        "error",
+      );
+    }
+  }
+
   function goNext() {
     if (!current) return;
+    if (current.kind === "review" && clearTagOnNext && !clearedReviewIds.has(current.key)) {
+      setClearedReviewIds((prev) => new Set(prev).add(current.key));
+      void clearReviewTag(current);
+    }
     setHistory((h) => [...h, current]);
     setCurrent(queue[0] ?? null);
     setQueue((q) => q.slice(1));
@@ -217,8 +251,14 @@ export function DailyFlow({
         </div>
 
         <div className="daily-flow__review">
-          <div className="daily-flow__review-count">
-            Visar kort {stepNumber}/{reviewTotal}
+          <div className="daily-flow__review-bar">
+            <span className="daily-flow__review-count">
+              Visar kort {stepNumber}/{reviewTotal}
+            </span>
+            <label className="daily-flow__review-clear">
+              <input type="checkbox" checked={clearTagOnNext} onChange={(e) => setClearTagOnNext(e.target.checked)} />
+              Ta bort taggen "{REVIEW_TAG}" när jag går vidare
+            </label>
           </div>
           <div className="daily-flow__review-card">
             <WorkItemModal

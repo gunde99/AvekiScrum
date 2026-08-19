@@ -148,7 +148,9 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
                   #{detail.id} ↗
                 </a>
                 <span className="wi-modal__state-badge">{detail.state}</span>
-                {detail.iterationPath && <span className="wi-modal__iteration">{detail.iterationPath.split("\\").pop()}</span>}
+                {/* Full path, not just the leaf - this is where Iteration Path lives now that
+                    it's no longer a field in the Översikt grid. */}
+                {detail.iterationPath && <span className="wi-modal__iteration">{detail.iterationPath}</span>}
                 {dorEligible && hasTag(detail.tags, "DoR") && (
                   <span className="wi-modal__check" title="DoR godkänd">
                     ✓ DoR

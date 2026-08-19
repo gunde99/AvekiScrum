@@ -148,6 +148,22 @@ export function ageLabel(date: string | null | undefined): string {
   return `${diff}d`;
 }
 
+// ─── Test-status filters ──────────────────────────────────────────────────
+export type TestFilterKey = "unassigned" | "notok";
+
+export const TEST_FILTER_LABELS: Record<TestFilterKey, string> = {
+  unassigned: "Ej tilldelade",
+  notok: "Testade ej OK",
+};
+
+/** True when the story has at least one test task matching the given condition. */
+export function matchesTestFilter(story: DailyStoryDto, key: TestFilterKey): boolean {
+  const testTasks = (story.tasks ?? []).filter(isTestTask);
+  if (testTasks.length === 0) return false;
+  if (key === "unassigned") return testTasks.some((t) => !t.assignedTo || !t.assignedTo.trim());
+  return testTasks.some((t) => (t.tags ?? []).some((tag) => tag.trim().toLowerCase() === "test ej ok"));
+}
+
 // ─── "Stale closed" (settled work that no longer needs daily airtime) ─────
 /** A card closed this many working days ago or fewer still shows on the board. */
 export const CLOSED_STALE_WORKING_DAYS = 2;
