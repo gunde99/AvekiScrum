@@ -490,6 +490,32 @@
   text-decoration: line-through;
 }
 
+/* The avstämning step hosts a full work item card inline. It gets a generous but bounded
+   height so the panel can't grow past the viewport - the card scrolls internally. */
+.daily-flow__review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) 0;
+}
+
+.daily-flow__review-count {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.daily-flow__review-card {
+  height: min(62vh, 640px);
+  min-height: 320px;
+  display: flex;
+}
+
+.daily-flow__review-card > .wi-modal {
+  flex: 1;
+  min-width: 0;
+}
+
 .daily-flow__controls {
   display: flex;
   justify-content: flex-end;

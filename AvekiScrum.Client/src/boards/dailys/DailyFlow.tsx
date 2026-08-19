@@ -3,6 +3,7 @@ import { PersonAvatar } from "../../components/PersonAvatar";
 import { useToast } from "../../components/Toast";
 import { fetchAllPeople, fetchTeamRoles, type PersonOption } from "../../api/people";
 import { updateWorkItemFields } from "../../api/workitems";
+import { WorkItemModal } from "../../components/workitem/WorkItemModal";
 import type { DailyStoryDto, DailyTaskDto, DeveloperTeamId } from "../../api/dailys";
 import type { SprintGoal } from "../../api/sprintGoals";
 import { MoodGauge } from "./MoodGauge";
@@ -17,12 +18,21 @@ import {
 } from "./dailysLogic";
 import "./DailyFlow.css";
 
-type FlowStepKind = "developer" | "goal" | "po" | "testlead";
+type FlowStepKind = "review" | "developer" | "goal" | "po" | "testlead";
 
 interface FlowStep {
   kind: FlowStepKind;
   key: string; // group id for developer/goal steps, "po"/"testlead" for the closing steps
   name: string;
+  /** Review steps only: the work item to show embedded. */
+  workItemId?: number;
+}
+
+/** Cards carrying this tag are walked through together, up front, before the daily proper. */
+const REVIEW_TAG = "Stäm av med teamet";
+
+function needsTeamReview(story: DailyStoryDto): boolean {
+  return (story.tags ?? []).some((t) => t.trim().toLowerCase() === REVIEW_TAG.toLowerCase());
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -45,6 +55,8 @@ interface DailyFlowProps {
    *  immediately without a full refetch. */
   onTaskAssigned?: (taskId: number, displayName: string) => void;
   sprintGoalsByNumber?: Map<number, SprintGoal>;
+  /** Lets the embedded card's "Validering" button open the validation dialog on the board. */
+  onOpenValidation?: (id: number) => void;
   onClose: () => void;
 }
 
@@ -57,6 +69,7 @@ export function DailyFlow({
   onOpenWorkItem,
   onTaskAssigned,
   sprintGoalsByNumber,
+  onOpenValidation,
   onClose,
 }: DailyFlowProps) {
   const [roles, setRoles] = useState<{ po: PersonOption | null; testLead: PersonOption | null } | null>(null);
@@ -65,20 +78,33 @@ export function DailyFlow({
   const [history, setHistory] = useState<FlowStep[]>([]);
   const [checkIns, setCheckIns] = useState<Record<string, number>>({});
   const [total, setTotal] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
 
   // Build the order once, when the flow starts - later filter changes on the board don't
   // reshuffle or resize an already-running flow.
   useEffect(() => {
     let cancelled = false;
 
+    // Cards tagged "Stäm av med teamet" are walked through first, whichever mode the daily runs
+    // in. With none tagged this is simply empty and the daily starts as before.
+    const reviewSteps: FlowStep[] = allStories
+      .filter(needsTeamReview)
+      .sort((a, b) => a.id - b.id)
+      .map((s) => ({ kind: "review" as const, key: `review-${s.id}`, name: s.title, workItemId: s.id }));
+
+    const start = (rest: FlowStep[]) => {
+      const fullOrder = [...reviewSteps, ...rest];
+      setReviewCount(reviewSteps.length);
+      setTotal(fullOrder.length);
+      setCurrent(fullOrder[0] ?? null);
+      setQueue(fullOrder.slice(1));
+    };
+
     if (mode === "goals") {
       // Sprint goals keep their existing (meaningful) order instead of being shuffled, and
       // there's no PO/testlead closing step - that pairing is specific to the per-developer
       // standup.
-      const goalSteps: FlowStep[] = groups.map((g) => ({ kind: "goal", key: g.id, name: g.label }));
-      setTotal(goalSteps.length);
-      setCurrent(goalSteps[0] ?? null);
-      setQueue(goalSteps.slice(1));
+      start(groups.map((g) => ({ kind: "goal", key: g.id, name: g.label })));
       return;
     }
 
@@ -109,10 +135,7 @@ export function DailyFlow({
         ]);
         const poStep: FlowStep = { kind: "po", key: "po", name: r.po?.displayName || "Product Owner" };
         const testStep: FlowStep = { kind: "testlead", key: "testlead", name: r.testLead?.displayName || "Testansvarig" };
-        const fullOrder = [...devSteps, poStep, testStep];
-        setTotal(fullOrder.length);
-        setCurrent(fullOrder[0] ?? null);
-        setQueue(fullOrder.slice(1));
+        start([...devSteps, poStep, testStep]);
       });
     return () => {
       cancelled = true;
@@ -179,6 +202,46 @@ export function DailyFlow({
   }
 
   const stepNumber = total - queue.length;
+
+  if (current.kind === "review") {
+    // Review cards always sit at the front of the queue, so the current one's position among
+    // them is just its step number.
+    const reviewTotal = reviewCount;
+    return (
+      <div className="daily-flow">
+        <div className="daily-flow__head">
+          <span className="daily-flow__progress">Kort som behöver stämmas av</span>
+          <button type="button" className="daily-flow__close" onClick={onClose} aria-label="Avsluta daily-flöde">
+            ✕
+          </button>
+        </div>
+
+        <div className="daily-flow__review">
+          <div className="daily-flow__review-count">
+            Visar kort {stepNumber}/{reviewTotal}
+          </div>
+          <div className="daily-flow__review-card">
+            <WorkItemModal
+              key={current.workItemId}
+              workItemId={current.workItemId!}
+              embedded
+              onClose={() => undefined}
+              onOpenValidation={onOpenValidation}
+            />
+          </div>
+        </div>
+
+        <div className="daily-flow__controls">
+          <button type="button" className="daily-flow__btn" onClick={goBack} disabled={history.length === 0}>
+            ← Föregående
+          </button>
+          <button type="button" className="daily-flow__btn daily-flow__btn--primary" onClick={goNext}>
+            {queue.length === 0 ? "Avsluta" : "Nästa →"}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="daily-flow">

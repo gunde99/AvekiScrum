@@ -414,6 +414,7 @@ export function DailysBoard() {
               onOpenWorkItem={setOpenWorkItemId}
               onTaskAssigned={handleTaskAssigned}
               sprintGoalsByNumber={sprintGoalsByNumber}
+              onOpenValidation={setOpenValidationId}
               onClose={() => setDailyFlowActive(false)}
             />
           )}

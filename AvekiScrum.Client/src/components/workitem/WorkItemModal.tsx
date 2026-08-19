@@ -15,6 +15,10 @@ interface WorkItemModalProps {
   workItemId: number;
   onClose: () => void;
   onOpenValidation?: (id: number) => void;
+  /** Renders the card inline (no overlay, no close button, no Escape handler) so it can be
+   *  hosted inside another panel - e.g. the daily flow's "stäm av med teamet" step - while
+   *  keeping every tab and action identical to the popup version. */
+  embedded?: boolean;
 }
 
 type TabId = "overview" | "relations" | "taskboard" | "discussion" | "prs" | "history" | "details";
@@ -25,7 +29,7 @@ function hasTag(tags: string[], tag: string): boolean {
   return tags.some((t) => t.trim().toLowerCase() === tag.toLowerCase());
 }
 
-export function WorkItemModal({ workItemId, onClose, onOpenValidation }: WorkItemModalProps) {
+export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded = false }: WorkItemModalProps) {
   const [stack, setStack] = useState<BreadcrumbHop[]>([{ id: workItemId, type: "", title: "…", relationLabel: null }]);
   const [detail, setDetail] = useState<WorkItemDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,12 +67,14 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation }: WorkIte
   }, [currentId]);
 
   useEffect(() => {
+    // Embedded there is nothing to dismiss - Escape must stay available to whatever hosts it.
+    if (embedded) return;
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, [onClose, embedded]);
 
   const config = useMemo(() => getWorkItemTypeConfig(detail?.type ?? ""), [detail?.type]);
 
@@ -128,9 +134,8 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation }: WorkIte
     { id: "details", label: "Details" },
   ];
 
-  return (
-    <div className="wi-modal-overlay" onClick={onClose}>
-      <div className="wi-modal" onClick={(e) => e.stopPropagation()}>
+  const panel = (
+      <div className={"wi-modal" + (embedded ? " wi-modal--embedded" : "")} onClick={(e) => e.stopPropagation()}>
         <header className="wi-modal__header">
           <span className="wi-modal__type-icon" style={{ color: config.color }}>
             {detail ? config.icon : "…"}
@@ -157,9 +162,11 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation }: WorkIte
               </div>
             )}
           </div>
-          <button type="button" className="wi-modal__close" onClick={onClose} aria-label="Stäng">
-            ✕
-          </button>
+          {!embedded && (
+            <button type="button" className="wi-modal__close" onClick={onClose} aria-label="Stäng">
+              ✕
+            </button>
+          )}
         </header>
 
         <Breadcrumb hops={stack} onJump={jumpTo} />
@@ -232,6 +239,13 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation }: WorkIte
           )}
         </footer>
       </div>
+  );
+
+  if (embedded) return panel;
+
+  return (
+    <div className="wi-modal-overlay" onClick={onClose}>
+      {panel}
     </div>
   );
 }
