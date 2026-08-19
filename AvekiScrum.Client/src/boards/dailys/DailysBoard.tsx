@@ -13,7 +13,7 @@ import { KpiStrip } from "./KpiStrip";
 import { SprintGoalModal } from "./SprintGoalModal";
 import { WorkItemModal } from "../../components/workitem/WorkItemModal";
 import { WorkItemValidationModal } from "../../components/workitem/WorkItemValidationModal";
-import { buildGroups, type GroupMode, type FlowLaneStage } from "./dailysLogic";
+import { buildGroups, isStaleClosed, type GroupMode, type FlowLaneStage } from "./dailysLogic";
 import "./DailysBoard.css";
 
 const LANE_TO_AZURE_STATE: Record<FlowLaneStage, string> = {
@@ -55,6 +55,8 @@ export function DailysBoard() {
   const [searchText, setSearchText] = useState("");
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string> | null>(null);
   const [tagFilters, setTagFilters] = useState<Map<string, TagFilterState>>(new Map());
+  // On by default: settled work shouldn't weigh down the daily view once the team has seen it.
+  const [hideStaleClosed, setHideStaleClosed] = useState(true);
   const [openWorkItemId, setOpenWorkItemId] = useState<number | null>(null);
   const [openValidationId, setOpenValidationId] = useState<number | null>(null);
   const [sprintGoals, setSprintGoals] = useState<SprintGoal[]>([]);
@@ -159,6 +161,7 @@ export function DailysBoard() {
     const includeTags = [...tagFilters.entries()].filter(([, state]) => state === "include").map(([t]) => t);
     const excludeTags = [...tagFilters.entries()].filter(([, state]) => state === "exclude").map(([t]) => t);
     return stories.filter((s) => {
+      if (hideStaleClosed && isStaleClosed(s)) return false;
       if (!activeStatuses.has(s.azureStatus)) return false;
       if (query && !s.title.toLowerCase().includes(query) && !String(s.id).includes(query)) return false;
       if (includeTags.some((tag) => !s.tags.includes(tag))) return false;
@@ -166,7 +169,15 @@ export function DailysBoard() {
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stories, searchText, selectedStatuses, tagFilters]);
+  }, [stories, searchText, selectedStatuses, tagFilters, hideStaleClosed]);
+
+  // Counts what this filter actually removes from view. PO-owned cards are excluded because the
+  // board never shows them anyway - counting them made the label claim more hidden cards than
+  // visibly disappeared when toggling.
+  const staleClosedCount = useMemo(
+    () => stories.filter((s) => !s.ownedByProductOwner && isStaleClosed(s)).length,
+    [stories],
+  );
 
   // PO-owned cards are intentionally excluded from the developer-focused board (they're not
   // fetched to be worked on by a developer) but still need to reach the daily flow's PO turn, so
@@ -390,6 +401,9 @@ export function DailysBoard() {
             tagFilters={tagFilters}
             onCycleTag={cycleTag}
             onClearTags={() => setTagFilters(new Map())}
+            hideStaleClosed={hideStaleClosed}
+            onToggleStaleClosed={() => setHideStaleClosed((v) => !v)}
+            staleClosedCount={staleClosedCount}
           />
         </div>
       </div>

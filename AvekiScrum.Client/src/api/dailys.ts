@@ -87,8 +87,13 @@ const API_BASE_URL =
 
 // On a fresh `start-local.bat` run the API (dotnet run) can still be starting up when the
 // client's first request goes out, which surfaces as a network-level "Failed to fetch" rather
-// than an HTTP error. Retry a few times with a short delay to ride out that cold-start window.
-async function fetchWithRetry(url: string, signal: AbortSignal | undefined, attempts = 6, delayMs = 750): Promise<Response> {
+// than an HTTP error. Retry to ride out that cold-start window.
+//
+// ~30s of patience: a cold start does a NuGet restore plus a full build, which measured well
+// past the 4.5s the first version allowed - so it still failed in exactly the case it was
+// written for. Costs nothing when the API is already up (the first attempt just succeeds), and
+// aborts (team switch, unmount) still bail out immediately.
+async function fetchWithRetry(url: string, signal: AbortSignal | undefined, attempts = 20, delayMs = 1500): Promise<Response> {
   for (let attempt = 1; ; attempt++) {
     try {
       return await fetch(url, { signal });

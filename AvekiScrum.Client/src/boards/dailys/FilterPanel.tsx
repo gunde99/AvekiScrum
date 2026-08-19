@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CLOSED_STALE_WORKING_DAYS } from "./dailysLogic";
 import "./FilterPanel.css";
 
 function FilterIcon() {
@@ -23,6 +24,9 @@ interface FilterPanelProps {
   tagFilters: Map<string, TagFilterState>;
   onCycleTag: (tag: string) => void;
   onClearTags: () => void;
+  hideStaleClosed: boolean;
+  onToggleStaleClosed: () => void;
+  staleClosedCount: number;
 }
 
 export function FilterPanel({
@@ -37,11 +41,19 @@ export function FilterPanel({
   tagFilters,
   onCycleTag,
   onClearTags,
+  hideStaleClosed,
+  onToggleStaleClosed,
+  staleClosedCount,
 }: FilterPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
 
+  // The stale-closed filter is on by default, so it only counts as an "active filter" when the
+  // user has turned it OFF to see everything - otherwise the badge would always show at least 1.
   const activeFilterCount =
-    (searchText.trim() ? 1 : 0) + (selectedStatuses.size < statuses.length ? 1 : 0) + tagFilters.size;
+    (searchText.trim() ? 1 : 0) +
+    (selectedStatuses.size < statuses.length ? 1 : 0) +
+    tagFilters.size +
+    (hideStaleClosed ? 0 : 1);
 
   if (!isOpen) {
     return (
@@ -92,6 +104,14 @@ export function FilterPanel({
           </span>
         )}
       </div>
+
+      <label className="filter-panel__stale">
+        <input type="checkbox" checked={hideStaleClosed} onChange={onToggleStaleClosed} />
+        <span>
+          Dölj kort stängda mer än {CLOSED_STALE_WORKING_DAYS} arbetsdagar
+          {staleClosedCount > 0 && <span className="filter-panel__stale-count"> ({staleClosedCount} st)</span>}
+        </span>
+      </label>
 
       {tags.length > 0 && (
         <div className="filter-panel__tags">

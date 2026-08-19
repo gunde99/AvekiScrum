@@ -148,6 +148,48 @@ export function ageLabel(date: string | null | undefined): string {
   return `${diff}d`;
 }
 
+// ─── "Stale closed" (settled work that no longer needs daily airtime) ─────
+/** A card closed this many working days ago or fewer still shows on the board. */
+export const CLOSED_STALE_WORKING_DAYS = 2;
+
+function parseLocalDate(iso: string): Date | null {
+  // Deliberately not `new Date(iso)`: a bare "2026-08-17" is parsed as UTC midnight, which lands
+  // on the previous day west of Greenwich and would shift the whole count by one.
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!match) return null;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** Working days (Mon-Fri) elapsed after `iso` up to and including today. Null if undatable. */
+export function workingDaysSince(iso: string | null | undefined, now: Date = new Date()): number | null {
+  const start = iso ? parseLocalDate(iso) : null;
+  if (!start) return null;
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const cursor = new Date(start);
+  cursor.setDate(cursor.getDate() + 1);
+  let count = 0;
+  while (cursor <= today) {
+    const day = cursor.getDay();
+    if (day !== 0 && day !== 6) count++;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return count;
+}
+
+/**
+ * True for cards that have been closed long enough that the team has already seen them go by in
+ * a daily or two. Weekends don't count, so a Friday close is still fresh on Tuesday.
+ */
+export function isStaleClosed(story: DailyStoryDto, now: Date = new Date()): boolean {
+  const status = (story.azureStatus || "").toLowerCase();
+  if (status !== "closed" && status !== "done") return false;
+  const days = workingDaysSince(story.completedDate, now);
+  // Undatable close - keep it visible rather than hiding something we can't reason about.
+  if (days === null) return false;
+  return days > CLOSED_STALE_WORKING_DAYS;
+}
+
 export function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "-";
   try {
