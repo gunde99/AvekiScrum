@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="AvekiScrum.Api/AvekiScrum.Api.csproj" />
+  <Project Path="AvekiScrum.Application/AvekiScrum.Application.csproj" />
+  <Project Path="AvekiScrum.Domain/AvekiScrum.Domain.csproj" />
+  <Project Path="AvekiScrum.Infrastructure/AvekiScrum.Infrastructure.csproj" />
+</Solution>

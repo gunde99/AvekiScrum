@@ -1,0 +1,548 @@
+Using launch settings from D:\Aveki\Development\Egna Projekt\WorkOrganizer\AvekiScrum\AvekiScrum.Api\Properties\launchSettings.json...
+Building...
+D:\Aveki\Development\Egna Projekt\WorkOrganizer\AvekiScrum\AvekiScrum.Application\AvekiScrum.Application.csproj : warning NU1900: Error occurred while getting package vulnerability data: Unable to load the service index for source https://pkgs.dev.azure.com/Aveki/Utveckling/_packaging/Aveki.NuGet/nuget/v3/index.json. [D:\Aveki\Development\Egna Projekt\WorkOrganizer\AvekiScrum\AvekiScrum.Api\AvekiScrum.Api.csproj]
+D:\Aveki\Development\Egna Projekt\WorkOrganizer\AvekiScrum\AvekiScrum.Infrastructure\AvekiScrum.Infrastructure.csproj : warning NU1900: Error occurred while getting package vulnerability data: Unable to load the service index for source https://pkgs.dev.azure.com/Aveki/Utveckling/_packaging/Aveki.NuGet/nuget/v3/index.json. [D:\Aveki\Development\Egna Projekt\WorkOrganizer\AvekiScrum\AvekiScrum.Api\AvekiScrum.Api.csproj]
+D:\Aveki\Development\Egna Projekt\WorkOrganizer\AvekiScrum\AvekiScrum.Api\AvekiScrum.Api.csproj : warning NU1900: Error occurred while getting package vulnerability data: Unable to load the service index for source https://pkgs.dev.azure.com/Aveki/Utveckling/_packaging/Aveki.NuGet/nuget/v3/index.json.
+D:\Aveki\Development\Egna Projekt\WorkOrganizer\AvekiScrum\AvekiScrum.Api\AvekiScrum.Api.csproj : warning NU1900: Error occurred while getting package vulnerability data: Unable to load the service index for source https://pkgs.dev.azure.com/Aveki/Utveckling/_packaging/Aveki.NuGet/nuget/v3/index.json.
+D:\Aveki\Development\Egna Projekt\WorkOrganizer\AvekiScrum\AvekiScrum.Infrastructure\AvekiScrum.Infrastructure.csproj : warning NU1900: Error occurred while getting package vulnerability data: Unable to load the service index for source https://pkgs.dev.azure.com/Aveki/Utveckling/_packaging/Aveki.NuGet/nuget/v3/index.json.
+D:\Aveki\Development\Egna Projekt\WorkOrganizer\AvekiScrum\AvekiScrum.Application\AvekiScrum.Application.csproj : warning NU1900: Error occurred while getting package vulnerability data: Unable to load the service index for source https://pkgs.dev.azure.com/Aveki/Utveckling/_packaging/Aveki.NuGet/nuget/v3/index.json.
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://localhost:5273
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Development
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: D:\Aveki\Development\Egna Projekt\WorkOrganizer\AvekiScrum\AvekiScrum.Api
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request GET https://dev.azure.com/Aveki/Utveckling/Team%20Syd/_apis/work/teamsettings/iterations?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request GET https://dev.azure.com/Aveki/Utveckling/Team%20Syd/_apis/work/teamsettings/iterations?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 134.4376ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 140.4983ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/wiql?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/wiql?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 77.4938ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 77.5999ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 71.4008ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 71.5069ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 73.0919ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 73.1913ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/git/repositories/d5ebc913-2713-48a4-bcc5-225ab0bbc079/pullrequests/6159?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/git/repositories/d5ebc913-2713-48a4-bcc5-225ab0bbc079/pullrequests/6159?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 153.6053ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 153.7064ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 62.4846ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 62.6007ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 66.6749ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 66.781ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/wit/workItems/25097/comments?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/wit/workItems/25097/comments?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 136.9087ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 137.0171ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/wit/workItems/25097/updates?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/wit/workItems/25097/updates?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 64.9347ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 65.0162ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request GET https://dev.azure.com/Aveki/Utveckling/Team%20Syd/_apis/work/teamsettings/iterations?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request GET https://dev.azure.com/Aveki/Utveckling/Team%20Syd/_apis/work/teamsettings/iterations?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request GET https://dev.azure.com/Aveki/Utveckling/Team%20Syd/_apis/work/teamsettings/iterations?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request GET https://dev.azure.com/Aveki/Utveckling/Team%20Syd/_apis/work/teamsettings/iterations?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 109.4569ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 109.5443ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/wiql?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/wiql?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 63.456ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 63.5297ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 67.3653ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 67.4289ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 66.1521ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 66.2286ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/git/repositories/d5ebc913-2713-48a4-bcc5-225ab0bbc079/pullrequests/6159?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/git/repositories/d5ebc913-2713-48a4-bcc5-225ab0bbc079/pullrequests/6159?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 93.1555ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 93.2465ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+fail: AvekiScrum.Infrastructure.AzureDevOps.AzureDevOpsBoardsClient[0]
+      Failed to fetch work item details for batch 25097
+      System.Threading.Tasks.TaskCanceledException: The operation was canceled.
+       ---> System.Threading.Tasks.TaskCanceledException: The operation was canceled.
+       ---> System.IO.IOException: Unable to read data from the transport connection: I/O-åtgärden har avbrutits därför att en tråd har avslutats eller för att ett program har begärt det..
+       ---> System.Net.Sockets.SocketException (995): I/O-åtgärden har avbrutits därför att en tråd har avslutats eller för att ett program har begärt det.
+         --- End of inner exception stack trace ---
+         at System.Net.Sockets.Socket.AwaitableSocketAsyncEventArgs.ThrowException(SocketError error, CancellationToken cancellationToken)
+         at System.Net.Sockets.Socket.AwaitableSocketAsyncEventArgs.System.Threading.Tasks.Sources.IValueTaskSource<System.Int32>.GetResult(Int16 token)
+         at System.Net.Security.SslStream.EnsureFullTlsFrameAsync[TIOAdapter](CancellationToken cancellationToken, Int32 estimatedSize)
+         at System.Runtime.CompilerServices.PoolingAsyncValueTaskMethodBuilder`1.StateMachineBox`1.System.Threading.Tasks.Sources.IValueTaskSource<TResult>.GetResult(Int16 token)
+         at System.Net.Security.SslStream.ReadAsyncInternal[TIOAdapter](Memory`1 buffer, CancellationToken cancellationToken)
+         at System.Runtime.CompilerServices.PoolingAsyncValueTaskMethodBuilder`1.StateMachineBox`1.System.Threading.Tasks.Sources.IValueTaskSource<TResult>.GetResult(Int16 token)
+         at System.Net.Http.HttpConnection.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+         --- End of inner exception stack trace ---
+         at System.Net.Http.HttpConnection.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+         at System.Net.Http.HttpConnectionPool.SendWithVersionDetectionAndRetryAsync(HttpRequestMessage request, Boolean async, Boolean doRequestAuth, CancellationToken cancellationToken)
+         at System.Net.Http.DiagnosticsHandler.SendAsyncCore(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+         at System.Net.Http.RedirectHandler.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+         at Microsoft.Extensions.Http.Logging.LoggingHttpMessageHandler.<SendCoreAsync>g__Core|4_0(HttpRequestMessage request, Boolean useAsync, CancellationToken cancellationToken)
+         at Microsoft.Extensions.Http.Logging.LoggingScopeHttpMessageHandler.<SendCoreAsync>g__Core|4_0(HttpRequestMessage request, Boolean useAsync, CancellationToken cancellationToken)
+         at System.Net.Http.HttpClient.<SendAsync>g__Core|83_0(HttpRequestMessage request, HttpCompletionOption completionOption, CancellationTokenSource cts, Boolean disposeCts, CancellationTokenSource pendingRequestsCts, CancellationToken originalCancellationToken)
+         --- End of inner exception stack trace ---
+         at System.Net.Http.HttpClient.HandleFailure(Exception e, Boolean telemetryStarted, HttpResponseMessage response, CancellationTokenSource cts, CancellationToken cancellationToken, CancellationTokenSource pendingRequestsCts)
+         at System.Net.Http.HttpClient.<SendAsync>g__Core|83_0(HttpRequestMessage request, HttpCompletionOption completionOption, CancellationTokenSource cts, Boolean disposeCts, CancellationTokenSource pendingRequestsCts, CancellationToken originalCancellationToken)
+         at AvekiScrum.Infrastructure.AzureDevOps.AzureDevOpsRestClient.PostJsonAsync[T](String url, T body, CancellationToken ct) in D:\Aveki\Development\Egna Projekt\WorkOrganizer\AvekiScrum\AvekiScrum.Infrastructure\AzureDevOps\Refaktorisering\AzureDevOpsRestClient.cs:line 95
+         at AvekiScrum.Infrastructure.AzureDevOps.AzureDevOpsRestClient.PostJsonAsync[TRequest,TResponse](String url, TRequest body, CancellationToken ct) in D:\Aveki\Development\Egna Projekt\WorkOrganizer\AvekiScrum\AvekiScrum.Infrastructure\AzureDevOps\Refaktorisering\AzureDevOpsRestClient.cs:line 115
+         at AvekiScrum.Infrastructure.AzureDevOps.AzureDevOpsBoardsClient.GetWorkItemsInternalAsync(IReadOnlyList`1 ids, WorkItemFieldProfile profile, Boolean expandRelations, CancellationToken ct) in D:\Aveki\Development\Egna Projekt\WorkOrganizer\AvekiScrum\AvekiScrum.Infrastructure\AzureDevOps\Refaktorisering\AzureDevOpsBoardsClient.cs:line 256
+warn: AvekiScrum.Infrastructure.AzureDevOps.AzureDevOpsBoardsClient[0]
+      Work item 25097 was not found or could not be loaded.
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 102.6327ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 102.7036ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 73.6823ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 73.7632ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/wit/workItems/25097/comments?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/wit/workItems/25097/comments?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 110.047ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 110.134ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/wit/workItems/25097/updates?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/wit/workItems/25097/updates?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 72.9861ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 73.0718ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request GET https://dev.azure.com/Aveki/Utveckling/Team%20Syd/_apis/work/teamsettings/iterations?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request GET https://dev.azure.com/Aveki/Utveckling/Team%20Syd/_apis/work/teamsettings/iterations?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request GET https://dev.azure.com/Aveki/Utveckling/Team%20Syd/_apis/work/teamsettings/iterations?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request GET https://dev.azure.com/Aveki/Utveckling/Team%20Syd/_apis/work/teamsettings/iterations?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 145.8693ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 145.9709ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/wiql?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/wiql?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 59.9675ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 60.0183ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 65.7756ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 65.806ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 66.9318ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 66.9886ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/git/repositories/d5ebc913-2713-48a4-bcc5-225ab0bbc079/pullrequests/6159?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/git/repositories/d5ebc913-2713-48a4-bcc5-225ab0bbc079/pullrequests/6159?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 250.7705ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 250.8321ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+fail: AvekiScrum.Infrastructure.AzureDevOps.AzureDevOpsBoardsClient[0]
+      Failed to fetch work item details for batch 25152
+      System.Threading.Tasks.TaskCanceledException: The operation was canceled.
+       ---> System.Threading.Tasks.TaskCanceledException: The operation was canceled.
+       ---> System.IO.IOException: Unable to read data from the transport connection: I/O-åtgärden har avbrutits därför att en tråd har avslutats eller för att ett program har begärt det..
+       ---> System.Net.Sockets.SocketException (995): I/O-åtgärden har avbrutits därför att en tråd har avslutats eller för att ett program har begärt det.
+         --- End of inner exception stack trace ---
+         at System.Net.Sockets.Socket.AwaitableSocketAsyncEventArgs.System.Threading.Tasks.Sources.IValueTaskSource<System.Int32>.GetResult(Int16 token)
+         at System.Net.Security.SslStream.EnsureFullTlsFrameAsync[TIOAdapter](CancellationToken cancellationToken, Int32 estimatedSize)
+         at System.Runtime.CompilerServices.PoolingAsyncValueTaskMethodBuilder`1.StateMachineBox`1.System.Threading.Tasks.Sources.IValueTaskSource<TResult>.GetResult(Int16 token)
+         at System.Net.Security.SslStream.ReadAsyncInternal[TIOAdapter](Memory`1 buffer, CancellationToken cancellationToken)
+         at System.Runtime.CompilerServices.PoolingAsyncValueTaskMethodBuilder`1.StateMachineBox`1.System.Threading.Tasks.Sources.IValueTaskSource<TResult>.GetResult(Int16 token)
+         at System.Net.Http.HttpConnection.<EnsureReadAheadTaskHasStarted>g__ReadAheadWithZeroByteReadAsync|40_0()
+         at System.Net.Http.HttpConnection.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+         --- End of inner exception stack trace ---
+         at System.Net.Http.HttpConnection.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+         at System.Net.Http.HttpConnectionPool.SendWithVersionDetectionAndRetryAsync(HttpRequestMessage request, Boolean async, Boolean doRequestAuth, CancellationToken cancellationToken)
+         at System.Net.Http.DiagnosticsHandler.SendAsyncCore(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+         at System.Net.Http.RedirectHandler.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+         at Microsoft.Extensions.Http.Logging.LoggingHttpMessageHandler.<SendCoreAsync>g__Core|4_0(HttpRequestMessage request, Boolean useAsync, CancellationToken cancellationToken)
+         at Microsoft.Extensions.Http.Logging.LoggingScopeHttpMessageHandler.<SendCoreAsync>g__Core|4_0(HttpRequestMessage request, Boolean useAsync, CancellationToken cancellationToken)
+         at System.Net.Http.HttpClient.<SendAsync>g__Core|83_0(HttpRequestMessage request, HttpCompletionOption completionOption, CancellationTokenSource cts, Boolean disposeCts, CancellationTokenSource pendingRequestsCts, CancellationToken originalCancellationToken)
+         --- End of inner exception stack trace ---
+         at System.Net.Http.HttpClient.HandleFailure(Exception e, Boolean telemetryStarted, HttpResponseMessage response, CancellationTokenSource cts, CancellationToken cancellationToken, CancellationTokenSource pendingRequestsCts)
+         at System.Net.Http.HttpClient.<SendAsync>g__Core|83_0(HttpRequestMessage request, HttpCompletionOption completionOption, CancellationTokenSource cts, Boolean disposeCts, CancellationTokenSource pendingRequestsCts, CancellationToken originalCancellationToken)
+         at AvekiScrum.Infrastructure.AzureDevOps.AzureDevOpsRestClient.PostJsonAsync[T](String url, T body, CancellationToken ct) in D:\Aveki\Development\Egna Projekt\WorkOrganizer\AvekiScrum\AvekiScrum.Infrastructure\AzureDevOps\Refaktorisering\AzureDevOpsRestClient.cs:line 95
+         at AvekiScrum.Infrastructure.AzureDevOps.AzureDevOpsRestClient.PostJsonAsync[TRequest,TResponse](String url, TRequest body, CancellationToken ct) in D:\Aveki\Development\Egna Projekt\WorkOrganizer\AvekiScrum\AvekiScrum.Infrastructure\AzureDevOps\Refaktorisering\AzureDevOpsRestClient.cs:line 115
+         at AvekiScrum.Infrastructure.AzureDevOps.AzureDevOpsBoardsClient.GetWorkItemsInternalAsync(IReadOnlyList`1 ids, WorkItemFieldProfile profile, Boolean expandRelations, CancellationToken ct) in D:\Aveki\Development\Egna Projekt\WorkOrganizer\AvekiScrum\AvekiScrum.Infrastructure\AzureDevOps\Refaktorisering\AzureDevOpsBoardsClient.cs:line 256
+warn: AvekiScrum.Infrastructure.AzureDevOps.AzureDevOpsBoardsClient[0]
+      Work item 25152 was not found or could not be loaded.
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 56.8642ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 56.9782ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 130.4043ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 130.4796ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/wit/workItems/25152/comments?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/wit/workItems/25152/comments?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 63.0999ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 63.1728ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/wit/workItems/25152/updates?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/wit/workItems/25152/updates?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 68.7783ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 68.8475ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 113.7298ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 113.8417ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 120.1976ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 120.2861ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 113.3515ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 113.4359ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 120.809ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 120.8985ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 106.9366ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 107.0065ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 103.4721ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 103.5348ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 100.6248ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 100.6787ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 101.6753ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 101.739ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 103.3902ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 103.4549ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 108.7248ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 108.7793ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 170.8572ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 170.9111ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 103.0871ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 103.1719ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 98.3268ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 98.3736ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 94.4887ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 94.5365ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 93.7925ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 93.8459ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 96.8803ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 96.9291ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 103.0007ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 103.0686ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 105.1693ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 105.2259ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 106.5285ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 106.58ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 93.5121ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 93.5721ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 95.9085ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 95.9597ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 102.7576ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 102.8009ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 93.1234ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 93.1699ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 80.8579ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 80.9099ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/wit/workItems/5771/comments?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/wit/workItems/5771/comments?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 144.6257ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 144.6718ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/wit/workItems/5771/updates?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/wit/workItems/5771/updates?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 88.5134ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 88.5595ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 54.3471ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 54.3879ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request POST https://dev.azure.com/Aveki/Utveckling/_apis/wit/workitemsbatch?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 71.7841ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 71.8229ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/wit/workItems/25152/comments?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/wit/workItems/25152/comments?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 503.3082ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 503.36ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[100]
+      Start processing HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/wit/workItems/25152/updates?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[100]
+      Sending HTTP request GET https://dev.azure.com/Aveki/Utveckling/_apis/wit/workItems/25152/updates?*
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.ClientHandler[101]
+      Received HTTP response headers after 72.1418ms - 200
+info: System.Net.Http.HttpClient.IAzureDevOpsRestClient.LogicalHandler[101]
+      End processing HTTP request after 72.1901ms - 200

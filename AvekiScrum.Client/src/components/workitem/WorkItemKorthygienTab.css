@@ -1,0 +1,129 @@
+.kh-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.kh-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.kh-row {
+  display: grid;
+  /* Wide enough for the longest status word ("Rekommenderas") on a single line - at 100px it
+     broke mid-word into a dangling "s". */
+  grid-template-columns: 200px 150px 1fr;
+  align-items: start;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.kh-row:last-child {
+  border-bottom: none;
+}
+
+.kh-row__label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding-top: 4px;
+}
+
+.kh-row__sub {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.kh-row__control {
+  min-width: 0;
+}
+
+.kh-row__control input[type="text"],
+.kh-row__control input[type="number"],
+.kh-row__control select {
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+  color: var(--color-text);
+  width: 100%;
+}
+
+.kh-pill {
+  align-self: start;
+  margin-top: 4px;
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-md);
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.35;
+  /* Only break between words / after the slash - never inside one, which produced the
+     dangling "…uts|es senare". */
+  overflow-wrap: normal;
+  word-break: keep-all;
+  hyphens: none;
+}
+
+.kh-pill--ok {
+  background: color-mix(in srgb, var(--color-success) 16%, transparent);
+  color: var(--color-success);
+}
+
+.kh-pill--missing {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  color: var(--color-danger);
+}
+
+.kh-pill--warn {
+  background: color-mix(in srgb, var(--aveki-yellow, orange) 20%, transparent);
+  color: var(--aveki-yellow-dark, #a06600);
+}
+
+.kh-dev-partner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.kh-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.kh-parent-link {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.kh-parent-link:hover {
+  text-decoration: underline;
+}
+
+.kh-hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 640px) {
+  .kh-row {
+    grid-template-columns: 1fr;
+  }
+}

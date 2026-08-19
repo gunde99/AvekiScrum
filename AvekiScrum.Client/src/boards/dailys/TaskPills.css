@@ -1,0 +1,143 @@
+.tp-tiles {
+  display: flex;
+  gap: 4px;
+}
+
+.tp-tile-wrap {
+  position: relative;
+  display: flex;
+}
+
+.tp-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 36px;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid transparent;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.tp-lbl {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.tp-cnt {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+/* Empty: clearly faded, outline only - no category color, nothing to see here. */
+.tp-tile--empty {
+  background: transparent;
+  border-color: var(--color-border);
+}
+
+.tp-tile--empty .tp-lbl,
+.tp-tile--empty .tp-cnt {
+  color: var(--color-border);
+}
+
+/* Active: colored border + colored bold text, background is just a faint tint of the
+   category color (a "glow" rather than a solid fill) so it stays legible in both themes. */
+.tp-tile--active.tp-tile--dev {
+  background: color-mix(in srgb, var(--cat-dev) 16%, transparent);
+  border-color: var(--cat-dev);
+  color: var(--cat-dev);
+}
+
+.tp-tile--active.tp-tile--review {
+  background: color-mix(in srgb, var(--cat-review) 16%, transparent);
+  border-color: var(--cat-review);
+  color: var(--cat-review);
+}
+
+.tp-tile--active.tp-tile--test {
+  background: color-mix(in srgb, var(--cat-test-bg) 20%, transparent);
+  border-color: var(--cat-test-bg);
+  color: var(--cat-test);
+}
+
+.tp-tile--active.tp-tile--doc {
+  background: color-mix(in srgb, var(--cat-doc) 16%, transparent);
+  border-color: var(--cat-doc);
+  color: var(--cat-doc);
+}
+
+.tp-tile--active .tp-lbl,
+.tp-tile--active .tp-cnt {
+  color: inherit;
+}
+
+/* Done: same glow language, always green + checkmark regardless of category. */
+.tp-tile--done {
+  background: color-mix(in srgb, var(--color-success) 16%, transparent);
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
+.tp-tile--done .tp-lbl,
+.tp-tile--done .tp-cnt {
+  color: inherit;
+}
+
+/* Not needed: a DoR-tagged card's conscious decision to skip an optional category. Deliberately
+   distinct from both "empty" (faded, unknown) and "done" (green checkmark) - dashed border, info
+   blue, hollow circle instead of a checkmark, so it never reads as "completed work". */
+.tp-tile--not-needed {
+  background: color-mix(in srgb, var(--color-info) 10%, transparent);
+  border-style: dashed;
+  border-color: var(--color-info);
+  color: var(--color-info);
+}
+
+.tp-tile--not-needed .tp-cnt {
+  font-size: 0.65rem;
+}
+
+.tp-tile--not-needed .tp-lbl,
+.tp-tile--not-needed .tp-cnt {
+  color: inherit;
+}
+
+/* Positioned via FloatingPopover (portal to document.body, position: fixed set inline) so it
+   escapes .group-card's overflow: hidden instead of being clipped by it. */
+.tp-popover {
+  z-index: 1000;
+  width: 280px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-3);
+  text-align: left;
+  cursor: default;
+}
+
+.tp-popover__head {
+  font-weight: 700;
+  font-size: 0.8rem;
+  margin-bottom: var(--space-1);
+  color: var(--color-text);
+}
+
+.tp-popover__explanation {
+  font-size: 0.78rem;
+  color: var(--color-text);
+}
+
+.tp-popover__tasks {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.tp-popover__tasks li {
+  margin-bottom: var(--space-1);
+}

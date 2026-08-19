@@ -1,0 +1,1 @@
+// Enums/TaskStatus.cs - placeholder content for AvekiScrum.Shared

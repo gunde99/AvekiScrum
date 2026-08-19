@@ -1,0 +1,108 @@
+.bb-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.bb-intro {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-3);
+}
+
+.bb-intro code {
+  background: var(--color-bg-subtle);
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+}
+
+.bb-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.bb-row {
+  display: grid;
+  grid-template-columns: 180px 90px 1fr;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.bb-row:last-child {
+  border-bottom: none;
+}
+
+.bb-row__label {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.bb-pill {
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.bb-pill--ok {
+  background: color-mix(in srgb, var(--color-success) 16%, transparent);
+  color: var(--color-success);
+}
+
+.bb-pill--pending {
+  background: color-mix(in srgb, var(--color-text-muted) 14%, transparent);
+  color: var(--color-text-muted);
+}
+
+.bb-switch {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.bb-switch__opt {
+  background: var(--color-bg);
+  border: none;
+  padding: 4px var(--space-3);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.bb-switch__opt:first-child {
+  border-right: 1px solid var(--color-border);
+}
+
+.bb-switch__opt:hover {
+  color: var(--color-text);
+}
+
+.bb-switch__opt--active:first-child {
+  background: color-mix(in srgb, var(--color-success) 18%, transparent);
+  color: var(--color-success);
+}
+
+.bb-switch__opt--active:last-child {
+  background: color-mix(in srgb, var(--color-text-muted) 20%, transparent);
+  color: var(--color-text);
+}
+
+.bb-existing {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.bb-error {
+  color: var(--color-danger);
+  font-size: 0.8rem;
+}
+
+.bb-approve {
+  align-self: flex-start;
+}

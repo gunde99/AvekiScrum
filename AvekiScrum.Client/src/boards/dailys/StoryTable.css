@@ -1,0 +1,259 @@
+.story-table {
+  border-top: 1px solid var(--color-border);
+}
+
+.story-head,
+.story-row {
+  display: grid;
+  grid-template-columns: 22px 70px minmax(200px, 2fr) 160px 90px 90px 44px 100px 150px 90px 24px 80px;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+}
+
+.story-head {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.sortable:hover {
+  color: var(--color-primary);
+}
+
+.sort-mark {
+  color: var(--color-primary);
+}
+
+.story-item {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.story-item:last-child {
+  border-bottom: none;
+}
+
+/* An expanded item reads as one visual unit (row + its taskboard) instead of the taskboard
+   floating free between two neighbours: a colored left rail ties them together, and extra
+   breathing room above/below separates the whole unit from the adjacent work items. */
+.story-item--open {
+  border-left: 3px solid var(--color-primary);
+  border-bottom: 2px solid var(--color-border);
+  margin: var(--space-2) 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.story-item--open:first-child {
+  margin-top: 0;
+}
+
+.story-item--open .story-row {
+  background: var(--color-bg-subtle);
+  font-weight: 600;
+}
+
+.story-row {
+  cursor: pointer;
+  background: var(--color-bg);
+}
+
+.story-row:hover {
+  background: var(--color-bg-subtle);
+}
+
+.story-row.al-crit {
+  background: color-mix(in srgb, var(--color-danger) 6%, var(--color-bg));
+}
+
+.story-row.al-warn {
+  background: color-mix(in srgb, var(--aveki-yellow) 12%, var(--color-bg));
+}
+
+.sr-chev {
+  display: inline-block;
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  transition: transform 0.15s ease;
+}
+
+.sr-chev--open {
+  transform: rotate(90deg);
+}
+
+.sr-key {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.sr-open-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.sr-open-link:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.sr-title {
+  cursor: pointer;
+}
+
+.sr-title:hover .sr-title-main {
+  color: var(--color-primary);
+}
+
+.sr-title-main {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sr-role-text {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+.sr-person {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.8rem;
+  overflow: hidden;
+}
+
+.sr-person span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.azure-status {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 1px var(--space-2);
+  border-radius: 999px;
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+}
+
+.azure-status.as-active {
+  color: var(--color-info);
+  border-color: var(--color-info);
+}
+
+.azure-status.as-resolved {
+  color: var(--aveki-green);
+  border-color: var(--aveki-green);
+}
+
+.azure-status.as-closed,
+.azure-status.as-done {
+  color: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.sp-badge {
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.stage-badge {
+  font-size: 0.7rem;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+}
+
+.prog-sm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.prog-track-sm {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.prog-fill-sm {
+  height: 100%;
+  background: var(--color-text-muted);
+}
+
+.prog-fill-sm--active {
+  background: var(--color-info);
+}
+
+.prog-fill-sm--done {
+  background: var(--color-success);
+}
+
+.prog-pct-sm {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  width: 30px;
+}
+
+.alert-icon {
+  text-align: center;
+}
+
+.sr-validation {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.sr-validation__btn {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 3px 6px;
+  cursor: pointer;
+}
+
+.sr-validation__btn:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.sr-validation__checks {
+  display: flex;
+  gap: 3px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--color-success);
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+.kanban-wrap {
+  border-top: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-bg-subtle) 55%, var(--color-bg));
+}

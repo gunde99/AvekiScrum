@@ -1,0 +1,17 @@
+.wi-relations-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.wi-relations-tab__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.wi-empty-state {
+  color: var(--color-text-muted);
+  padding: var(--space-4);
+  text-align: center;
+}

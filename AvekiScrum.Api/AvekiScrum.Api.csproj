@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AvekiScrum.Application\AvekiScrum.Application.csproj" />
+    <ProjectReference Include="..\AvekiScrum.Domain\AvekiScrum.Domain.csproj" />
+    <ProjectReference Include="..\AvekiScrum.Infrastructure\AvekiScrum.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

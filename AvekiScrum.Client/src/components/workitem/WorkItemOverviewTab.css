@@ -1,0 +1,97 @@
+.wi-overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.wi-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-3);
+}
+
+.wi-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wi-field--full {
+  grid-column: 1 / -1;
+}
+
+.wi-field label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  letter-spacing: 0.02em;
+}
+
+.wi-field__value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.wi-field__value--person {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.wi-field--number .wi-field__value,
+.wi-field__value--number {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.wi-field__value--path {
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+.wi-field__sub {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.wi-field input,
+.wi-field select,
+.wi-field textarea {
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+  color: var(--color-text);
+  width: 100%;
+}
+
+.wi-tag {
+  display: inline-block;
+  padding: 1px var(--space-2);
+  margin: 0 var(--space-1) var(--space-1) 0;
+  border-radius: 999px;
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  font-size: 0.7rem;
+}
+
+.wi-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 720px) {
+  .wi-fields-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

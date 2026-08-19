@@ -1,0 +1,127 @@
+/*
+  Design tokens from AvekiScrum/docs/Grafisk profil.pdf (see SCRUM_WEB_APP_SPEC.md §8).
+  TT Norms Pro / Lemon Tuesday are licensed fonts we don't have web-font files for yet
+  (open question #3 in the spec) - using a neutral system-font stack as a placeholder
+  until those are sourced.
+
+  Theme switching: [data-theme="dark"|"light"] on <html> (set by ThemeContext, and by
+  an inline script in index.html before first paint to avoid a flash) always wins.
+  The prefers-color-scheme media query only supplies the very first default before
+  ThemeContext has read localStorage.
+*/
+:root {
+  /* Primary palette */
+  --aveki-orange: #ea5b1b;
+  --aveki-orange-tint-1: #f2692c;
+  --aveki-orange-tint-2: #ed783e;
+  --aveki-orange-tint-3: #f2834c;
+  --aveki-orange-tint-4: #f29d67;
+
+  --aveki-yellow: #fecd1a;
+  --aveki-yellow-tint-1: #fdd444;
+  --aveki-yellow-tint-2: #ffdb5a;
+  --aveki-yellow-tint-3: #ffe483;
+
+  --aveki-green: #9dbf21;
+  --aveki-green-tint-1: #a5c430;
+  --aveki-green-tint-2: #acc942;
+  --aveki-green-tint-3: #b9d454;
+
+  --aveki-blue: #0f4170;
+  --aveki-blue-tint-1: #2a5781;
+  --aveki-blue-tint-2: #3c6288;
+  --aveki-blue-tint-3: #527595;
+  --aveki-blue-tint-4: #6b87a1;
+
+  /* Neutral (grey) scale, light to dark */
+  --aveki-grey-050: #f5f5f5;
+  --aveki-grey-100: #e7e7e7;
+  --aveki-grey-200: #dbdbdb;
+  --aveki-grey-300: #cbcbcb;
+  --aveki-grey-400: #bebebe;
+  --aveki-grey-500: #999999;
+  --aveki-grey-600: #737373;
+  --aveki-grey-700: #4d4d4d;
+  --aveki-grey-800: #2b2b2b;
+  --aveki-grey-900: #181818;
+
+  /* Semantic roles */
+  --color-primary: var(--aveki-orange);
+  --color-primary-hover: var(--aveki-orange-tint-2);
+  --color-accent: var(--aveki-yellow);
+  --color-success: #4c8a2e;
+  --color-info: var(--aveki-blue);
+  --color-danger: #c73e1d;
+
+  /* Category colors - reused identically across kanban lane headers and task pills
+     so the same concept always reads as the same color everywhere on the board. */
+  --cat-dev: var(--color-info);
+  --cat-review: var(--color-primary);
+  --cat-test: #b8860b;
+  --cat-test-bg: var(--aveki-yellow);
+  --cat-doc: var(--color-success);
+
+  --color-bg: #ffffff;
+  --color-bg-page: #f3f1ec;
+  --color-bg-subtle: #f6f4ee;
+  --color-bg-header: #fffaf3;
+  --color-border: #e3dfd3;
+  --color-text: var(--aveki-grey-900);
+  --color-text-muted: #746f62;
+
+  --font-main: "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --font-accent: var(--font-main);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --shadow-sm: 0 1px 2px rgba(30, 20, 0, 0.06);
+  --shadow-md: 0 4px 16px rgba(30, 20, 0, 0.08);
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --color-success: #5fb33f;
+
+  --cat-test: #2a2205;
+  --cat-test-bg: var(--aveki-yellow);
+
+  --color-bg: #1c1a17;
+  --color-bg-page: #121110;
+  --color-bg-subtle: #24211d;
+  --color-bg-header: #201d19;
+  --color-border: #38332c;
+  --color-text: #f3efe6;
+  --color-text-muted: #a89f8d;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.45);
+
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    --color-success: #5fb33f;
+    --cat-test: #2a2205;
+
+    --color-bg: #1c1a17;
+    --color-bg-page: #121110;
+    --color-bg-subtle: #24211d;
+    --color-bg-header: #201d19;
+    --color-border: #38332c;
+    --color-text: #f3efe6;
+    --color-text-muted: #a89f8d;
+
+    color-scheme: dark;
+  }
+}

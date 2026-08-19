@@ -1,0 +1,1 @@
+// Enums/UserRole.cs - placeholder content for AvekiScrum.Shared

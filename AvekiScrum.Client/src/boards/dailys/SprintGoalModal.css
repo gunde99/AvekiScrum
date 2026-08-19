@@ -1,0 +1,131 @@
+.sg-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 15, 5, 0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 4vh 20px;
+  z-index: 110;
+}
+
+.sg-modal {
+  background: var(--color-bg);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 720px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.sg-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sg-modal__title {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.sg-modal__close {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.sg-modal__close:hover {
+  color: var(--color-danger);
+}
+
+.sg-modal__body {
+  padding: var(--space-4);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sg-meta-row {
+  display: flex;
+  gap: var(--space-4);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.sg-checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 0.85rem;
+}
+
+.sg-checklist li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.sg-checklist__item--done {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+.sg-priority {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: 999px;
+  padding: 0 6px;
+}
+
+.sg-subgoals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sg-subgoal__title {
+  font-weight: 600;
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.sg-subgoal__desc {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.sg-work-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.sg-work-item-chip {
+  padding: 2px var(--space-3);
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.sg-work-item-chip:hover {
+  border-color: var(--color-primary);
+}

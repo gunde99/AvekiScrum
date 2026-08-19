@@ -1,0 +1,188 @@
+.group-card {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-3);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.group-card--flow-highlight {
+  border-color: var(--color-primary);
+  border-width: 2px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
+
+.group-unassigned-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px dashed var(--color-border);
+  color: var(--color-text-muted);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.group-subgroups {
+  display: flex;
+  flex-direction: column;
+}
+
+.group-subgroup + .group-subgroup {
+  border-top: 3px solid var(--color-bg-page);
+}
+
+.group-subgroup__label {
+  padding: var(--space-2) var(--space-4);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+  background: var(--color-bg-subtle);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.group-subgroup__label--owner {
+  color: var(--color-primary);
+}
+
+.group-subgroup__count {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.group-row {
+  display: grid;
+  grid-template-columns: 20px minmax(160px, 2fr) auto 160px 100px 90px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  border-left: 4px solid var(--color-border);
+}
+
+.group-row:hover {
+  background: var(--color-bg-subtle);
+}
+
+.group-row.gr-active { border-left-color: var(--color-info); }
+.group-row.gr-done { border-left-color: var(--color-success); }
+.group-row.gr-warn { border-left-color: var(--aveki-yellow); }
+.group-row.gr-crit { border-left-color: var(--color-danger); }
+
+.group-chev {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  transition: transform 0.15s ease;
+}
+
+.group-chev--open {
+  transform: rotate(90deg);
+}
+
+.group-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 700;
+  overflow: hidden;
+}
+
+.group-label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-goal-info {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  line-height: 1;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.group-goal-info:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.group-meta {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.gm-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 1px var(--space-2);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.gm-active { background: color-mix(in srgb, var(--color-info) 15%, transparent); color: var(--color-info); }
+.gm-done { background: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success); }
+.gm-new { background: var(--color-bg-subtle); color: var(--color-text-muted); }
+.gm-crit { background: color-mix(in srgb, var(--color-danger) 15%, transparent); color: var(--color-danger); }
+.gm-warn { background: color-mix(in srgb, var(--aveki-yellow) 25%, transparent); color: #8a5a00; }
+
+.group-prog-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.group-prog-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.group-prog-fill {
+  height: 100%;
+  background: var(--color-text-muted);
+}
+
+.group-prog-fill--active {
+  background: var(--color-info);
+}
+
+.group-prog-fill--done {
+  background: var(--color-success);
+}
+
+.group-prog-pct {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  width: 32px;
+}
+
+.group-sp {
+  font-weight: 600;
+  color: var(--color-primary);
+  text-align: right;
+}
+
+.group-count {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  text-align: right;
+}

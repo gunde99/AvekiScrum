@@ -1,0 +1,88 @@
+.wi-section {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.wi-section__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: var(--space-2) var(--space-3);
+  background: var(--aveki-grey-900);
+  color: #f3efe6;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+:root[data-theme="dark"] .wi-section__head {
+  background: #0e0d0b;
+}
+
+.wi-section__head--ok {
+  background: var(--color-success);
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] .wi-section__head--ok {
+  background: var(--color-success);
+}
+
+.wi-section__head--ok .wi-section__hint {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.wi-section__hint {
+  font-size: 0.65rem;
+  font-weight: 400;
+  text-transform: none;
+  color: #a89f8d;
+  font-family: "Cascadia Code", Consolas, monospace;
+  letter-spacing: 0;
+}
+
+.wi-section__body {
+  padding: var(--space-3);
+  background: var(--color-bg);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Shared by every rendered HTML/markdown block (description, acceptance criteria,
+   comments) - long unbroken tokens (URLs, JSON, log lines) must wrap, never force
+   the modal to scroll horizontally. */
+.wi-rich-text {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.wi-rich-text * {
+  max-width: 100%;
+}
+
+.wi-rich-text pre,
+.wi-rich-text code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.wi-rich-text img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+}
+
+.wi-rich-text table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.wi-rich-text a {
+  overflow-wrap: anywhere;
+}

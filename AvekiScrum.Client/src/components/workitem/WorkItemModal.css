@@ -1,0 +1,203 @@
+.wi-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 15, 5, 0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 4vh 20px;
+  z-index: 100;
+}
+
+.wi-modal {
+  background: var(--color-bg);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 920px;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.wi-modal__header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.wi-modal__type-icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+  line-height: 1.3;
+}
+
+.wi-modal__title-block {
+  flex: 1;
+  min-width: 0;
+}
+
+.wi-modal__title-text {
+  font-weight: 700;
+  font-size: 1.15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wi-modal__subline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 2px;
+}
+
+.wi-modal__id-link {
+  font-weight: 700;
+  color: var(--color-primary);
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+
+.wi-modal__id-link:hover {
+  text-decoration: underline;
+}
+
+.wi-modal__state-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 1px var(--space-2);
+  border-radius: 999px;
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.wi-modal__iteration {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.wi-modal__check {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--color-success);
+}
+
+.wi-modal__footer-spacer {
+  flex: 1;
+}
+
+.wi-validation-btn {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.wi-modal__close {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: var(--space-1) var(--space-2);
+}
+
+.wi-modal__close:hover {
+  color: var(--color-danger);
+}
+
+.wi-tabs {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-4);
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  overflow-x: auto;
+}
+
+.wi-tabs__item {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: var(--space-2) 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.wi-tabs__item:hover {
+  color: var(--color-text);
+}
+
+.wi-tabs__item--active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.wi-tabs__count {
+  color: inherit;
+  opacity: 0.7;
+  font-weight: 400;
+  margin-left: 2px;
+}
+
+.wi-modal__body {
+  padding: var(--space-4);
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-width: 0;
+  /* Without this, a flex item's default min-height:auto lets tall content (e.g. a comment with
+     a big pasted screenshot) force its intrinsic size onto the whole flex column, squeezing the
+     tabs bar down toward zero height instead of the body scrolling internally. */
+  min-height: 0;
+}
+
+.wi-modal__status {
+  color: var(--color-text-muted);
+}
+
+.wi-modal__status--error {
+  color: var(--color-danger);
+}
+
+.wi-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.wi-btn {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.wi-btn--primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #ffffff;
+}
+
+.wi-btn--success {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: #ffffff;
+}
+
+.wi-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

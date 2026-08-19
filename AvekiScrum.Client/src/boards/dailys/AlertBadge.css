@@ -1,0 +1,67 @@
+.alert-badge {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.alert-badge__icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.95rem;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  line-height: 1;
+}
+
+.alert-badge__icon:hover {
+  background: var(--color-bg-subtle);
+}
+
+/* Positioned via FloatingPopover (portal to document.body, position: fixed set inline) so it
+   escapes ancestor overflow: hidden instead of being clipped by it. */
+.alert-popover {
+  z-index: 1000;
+  width: 260px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-3);
+  text-align: left;
+  cursor: default;
+}
+
+.alert-popover__head {
+  font-weight: 700;
+  font-size: 0.8rem;
+  margin-bottom: var(--space-1);
+}
+
+.alert-popover__head--critical {
+  color: var(--color-danger);
+}
+
+.alert-popover__head--warning {
+  color: #a15b00;
+}
+
+.alert-popover__head--notice {
+  color: var(--color-info);
+}
+
+.alert-popover__summary {
+  font-size: 0.8rem;
+  color: var(--color-text);
+}
+
+.alert-popover__details {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.alert-popover__details li {
+  margin-bottom: var(--space-1);
+}

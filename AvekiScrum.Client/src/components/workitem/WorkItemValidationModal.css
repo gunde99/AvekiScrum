@@ -1,0 +1,26 @@
+.wi-tabs__item--ok {
+  color: var(--color-success);
+}
+
+.wi-tabs__item--ok.wi-tabs__item--active {
+  border-bottom-color: var(--color-success);
+}
+
+.wi-tabs__ok-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: var(--color-success);
+  color: #ffffff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.wi-validation__save {
+  margin-top: var(--space-3);
+}

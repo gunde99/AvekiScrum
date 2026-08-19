@@ -1,0 +1,17 @@
+.person-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #ffffff;
+  font-weight: 600;
+  line-height: 1;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.person-avatar--photo {
+  display: inline-block;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+}

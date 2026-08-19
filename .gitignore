@@ -1,0 +1,30 @@
+# Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+
+# Visual Studio / Rider / user-local files
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+
+# Local configuration and secrets
+appsettings.Local.json
+appsettings.*.Local.json
+*.secrets.json
+.env
+.env.*
+
+# Node / frontend (once AvekiScrum.Client exists)
+node_modules/
+dist/
+
+# OS noise
+Thumbs.db
+Desktop.ini
+.DS_Store

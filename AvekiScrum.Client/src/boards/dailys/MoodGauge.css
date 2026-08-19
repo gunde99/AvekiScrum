@@ -1,0 +1,19 @@
+.mood-gauge {
+  position: relative;
+  width: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.mood-gauge__svg {
+  width: 100%;
+  height: auto;
+}
+
+.mood-gauge__emoji {
+  position: absolute;
+  bottom: 2px;
+  font-size: 1.8rem;
+  line-height: 1;
+}

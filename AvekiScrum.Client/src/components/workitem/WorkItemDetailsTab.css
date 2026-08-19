@@ -1,0 +1,28 @@
+.wi-details-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.wi-details-row {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.wi-details-row:last-child {
+  border-bottom: none;
+}
+
+.wi-details-row__label {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.wi-details-row__value a {
+  color: var(--color-primary);
+  overflow-wrap: anywhere;
+}
