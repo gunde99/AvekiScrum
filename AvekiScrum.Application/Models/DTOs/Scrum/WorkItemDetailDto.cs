@@ -53,6 +53,13 @@ namespace AvekiScrum.Application.Models.DTOs.Scrum
         public List<PrReviewerDto> Reviewers { get; set; } = new();
         public int CommentsTotal { get; set; }
         public int CommentsResolved { get; set; }
+
+        /// <summary>
+        /// Set when the PR was linked to one of this card's child tasks rather than to the card
+        /// itself, so the UI can say which task it came from. Null for the card's own PRs.
+        /// </summary>
+        public int? SourceTaskId { get; set; }
+        public string? SourceTaskTitle { get; set; }
     }
 
     public sealed class PrReviewerDto

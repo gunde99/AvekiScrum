@@ -513,6 +513,18 @@
   color: var(--color-text-muted);
 }
 
+.daily-flow__review-via {
+  flex: 1 1 12rem;
+  min-width: 0;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+  /* One line only - a long task title must not push the checkbox onto its own row. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .daily-flow__review-clear {
   display: flex;
   align-items: center;

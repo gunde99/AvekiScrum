@@ -13,14 +13,19 @@ import { KpiStrip } from "./KpiStrip";
 import { SprintGoalModal } from "./SprintGoalModal";
 import { WorkItemModal } from "../../components/workitem/WorkItemModal";
 import { WorkItemValidationModal } from "../../components/workitem/WorkItemValidationModal";
+import { FlowParticipants } from "./FlowParticipants";
 import {
+  buildFlowParticipants,
   buildGroups,
   isStaleClosed,
   matchesTestFilter,
+  participantOnByDefault,
+  withoutReviewTag,
   type GroupMode,
   type FlowLaneStage,
   type TestFilterKey,
 } from "./dailysLogic";
+import type { PersonOption } from "../../api/people";
 import "./DailysBoard.css";
 
 const LANE_TO_AZURE_STATE: Record<FlowLaneStage, string> = {
@@ -51,6 +56,33 @@ const TEAMS: { id: DeveloperTeamId; label: string }[] = [
   { id: "Syd", label: "Team Syd" },
 ];
 
+// Kept in localStorage rather than on the server: who is at today's standup is this person's
+// running-the-meeting state, not a fact about the team that everyone else should inherit.
+const PARTICIPANTS_STORAGE_PREFIX = "avekiscrum.dailyflow.participants.";
+
+function readParticipantChoices(team: DeveloperTeamId): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(PARTICIPANTS_STORAGE_PREFIX + team);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).filter(([, v]) => typeof v === "boolean"),
+    ) as Record<string, boolean>;
+  } catch {
+    // Unreadable or disabled storage just means "no saved choices" - never a reason to fail the board.
+    return {};
+  }
+}
+
+function writeParticipantChoices(team: DeveloperTeamId, choices: Record<string, boolean>) {
+  try {
+    localStorage.setItem(PARTICIPANTS_STORAGE_PREFIX + team, JSON.stringify(choices));
+  } catch {
+    /* ignore - the picker still works for this session */
+  }
+}
+
 export function DailysBoard() {
   const { showToast } = useToast();
   const [team, setTeam] = useState<DeveloperTeamId>("Syd");
@@ -71,7 +103,11 @@ export function DailysBoard() {
   const [openWorkItemId, setOpenWorkItemId] = useState<number | null>(null);
   const [openValidationId, setOpenValidationId] = useState<number | null>(null);
   const [sprintGoals, setSprintGoals] = useState<SprintGoal[]>([]);
-  const [developerRoster, setDeveloperRoster] = useState<string[]>([]);
+  const [developerRoster, setDeveloperRoster] = useState<PersonOption[]>([]);
+  const [flowExcludedByDefault, setFlowExcludedByDefault] = useState<PersonOption[]>([]);
+  // Explicit ticks and unticks only. Anyone absent falls back to participantOnByDefault, so a new
+  // team member is picked up automatically instead of inheriting a stale saved list.
+  const [participantChoices, setParticipantChoices] = useState<Record<string, boolean>>({});
   const [openSprintGoalNumber, setOpenSprintGoalNumber] = useState<number | null>(null);
   const [dailyFlowActive, setDailyFlowActive] = useState(false);
   const [flowHighlightGroupId, setFlowHighlightGroupId] = useState<string | null>(null);
@@ -122,13 +158,23 @@ export function DailysBoard() {
   useEffect(() => {
     const controller = new AbortController();
     fetchTeamRoles(team, controller.signal)
-      .then((roles) => setDeveloperRoster(roles.developers.map((d) => d.displayName)))
+      .then((roles) => {
+        setDeveloperRoster(roles.developers);
+        setFlowExcludedByDefault(roles.flowExcludedByDefault ?? []);
+      })
       .catch((err: unknown) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
         // Falls back to buildGroups' own card-derived grouping if the roster can't be loaded.
         setDeveloperRoster([]);
+        setFlowExcludedByDefault([]);
       });
     return () => controller.abort();
+  }, [team]);
+
+  // Saved per team, so Nord and Syd keep separate line-ups and neither has to be redone before
+  // every standup.
+  useEffect(() => {
+    setParticipantChoices(readParticipantChoices(team));
   }, [team]);
 
   // Re-fetches just the card/goal data for the current team, leaving filters, the daily flow,
@@ -200,8 +246,52 @@ export function DailysBoard() {
   // they stay in filteredStories and are only stripped out here, right before board rendering.
   const boardStories = useMemo(() => filteredStories.filter((s) => !s.ownedByProductOwner), [filteredStories]);
 
+  // Built from the unfiltered card set on purpose: hiding closed cards or narrowing to bugs
+  // shouldn't quietly drop someone from the standup line-up.
+  const allGroups = useMemo(
+    () => buildGroups(stories.filter((s) => !s.ownedByProductOwner), "developer", developerRoster.map((d) => d.displayName)),
+    [stories, developerRoster],
+  );
+
+  const flowParticipants = useMemo(
+    () => buildFlowParticipants(allGroups, developerRoster),
+    [allGroups, developerRoster],
+  );
+
+  const selectedParticipants = useMemo(
+    () =>
+      new Set(
+        flowParticipants
+          .filter((p) => participantChoices[p.key] ?? participantOnByDefault(p, flowExcludedByDefault))
+          .map((p) => p.key),
+      ),
+    [flowParticipants, participantChoices, flowExcludedByDefault],
+  );
+
+  const updateParticipantChoices = useCallback(
+    (next: Record<string, boolean>) => {
+      setParticipantChoices(next);
+      writeParticipantChoices(team, next);
+    },
+    [team],
+  );
+
+  const toggleParticipant = useCallback(
+    (key: string) => {
+      updateParticipantChoices({ ...participantChoices, [key]: !selectedParticipants.has(key) });
+    },
+    [participantChoices, selectedParticipants, updateParticipantChoices],
+  );
+
+  const setAllParticipants = useCallback(
+    (on: boolean) => {
+      updateParticipantChoices(Object.fromEntries(flowParticipants.map((p) => [p.key, on])));
+    },
+    [flowParticipants, updateParticipantChoices],
+  );
+
   const groups = useMemo(() => {
-    const built = buildGroups(boardStories, mode, developerRoster);
+    const built = buildGroups(boardStories, mode, developerRoster.map((d) => d.displayName));
     if (mode !== "goals") return built;
     // Sprint goals with zero cards right now still deserve a row - otherwise a goal nobody has
     // started work on yet would just silently never appear on the board.
@@ -271,7 +361,10 @@ export function DailysBoard() {
     );
   }, []);
 
-  const handleReviewTagCleared = useCallback((storyId: number) => {
+  // The tag may have been cleared from the story, from some of its tasks, or from both, so the
+  // local copy is patched by id rather than assuming the story carried it.
+  const handleReviewTagCleared = useCallback((storyId: number, clearedIds: number[]) => {
+    const cleared = new Set(clearedIds);
     setData((prev) =>
       prev
         ? {
@@ -280,7 +373,13 @@ export function DailysBoard() {
               ...t,
               stories: t.stories.map((s) =>
                 s.id === storyId
-                  ? { ...s, tags: s.tags.filter((tag) => tag.trim().toLowerCase() !== "stäm av med teamet") }
+                  ? {
+                      ...s,
+                      tags: cleared.has(s.id) ? withoutReviewTag(s.tags) : s.tags,
+                      tasks: (s.tasks ?? []).map((task) =>
+                        cleared.has(task.id) ? { ...task, tags: withoutReviewTag(task.tags) } : task,
+                      ),
+                    }
                   : s,
               ),
             })),
@@ -440,6 +539,17 @@ export function DailysBoard() {
           </div>
         </div>
 
+        <div className="dailys-board__participants">
+          <FlowParticipants
+            participants={flowParticipants}
+            selected={selectedParticipants}
+            onToggle={toggleParticipant}
+            onSelectAll={() => setAllParticipants(true)}
+            onSelectNone={() => setAllParticipants(false)}
+            onReset={() => updateParticipantChoices({})}
+          />
+        </div>
+
         <div className="dailys-board__filter">
           <FilterPanel
             searchText={searchText}
@@ -486,6 +596,7 @@ export function DailysBoard() {
               sprintGoalsByNumber={sprintGoalsByNumber}
               onOpenValidation={setOpenValidationId}
               onReviewTagCleared={handleReviewTagCleared}
+              participantKeys={selectedParticipants}
               onClose={() => setDailyFlowActive(false)}
             />
           )}

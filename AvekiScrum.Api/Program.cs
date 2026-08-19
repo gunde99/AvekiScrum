@@ -8,6 +8,7 @@ using AvekiScrum.Domain.Entities.Scrum;
 using AvekiScrum.Infrastructure.AzureDevOps;
 using AvekiScrum.Infrastructure.Configuration;
 using AvekiScrum.Shared.Enums;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,6 +33,7 @@ var azureSettings = builder.Configuration.GetSection("AzureDevOps").Get<AzureSet
     ?? throw new InvalidOperationException("Missing 'AzureDevOps' configuration section.");
 builder.Services.Configure<AzureSettings>(builder.Configuration.GetSection("AzureDevOps"));
 builder.Services.Configure<TeamRoleConfig>(builder.Configuration.GetSection("TeamRoleConfig"));
+builder.Services.Configure<DailyFlowConfig>(builder.Configuration.GetSection("DailyFlow"));
 
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(AzureDevOpsService).Assembly));
 
@@ -203,7 +205,8 @@ app.MapGet("/api/team-members", (
 
 app.MapGet("/api/team-roles", (
     string team,
-    ITeamRoleProvider teamRoleProvider) =>
+    ITeamRoleProvider teamRoleProvider,
+    IOptions<DailyFlowConfig> dailyFlowOptions) =>
 {
     if (!Enum.TryParse<DeveloperTeam>(team, ignoreCase: true, out var developerTeam))
         return Results.BadRequest($"Unknown team '{team}'. Expected 'Nord' or 'Syd'.");
@@ -214,11 +217,20 @@ app.MapGet("/api/team-roles", (
         .Select(email => new PersonOption(email, FormatDisplayName(email)))
         .OrderBy(p => p.DisplayName)
         .ToList();
+
+    // Seeds the daily-flow participant picker the first time this browser opens the team; after
+    // that the saved selection wins, so this is a starting point rather than a hard exclusion.
+    dailyFlowOptions.Value.ExcludedByDefault.TryGetValue($"Team{developerTeam}", out var excluded);
+    var flowExcludedByDefault = (excluded ?? new List<string>())
+        .Select(email => new PersonOption(email, FormatDisplayName(email)))
+        .ToList();
+
     return Results.Ok(new
     {
         po = po is null ? null : new PersonOption(po, FormatDisplayName(po)),
         testLead = testLead is null ? null : new PersonOption(testLead, FormatDisplayName(testLead)),
         developers,
+        flowExcludedByDefault,
     });
 })
 .WithName("GetTeamRoles");

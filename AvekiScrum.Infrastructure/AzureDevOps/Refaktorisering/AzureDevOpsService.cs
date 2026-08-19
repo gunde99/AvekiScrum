@@ -489,8 +489,26 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
 
             var comments = await _boards.GetWorkItemCommentsAsync(workItemId, ct);
 
-            var rawPullRequests = AzureWorkItemRelationParser.GetPullRequests(relations);
-            foreach (var pr in rawPullRequests.Where(pr => string.IsNullOrWhiteSpace(pr.WebUrl)))
+            // Developers branch off a task as often as off the story, so a story whose own relations
+            // hold no PR can still have every one of its tasks in review. Its child tasks' PRs are
+            // therefore folded in alongside its own (the summaries above were already fetched with
+            // relations expanded, so this costs no extra round trip), tagged with the task they came
+            // from. The card's own PRs come first and win on duplicates, so a PR linked to both the
+            // story and a task keeps reading as the story's.
+            var childTaskPullRequests = childIds
+                .Select(id => summaryById.TryGetValue(id, out var child) ? child : null)
+                .Where(child => child != null)
+                .SelectMany(child => child!.PullRequests.Select(pr => (Pr: pr, Task: child)))
+                .ToList();
+
+            var rawPullRequests = AzureWorkItemRelationParser.GetPullRequests(relations)
+                .Select(pr => (Pr: pr, Task: (WorkItemDto?)null))
+                .Concat(childTaskPullRequests)
+                .GroupBy(x => (x.Pr.RepoId, x.Pr.PullRequestId))
+                .Select(g => g.First())
+                .ToList();
+
+            foreach (var (pr, _) in rawPullRequests.Where(x => string.IsNullOrWhiteSpace(x.Pr.WebUrl)))
                 pr.WebUrl = $"https://dev.azure.com/{AzureUrlHelper.BaseUrl}_git/{pr.RepoId}/pullrequest/{pr.PullRequestId}";
 
             // The relation itself only carries a generic "Pull Request" label, not the real title -
@@ -499,7 +517,7 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             // done for the Dailys board's own PR cards, where it would mean one call per PR across
             // the whole sprint.
             var pullRequests = new List<WorkItemPullRequestDto>();
-            foreach (var pr in rawPullRequests)
+            foreach (var (pr, sourceTask) in rawPullRequests)
             {
                 var repoId = pr.RepoId.ToString();
                 WorkItemPullRequestDto enriched;
@@ -547,6 +565,8 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
                         CreatedBy = pr.CreatedBy
                     };
                 }
+                enriched.SourceTaskId = sourceTask?.Id;
+                enriched.SourceTaskTitle = sourceTask?.Title;
                 pullRequests.Add(enriched);
             }
 

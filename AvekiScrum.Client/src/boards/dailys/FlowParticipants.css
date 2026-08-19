@@ -1,0 +1,157 @@
+.flow-participants__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  cursor: pointer;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.flow-participants__toggle:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.flow-participants__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.flow-participants {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 320px;
+  max-width: 460px;
+}
+
+.flow-participants__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.flow-participants__title {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.flow-participants__hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.flow-participants__collapse {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.flow-participants__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.flow-participants__actions button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.flow-participants__actions button:hover {
+  color: var(--color-primary);
+}
+
+.flow-participants__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  /* Long rosters scroll inside the panel instead of pushing the toolbar taller. */
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.flow-participants__pill {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 3px var(--space-2) 3px 3px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  /* Unticked reads as "sitting this one out" without hiding who it is. */
+  opacity: 0.55;
+}
+
+.flow-participants__pill--on {
+  border-color: var(--color-info);
+  background: color-mix(in srgb, var(--color-info) 12%, transparent);
+  color: var(--color-text);
+  opacity: 1;
+}
+
+.flow-participants__name {
+  white-space: nowrap;
+}
+
+.flow-participants__count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+  text-align: center;
+}
+
+.flow-participants__pill--on .flow-participants__count {
+  background: var(--color-info);
+  color: #ffffff;
+}
+
+.flow-participants__empty {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}

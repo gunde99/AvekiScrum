@@ -68,6 +68,13 @@ export function WorkItemPullRequestsTab({ pullRequests }: { pullRequests: WorkIt
             <div className="wi-pr__meta">
               <span className="wi-pr__id">#{pr.pullRequestId}</span>
               {pr.targetBranch && <span className="wi-pr__branch">→ {pr.targetBranch}</span>}
+              {/* Says where the PR was found, so a PR that isn't on this card's own relations
+                  doesn't look like it appeared from nowhere. */}
+              {pr.sourceTaskId && (
+                <span className="wi-pr__via" title={pr.sourceTaskTitle ?? undefined}>
+                  via task #{pr.sourceTaskId}
+                </span>
+              )}
               {pr.createdBy && <span>Skapad av {pr.createdBy}</span>}
               <span>
                 {pr.commentsTotal === 0

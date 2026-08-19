@@ -1,5 +1,5 @@
 import type { DailyPullRequestDto, DailyStoryDto, DailyTaskDto } from "../../api/dailys";
-import { fullPersonName, samePerson, uniqueNames } from "../../lib/personNames";
+import { fullPersonName, personKey, samePerson, uniqueNames } from "../../lib/personNames";
 
 export { fullPersonName, compactPersonName, personKey, samePerson, uniqueNames, reviewerNames } from "../../lib/personNames";
 
@@ -162,6 +162,105 @@ export function matchesTestFilter(story: DailyStoryDto, key: TestFilterKey): boo
   if (testTasks.length === 0) return false;
   if (key === "unassigned") return testTasks.some((t) => !t.assignedTo || !t.assignedTo.trim());
   return testTasks.some((t) => (t.tags ?? []).some((tag) => tag.trim().toLowerCase() === "test ej ok"));
+}
+
+// ─── Daily-flow participants (who gets a turn at the standup) ─────────────
+export interface FlowParticipant {
+  /** personKey - the same identity the flow itself matches groups to the roster with. */
+  key: string;
+  displayName: string;
+  /** Cards in this person's group on the board right now; 0 for roster members with nothing. */
+  cardCount: number;
+  /** On the team's configured developer roster, as opposed to merely owning a card here. */
+  isRoster: boolean;
+}
+
+/**
+ * Everyone the daily flow would otherwise stop at, in one list: the team's roster developers
+ * (including anyone currently without cards, who still gets asked how it's going) plus whoever
+ * else owns cards on the board. "Ej tilldelad" is left out - it's a bucket, not a person.
+ */
+export function buildFlowParticipants(groups: StoryGroup[], roster: PersonRef[]): FlowParticipant[] {
+  const participants = new Map<string, FlowParticipant>();
+
+  for (const dev of roster) {
+    const key = personKey(dev.displayName);
+    if (!key) continue;
+    const group = groups.find((g) => samePerson(g.label, dev.displayName));
+    participants.set(key, {
+      key,
+      displayName: group?.label ?? dev.displayName,
+      cardCount: group?.stories.length ?? 0,
+      isRoster: true,
+    });
+  }
+
+  for (const group of groups) {
+    if (group.label === UNASSIGNED_GROUP_LABEL) continue;
+    const key = personKey(group.label);
+    if (!key || participants.has(key)) continue;
+    participants.set(key, { key, displayName: group.label, cardCount: group.stories.length, isRoster: false });
+  }
+
+  return [...participants.values()].sort((a, b) => a.displayName.localeCompare(b.displayName, "sv-SE", { sensitivity: "base" }));
+}
+
+/**
+ * Whether a participant takes part by default, before anyone touches the picker: roster
+ * developers do, people who merely happen to own a card here (a QA lead, someone from the other
+ * team) don't, and anyone named in the backend's DailyFlow:ExcludedByDefault doesn't either.
+ */
+export function participantOnByDefault(participant: FlowParticipant, excludedByDefault: PersonRef[]): boolean {
+  if (excludedByDefault.some((p) => samePerson(p.displayName, participant.displayName))) return false;
+  return participant.isRoster;
+}
+
+interface PersonRef {
+  displayName: string;
+}
+
+// ─── "Stäm av med teamet" (cards walked through up front in the daily) ────
+export const REVIEW_TAG = "Stäm av med teamet";
+
+function hasReviewTag(tags: string[] | undefined): boolean {
+  return (tags ?? []).some((t) => t.trim().toLowerCase() === REVIEW_TAG.toLowerCase());
+}
+
+export function withoutReviewTag(tags: string[] | undefined): string[] {
+  return (tags ?? []).filter((t) => t.trim().toLowerCase() !== REVIEW_TAG.toLowerCase());
+}
+
+/** One card to walk through, plus the work items that actually asked for it. */
+export interface ReviewTarget {
+  storyId: number;
+  title: string;
+  /** The story and/or the tasks carrying the tag - what "Ta bort taggen" has to clear. */
+  taggedIds: number[];
+  /** Titles of the tagged tasks, so the flow can say the request came from a task. */
+  taggedTaskTitles: string[];
+}
+
+/**
+ * The tag is honoured on tasks as well as on stories, because "let's look at this together" is
+ * just as often about one task as about the whole card. Either way the *story* is what gets shown
+ * - it carries the taskboard and the full context - so several tagged tasks under one story
+ * collapse into a single turn rather than making the team open the same card three times.
+ */
+export function collectReviewTargets(stories: DailyStoryDto[]): ReviewTarget[] {
+  return stories
+    .map((story) => {
+      const taggedTasks = (story.tasks ?? []).filter((t) => hasReviewTag(t.tags));
+      const storyTagged = hasReviewTag(story.tags);
+      if (!storyTagged && taggedTasks.length === 0) return null;
+      return {
+        storyId: story.id,
+        title: story.title,
+        taggedIds: [...(storyTagged ? [story.id] : []), ...taggedTasks.map((t) => t.id)],
+        taggedTaskTitles: taggedTasks.map((t) => t.title),
+      } satisfies ReviewTarget;
+    })
+    .filter((t): t is ReviewTarget => t !== null)
+    .sort((a, b) => a.storyId - b.storyId);
 }
 
 // ─── "Stale closed" (settled work that no longer needs daily airtime) ─────

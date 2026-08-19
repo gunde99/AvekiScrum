@@ -39,6 +39,10 @@ export interface TeamRoles {
   po: PersonOption | null;
   testLead: PersonOption | null;
   developers: PersonOption[];
+  /** Seeds the daily-flow participant picker the first time this browser opens the team - people
+   *  on long-term absence, on loan elsewhere, and so on. Only a starting point: once the picker
+   *  has been saved locally, that selection wins. */
+  flowExcludedByDefault?: PersonOption[];
 }
 
 /** The team's Product Owner, Test Lead and full developer roster - used by the Daily Flow. */

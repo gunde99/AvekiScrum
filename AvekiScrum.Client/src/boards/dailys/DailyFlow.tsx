@@ -8,11 +8,15 @@ import type { DailyStoryDto, DailyTaskDto, DeveloperTeamId } from "../../api/dai
 import type { SprintGoal } from "../../api/sprintGoals";
 import { MoodGauge } from "./MoodGauge";
 import {
+  collectReviewTargets,
   fullPersonName,
   isTestTask,
+  personKey,
+  REVIEW_TAG,
   samePerson,
   storyProg,
   UNASSIGNED_GROUP_LABEL,
+  withoutReviewTag,
   type GroupMode,
   type StoryGroup,
 } from "./dailysLogic";
@@ -26,13 +30,9 @@ interface FlowStep {
   name: string;
   /** Review steps only: the work item to show embedded. */
   workItemId?: number;
-}
-
-/** Cards carrying this tag are walked through together, up front, before the daily proper. */
-const REVIEW_TAG = "Stäm av med teamet";
-
-function needsTeamReview(story: DailyStoryDto): boolean {
-  return (story.tags ?? []).some((t) => t.trim().toLowerCase() === REVIEW_TAG.toLowerCase());
+  /** Review steps only: the story and/or tasks carrying the tag, and which tasks those were. */
+  taggedIds?: number[];
+  taggedTaskTitles?: string[];
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -57,8 +57,11 @@ interface DailyFlowProps {
   sprintGoalsByNumber?: Map<number, SprintGoal>;
   /** Lets the embedded card's "Validering" button open the validation dialog on the board. */
   onOpenValidation?: (id: number) => void;
-  /** Lets the board drop the review tag from its local copy once it's been cleared in Azure. */
-  onReviewTagCleared?: (storyId: number) => void;
+  /** Lets the board drop the review tag from its local copy once it's been cleared in Azure.
+   *  `clearedIds` are the work items actually written - the story and/or some of its tasks. */
+  onReviewTagCleared?: (storyId: number, clearedIds: number[]) => void;
+  /** personKeys of the people taking part today; everyone else is skipped. */
+  participantKeys: Set<string>;
   onClose: () => void;
 }
 
@@ -73,6 +76,7 @@ export function DailyFlow({
   sprintGoalsByNumber,
   onOpenValidation,
   onReviewTagCleared,
+  participantKeys,
   onClose,
 }: DailyFlowProps) {
   const [roles, setRoles] = useState<{ po: PersonOption | null; testLead: PersonOption | null } | null>(null);
@@ -93,12 +97,17 @@ export function DailyFlow({
   useEffect(() => {
     let cancelled = false;
 
-    // Cards tagged "Stäm av med teamet" are walked through first, whichever mode the daily runs
-    // in. With none tagged this is simply empty and the daily starts as before.
-    const reviewSteps: FlowStep[] = allStories
-      .filter(needsTeamReview)
-      .sort((a, b) => a.id - b.id)
-      .map((s) => ({ kind: "review" as const, key: `review-${s.id}`, name: s.title, workItemId: s.id }));
+    // Cards tagged "Stäm av med teamet" - on the card itself or on one of its tasks - are walked
+    // through first, whichever mode the daily runs in. With none tagged this is simply empty and
+    // the daily starts as before.
+    const reviewSteps: FlowStep[] = collectReviewTargets(allStories).map((t) => ({
+      kind: "review" as const,
+      key: `review-${t.storyId}`,
+      name: t.title,
+      workItemId: t.storyId,
+      taggedIds: t.taggedIds,
+      taggedTaskTitles: t.taggedTaskTitles,
+    }));
 
     const start = (rest: FlowStep[]) => {
       const fullOrder = [...reviewSteps, ...rest];
@@ -132,14 +141,19 @@ export function DailyFlow({
         const extraGroups = groups.filter(
           (g) => g.label !== UNASSIGNED_GROUP_LABEL && !roster.some((d) => samePerson(d.displayName, g.label)),
         );
+        // The participant picker has the final say on who gets a turn: someone off sick is
+        // unticked before the meeting rather than skipped over live.
+        const takesPart = (name: string) => participantKeys.has(personKey(name));
         const devSteps: FlowStep[] = shuffle([
-          ...roster.map((dev) => {
+          ...roster.filter((dev) => takesPart(dev.displayName)).map((dev) => {
             const matchingGroup = groups.find((g) => samePerson(g.label, dev.displayName));
             return matchingGroup
               ? { kind: "developer" as const, key: matchingGroup.id, name: matchingGroup.label }
               : { kind: "developer" as const, key: `dev-${dev.email}`, name: dev.displayName };
           }),
-          ...extraGroups.map((g) => ({ kind: "developer" as const, key: g.id, name: g.label })),
+          ...extraGroups
+            .filter((g) => takesPart(g.label))
+            .map((g) => ({ kind: "developer" as const, key: g.id, name: g.label })),
         ]);
         const poStep: FlowStep = { kind: "po", key: "po", name: r.po?.displayName || "Product Owner" };
         const testStep: FlowStep = { kind: "testlead", key: "testlead", name: r.testLead?.displayName || "Testansvarig" };
@@ -169,16 +183,31 @@ export function DailyFlow({
   async function clearReviewTag(step: FlowStep) {
     const story = allStories.find((s) => s.id === step.workItemId);
     if (!story) return;
-    const nextTags = (story.tags ?? []).filter((t) => t.trim().toLowerCase() !== REVIEW_TAG.toLowerCase());
-    try {
-      await updateWorkItemFields(story.id, { tags: nextTags });
-      onReviewTagCleared?.(story.id);
-      showToast(`Taggen "${REVIEW_TAG}" borttagen från #${story.id}.`, "success");
-    } catch (err) {
-      showToast(
-        `Kunde inte ta bort taggen från #${story.id}: ${err instanceof Error ? err.message : "Okänt fel"}`,
-        "error",
-      );
+    // The tag can sit on the card, on one or more of its tasks, or on both - each one is its own
+    // work item and needs its own write. They're cleared independently so one failure (a task
+    // someone edited meanwhile, say) still lets the others through.
+    const targets = (step.taggedIds ?? [story.id]).map((id) => ({
+      id,
+      tags: id === story.id ? story.tags : (story.tasks ?? []).find((t) => t.id === id)?.tags,
+    }));
+
+    const cleared: number[] = [];
+    const failed: string[] = [];
+    for (const target of targets) {
+      try {
+        await updateWorkItemFields(target.id, { tags: withoutReviewTag(target.tags) });
+        cleared.push(target.id);
+      } catch (err) {
+        failed.push(`#${target.id} (${err instanceof Error ? err.message : "okänt fel"})`);
+      }
+    }
+
+    if (cleared.length > 0) {
+      onReviewTagCleared?.(story.id, cleared);
+      showToast(`Taggen "${REVIEW_TAG}" borttagen från ${cleared.map((id) => `#${id}`).join(", ")}.`, "success");
+    }
+    if (failed.length > 0) {
+      showToast(`Kunde inte ta bort taggen från ${failed.join(", ")}.`, "error");
     }
   }
 
@@ -255,6 +284,14 @@ export function DailyFlow({
             <span className="daily-flow__review-count">
               Visar kort {stepNumber}/{reviewTotal}
             </span>
+            {(current.taggedTaskTitles?.length ?? 0) > 0 && (
+              // The card is here because a task under it was tagged, not the card itself - without
+              // saying so the team is left hunting for a tag that isn't on what they're looking at.
+              <span className="daily-flow__review-via" title={current.taggedTaskTitles!.join(", ")}>
+                Taggad via {current.taggedTaskTitles!.length === 1 ? "task" : "tasks"}:{" "}
+                {current.taggedTaskTitles!.join(", ")}
+              </span>
+            )}
             <label className="daily-flow__review-clear">
               <input type="checkbox" checked={clearTagOnNext} onChange={(e) => setClearTagOnNext(e.target.checked)} />
               Ta bort taggen "{REVIEW_TAG}" när jag går vidare

@@ -30,6 +30,9 @@ export interface WorkItemPullRequest {
   reviewers: PrReviewer[];
   commentsTotal: number;
   commentsResolved: number;
+  /** Set when the PR hangs off one of the card's tasks rather than off the card itself. */
+  sourceTaskId: number | null;
+  sourceTaskTitle: string | null;
 }
 
 export interface WorkItemHistoryEntry {

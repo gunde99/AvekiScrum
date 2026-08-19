@@ -65,6 +65,10 @@
   font-family: var(--font-mono, monospace);
 }
 
+.wi-pr__via {
+  font-style: italic;
+}
+
 .wi-pr__status {
   font-size: 0.7rem;
   font-weight: 700;
