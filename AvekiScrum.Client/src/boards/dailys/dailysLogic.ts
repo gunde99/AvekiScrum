@@ -8,6 +8,63 @@ export function pct(n: number, total: number): number {
   return total ? Math.round((n / total) * 100) : 0;
 }
 
+/**
+ * A card's state on the board, taken from its Azure state - the same axis the Status filter
+ * offers (New / Active / Resolved / Closed).
+ *
+ * Not to be confused with `story.stage`, which is the *development flow* position derived from
+ * the card's tasks (Development → CodeReview → Testing → Done). The two genuinely disagree: a
+ * card can be Closed while a test task under it is still open, so it sits at stage "CodeReview".
+ * Counting "klara" by stage is what made filtering on Closed report 16 of 22 done - every number
+ * a person is meant to trust therefore counts by state, and stage is left to drive the flow
+ * visuals it was built for.
+ */
+export type StoryStatusBucket = "done" | "active" | "new";
+
+export function storyStatusBucket(s: DailyStoryDto): StoryStatusBucket {
+  const state = (s.azureStatus || "").trim().toLowerCase();
+  if (state === "closed" || state === "done") return "done";
+  if (state === "new" || state === "proposed" || state === "") return "new";
+  return "active"; // Active, Resolved, and any custom in-between state
+}
+
+export function isStoryDone(s: DailyStoryDto): boolean {
+  return storyStatusBucket(s) === "done";
+}
+
+export interface StoryStats {
+  total: number;
+  done: number;
+  active: number;
+  newCount: number;
+  totalSP: number;
+  doneSP: number;
+  /** Share of story points delivered, or - when nothing is pointed - share of cards closed, so a
+   *  fully finished group of unpointed cards doesn't read as 0%. */
+  progress: number;
+  /** True when `progress` had to fall back to counting cards. */
+  progressFromCards: boolean;
+}
+
+export function summarizeStories(stories: DailyStoryDto[]): StoryStats {
+  const done = stories.filter((s) => storyStatusBucket(s) === "done").length;
+  const active = stories.filter((s) => storyStatusBucket(s) === "active").length;
+  const newCount = stories.filter((s) => storyStatusBucket(s) === "new").length;
+  const totalSP = stories.reduce((a, s) => a + (s.storyPoints || 0), 0);
+  const doneSP = stories.filter(isStoryDone).reduce((a, s) => a + (s.storyPoints || 0), 0);
+  const progressFromCards = totalSP === 0;
+  return {
+    total: stories.length,
+    done,
+    active,
+    newCount,
+    totalSP,
+    doneSP,
+    progress: progressFromCards ? pct(done, stories.length) : pct(doneSP, totalSP),
+    progressFromCards,
+  };
+}
+
 export function isTestTask(t: DailyTaskDto): boolean {
   const stage = (t.stage || "").toLowerCase();
   const activity = (t.activity || "").toLowerCase();
@@ -569,12 +626,13 @@ export function buildGroups(stories: DailyStoryDto[], mode: GroupMode, developer
     return { id: "d-" + slugify(dev), label: dev, mode, goals, stories: devStories, subGroups };
   });
 
-  // Cards that landed in no dev group at all would otherwise vanish from this view entirely -
-  // whether truly unowned, or only touched by someone outside this team's roster (see isRosterDeveloper
-  // above) - they get their own bucket last, since unattributed work is exactly what a daily wants
-  // to surface rather than silently drop.
+  // "Ej tilldelad" holds every card without an owner, plus anything that landed in no group at
+  // all (only touched by someone outside this team's roster - see isRosterDeveloper above).
+  // Ownerless cards go here even when a task assignee already shows them inside their group:
+  // otherwise a card nobody owns is counted by no header at all, and the per-person totals stop
+  // adding up to the board. Unattributed work is exactly what a daily wants surfaced anyway.
   const groupedStoryIds = new Set(devGroups.flatMap((g) => g.stories.map((s) => s.id)));
-  const orphans = stories.filter((s) => !groupedStoryIds.has(s.id));
+  const orphans = stories.filter((s) => !storyOwnerKey(s) || !groupedStoryIds.has(s.id));
   if (orphans.length > 0) {
     devGroups.push({
       id: "d-unassigned",

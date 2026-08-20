@@ -11,10 +11,13 @@ import {
   collectReviewTargets,
   fullPersonName,
   isTestTask,
+  pct,
   personKey,
   REVIEW_TAG,
   samePerson,
   storyProg,
+  storyStatusBucket,
+  summarizeStories,
   UNASSIGNED_GROUP_LABEL,
   withoutReviewTag,
   type GroupMode,
@@ -422,9 +425,20 @@ export function DailyFlow({
   );
 }
 
-function CheckInGauge({ label, value, onChange }: { label: string; value: number | null; onChange: (value: number) => void }) {
+function CheckInGauge({
+  label,
+  value,
+  onChange,
+  stacked = false,
+}: {
+  label: string;
+  value: number | null;
+  onChange: (value: number) => void;
+  /** Puts the input above the gauge instead of beside it, for narrow side columns. */
+  stacked?: boolean;
+}) {
   return (
-    <div className="daily-flow__mood">
+    <div className={"daily-flow__mood" + (stacked ? " daily-flow__mood--stacked" : "")}>
       <div className="daily-flow__mood-label">{label}</div>
       <div className="daily-flow__mood-controls">
         <input
@@ -458,7 +472,7 @@ function DeveloperTurn({
 }) {
   const group = groups.find((g) => g.id === stepKey);
   const stories = group?.stories ?? [];
-  const done = stories.filter((s) => s.stage === "Done").length;
+  const { done } = summarizeStories(stories);
 
   return (
     <div className="daily-flow__turn">
@@ -471,6 +485,123 @@ function DeveloperTurn({
         </span>
       </div>
       <CheckInGauge label="Hur känns sprinten just nu? (1-5)" value={value} onChange={onChange} />
+    </div>
+  );
+}
+
+/** The four Azure states, in flow order, with the colour each one carries across the board. */
+const GOAL_STATE_SLICES = [
+  { key: "New", label: "New", cls: "df-slice--new" },
+  { key: "Active", label: "Active", cls: "df-slice--active" },
+  { key: "Resolved", label: "Resolved", cls: "df-slice--resolved" },
+  { key: "Closed", label: "Closed", cls: "df-slice--closed" },
+] as const;
+
+/**
+ * Story points per Azure state as a donut, with card progress underneath. Two different
+ * questions, deliberately measured differently: the donut answers "where does the estimated work
+ * sit", the bar answers "how many cards have we actually moved", which is why the bar counts
+ * cards even when the donut has points to show.
+ */
+function GoalStats({ stories }: { stories: DailyStoryDto[] }) {
+  const spByState = new Map<string, number>(GOAL_STATE_SLICES.map((s) => [s.key, 0]));
+  for (const story of stories) {
+    const state = (story.azureStatus || "").trim();
+    const key = spByState.has(state) ? state : storyStatusBucket(story) === "done" ? "Closed" : storyStatusBucket(story) === "new" ? "New" : "Active";
+    spByState.set(key, (spByState.get(key) ?? 0) + (story.storyPoints || 0));
+  }
+  const totalSP = [...spByState.values()].reduce((a, b) => a + b, 0);
+
+  const total = stories.length;
+  const closed = stories.filter((s) => storyStatusBucket(s) === "done").length;
+  // "Påbörjat" is everything that has left the New column - Active, Resolved and Closed alike.
+  const started = stories.filter((s) => storyStatusBucket(s) !== "new").length;
+  const startedPct = pct(started, total);
+  const closedPct = pct(closed, total);
+
+  const radius = 52;
+  const circumference = 2 * Math.PI * radius;
+  let offset = 0;
+
+  return (
+    <div className="df-goal-stats">
+      <div className="df-donut-wrap">
+        {totalSP === 0 ? (
+          <p className="df-donut-empty">Inga story points satta på det här sprintmålets kort.</p>
+        ) : (
+          <>
+            <svg className="df-donut" viewBox="0 0 140 140" role="img" aria-label="Story points per status">
+              <circle className="df-donut__track" cx="70" cy="70" r={radius} fill="none" strokeWidth="20" />
+              {GOAL_STATE_SLICES.map((slice) => {
+                const value = spByState.get(slice.key) ?? 0;
+                if (value === 0) return null;
+                const length = (value / totalSP) * circumference;
+                const dash = `${length} ${circumference - length}`;
+                const thisOffset = offset;
+                offset += length;
+                return (
+                  <circle
+                    key={slice.key}
+                    className={`df-donut__slice ${slice.cls}`}
+                    cx="70"
+                    cy="70"
+                    r={radius}
+                    fill="none"
+                    strokeWidth="20"
+                    strokeDasharray={dash}
+                    // Negative offset walks clockwise from 12 o'clock (the -90° rotation in CSS).
+                    strokeDashoffset={-thisOffset}
+                  >
+                    <title>{`${slice.label}: ${value} SP`}</title>
+                  </circle>
+                );
+              })}
+              <text className="df-donut__total" x="70" y="70" textAnchor="middle" dominantBaseline="central">
+                {totalSP}
+              </text>
+            </svg>
+            <div className="df-donut-legend">
+              {GOAL_STATE_SLICES.map((slice) => (
+                <span key={slice.key} className="df-legend-item">
+                  <span className={`df-legend-swatch ${slice.cls}`} />
+                  {slice.label}
+                  <strong>{spByState.get(slice.key) ?? 0}</strong>
+                </span>
+              ))}
+            </div>
+            <span className="df-donut-caption">Story points per status</span>
+          </>
+        )}
+      </div>
+
+      <div className="df-goal-progress">
+        <div className="df-progress-head">
+          <span className="df-progress-title">Kort</span>
+          <span className="df-progress-total">{total} st</span>
+        </div>
+        {/* Closed is a subset of started, so the green bar is drawn over the started bar from the
+            same left edge rather than stacked after it. */}
+        <div className="df-progress-track">
+          <div className="df-progress-bar df-progress-bar--started" style={{ width: `${startedPct}%` }} />
+          <div className="df-progress-bar df-progress-bar--closed" style={{ width: `${closedPct}%` }} />
+        </div>
+        <div className="df-progress-legend">
+          <span className="df-legend-item">
+            <span className="df-legend-swatch df-legend-swatch--started" />
+            Påbörjade
+            <strong>
+              {started} · {startedPct}%
+            </strong>
+          </span>
+          <span className="df-legend-item">
+            <span className="df-legend-swatch df-legend-swatch--closed" />
+            Closed
+            <strong>
+              {closed} · {closedPct}%
+            </strong>
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -490,24 +621,17 @@ function GoalTurn({
 }) {
   const group = groups.find((g) => g.id === stepKey);
   const stories = group?.stories ?? [];
-  const done = stories.filter((s) => s.stage === "Done").length;
 
   return (
     <>
-      <div className="daily-flow__turn daily-flow__turn--narrow">
-        <div className="daily-flow__turn-summary">
-          <span className="df-stat">
-            <strong>{stories.length}</strong> kort
-          </span>
-          <span className="df-stat">
-            <strong>{done}</strong> klara
-          </span>
-        </div>
-        <CheckInGauge label="Hur säkra är vi på att nå det här sprintmålet? (1-5)" value={value} onChange={onChange} />
+      {/* Left: how the goal is actually going. Right (further down): the confidence check-in,
+          stacked so it takes as little width as possible. The goal's own text sits between them. */}
+      <div className="daily-flow__turn daily-flow__turn--stats">
+        <GoalStats stories={stories} />
       </div>
 
-      {/* The right-hand half of a goal step was empty - the goal's own detail (what it is, who
-          owns it, what "done" means) is exactly what the team needs while scoring confidence. */}
+      {/* The goal's own detail (what it is, who owns it, what "done" means) is exactly what the
+          team needs while scoring confidence. */}
       <div className="df-goal-detail">
         {!goal ? (
           <p className="daily-flow__empty">Ingen sprintmålsinformation hittades i wikin.</p>
@@ -562,6 +686,10 @@ function GoalTurn({
             )}
           </>
         )}
+      </div>
+
+      <div className="df-goal-checkin">
+        <CheckInGauge label="Hur säkra är vi på att nå det här sprintmålet? (1-5)" value={value} onChange={onChange} stacked />
       </div>
     </>
   );

@@ -1,5 +1,5 @@
 import type { DailyStoryDto } from "../../api/dailys";
-import { pct } from "./dailysLogic";
+import { pct, summarizeStories } from "./dailysLogic";
 import "./KpiStrip.css";
 
 interface KpiStripProps {
@@ -7,19 +7,16 @@ interface KpiStripProps {
 }
 
 export function KpiStrip({ stories }: KpiStripProps) {
-  const total = stories.length;
-  const done = stories.filter((s) => s.stage === "Done").length;
-  const active = stories.filter((s) => s.stage !== "Done" && s.stage !== "New").length;
-  const nw = stories.filter((s) => s.stage === "New").length;
-  const totalSP = stories.reduce((a, s) => a + (s.storyPoints || 0), 0);
-  const doneSP = stories.filter((s) => s.stage === "Done").reduce((a, s) => a + (s.storyPoints || 0), 0);
+  // Counted by Azure state, so these always add up to the total and always agree with what the
+  // Status filter selected - filtering on Closed now really does report every card as klart.
+  const { total, done, active, newCount, totalSP, doneSP } = summarizeStories(stories);
   const alerts = stories.filter((s) => s.alertLevel === "Warning" || s.alertLevel === "Critical").length;
 
   const cards = [
-    { label: "Stories totalt", val: total, sub: "i sprinten", accent: "info" as const },
-    { label: "Aktiva", val: active, sub: "i arbete", accent: active ? "info" : "muted" as const },
-    { label: "Klara", val: done, sub: `av ${total} stories`, accent: done ? "success" : "muted" as const },
-    { label: "Ej startade", val: nw, sub: "i kön", accent: "muted" as const },
+    { label: "Kort totalt", val: total, sub: "i sprinten", accent: "info" as const },
+    { label: "Aktiva", val: active, sub: "Active/Resolved", accent: active ? "info" : "muted" as const },
+    { label: "Klara", val: done, sub: `av ${total} kort`, accent: done ? "success" : "muted" as const },
+    { label: "Ej startade", val: newCount, sub: "i kön", accent: "muted" as const },
     { label: "Story Points", val: totalSP, sub: "sprintkapacitet", accent: "info" as const },
     {
       label: "SP klara",

@@ -1,6 +1,6 @@
 import { PersonAvatar } from "../../components/PersonAvatar";
 import { StoryTable } from "./StoryTable";
-import { pct, UNASSIGNED_GROUP_LABEL, type StoryGroup, type FlowLaneStage } from "./dailysLogic";
+import { samePerson, summarizeStories, UNASSIGNED_GROUP_LABEL, type StoryGroup, type FlowLaneStage } from "./dailysLogic";
 import type { SprintGoal } from "../../api/sprintGoals";
 import "./GroupCard.css";
 
@@ -32,12 +32,16 @@ export function GroupCard({
   const goalNumber = goalNumberMatch ? Number(goalNumberMatch[0]) : null;
   const matchedGoal = goalNumber !== null ? sprintGoalsByNumber?.get(goalNumber) : undefined;
   const groupLabel = matchedGoal ? `Sprintmål ${matchedGoal.number} - ${matchedGoal.title}` : group.label;
-  const totalSP = stories.reduce((a, s) => a + (s.storyPoints || 0), 0);
-  const doneSP = stories.filter((s) => s.stage === "Done").reduce((a, s) => a + (s.storyPoints || 0), 0);
-  const progress = pct(doneSP, totalSP);
-  const done = stories.filter((s) => s.stage === "Done").length;
-  const active = stories.filter((s) => s.stage !== "Done" && s.stage !== "New").length;
-  const newCount = stories.filter((s) => s.stage === "New").length;
+  // A developer's group deliberately also holds cards they only contributed to - a task, a PR
+  // review - so the same card sits in up to four groups at once. Summing all of them would credit
+  // one card's story points to everyone who touched it, and the group totals would add up to far
+  // more than the board holds. The header therefore reports the cards this person actually owns,
+  // which do partition the board; the rest stay visible in the role sub-groups below and in the
+  // card count on the right. Sprintmål and Ogrupperat already partition, so there they are the
+  // same set. "Ej tilldelad" has no owner by definition, so it counts everything it holds.
+  const ownsGroup = group.mode === "developer" && group.label !== UNASSIGNED_GROUP_LABEL;
+  const statStories = ownsGroup ? stories.filter((s) => samePerson(s.developer, group.label)) : stories;
+  const { done, active, newCount, totalSP, doneSP, progress, progressFromCards } = summarizeStories(statStories);
   const hasCrit = stories.some((s) => s.alertLevel === "Critical");
   const hasWarn = stories.some((s) => s.alertLevel === "Warning");
 
@@ -84,7 +88,10 @@ export function GroupCard({
           {hasCrit && <span className="gm-badge gm-crit">🚨 Kritisk</span>}
           {hasWarn && <span className="gm-badge gm-warn">⚠ Varning</span>}
         </div>
-        <div className="group-prog-wrap">
+        <div
+          className="group-prog-wrap"
+          title={progressFromCards ? `${done} av ${statStories.length} kort klara (inga story points satta)` : `${doneSP} av ${totalSP} SP klara`}
+        >
           <div className="group-prog-track">
             <div
               className={`group-prog-fill ${progress >= 100 ? "group-prog-fill--done" : progress > 0 ? "group-prog-fill--active" : ""}`}
@@ -93,10 +100,14 @@ export function GroupCard({
           </div>
           <span className="group-prog-pct">{progress}%</span>
         </div>
-        <span className="group-sp">
-          {doneSP}/{totalSP} SP
+        <span className="group-sp">{totalSP > 0 ? `${doneSP}/${totalSP} SP` : "– SP"}</span>
+        {/* In developer mode the two numbers differ whenever the person is involved in cards they
+            don't own, and saying so is the whole point - the header stats describe the "egna". */}
+        <span className="group-count">
+          {ownsGroup && statStories.length !== stories.length
+            ? `${statStories.length} egna av ${stories.length} kort`
+            : `${stories.length} kort`}
         </span>
-        <span className="group-count">{stories.length} stories</span>
       </div>
       {/* An empty subGroups array is still truthy - guard on length, or a group with no role
           buckets (e.g. "Ej tilldelad") renders an empty container and its stories vanish. */}
