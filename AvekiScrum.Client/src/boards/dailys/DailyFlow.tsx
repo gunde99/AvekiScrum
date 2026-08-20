@@ -126,19 +126,22 @@ export function DailyFlow({
       setQueue(fullOrder.slice(1));
     };
 
-    if (mode === "goals") {
-      // Sprint goals keep their existing (meaningful) order instead of being shuffled, and
-      // there's no PO/testlead closing step - that pairing is specific to the per-developer
-      // standup.
-      start(groups.map((g) => ({ kind: "goal", key: g.id, name: g.label })));
-      return;
-    }
-
     fetchTeamRoles(team)
       .catch(() => ({ po: null, testLead: null, developers: [] }))
       .then((r) => {
         if (cancelled) return;
         setRoles(r);
+        const poStep: FlowStep = { kind: "po", key: "po", name: r.po?.displayName || "Product Owner" };
+        const testStep: FlowStep = { kind: "testlead", key: "testlead", name: r.testLead?.displayName || "Testansvarig" };
+
+        if (mode === "goals") {
+          // Sprint goals keep their existing (meaningful) order instead of being shuffled. The
+          // PO and test lead close the round here just as they do in the developer standup - the
+          // questions differ, but both still need their turn.
+          start([...groups.map((g) => ({ kind: "goal" as const, key: g.id, name: g.label })), poStep, testStep]);
+          return;
+        }
+
         // Every roster developer gets a turn, even with zero cards right now (e.g. someone just
         // back from leave) - not just whoever already happens to own a story this sprint. Cards
         // owned by someone not on the roster (shouldn't normally happen) still get a turn too, so
@@ -164,8 +167,6 @@ export function DailyFlow({
             .filter((g) => takesPart(g.label))
             .map((g) => ({ kind: "developer" as const, key: g.id, name: g.label })),
         ]);
-        const poStep: FlowStep = { kind: "po", key: "po", name: r.po?.displayName || "Product Owner" };
-        const testStep: FlowStep = { kind: "testlead", key: "testlead", name: r.testLead?.displayName || "Testansvarig" };
         start([...devSteps, poStep, testStep]);
       });
     return () => {
@@ -387,6 +388,7 @@ export function DailyFlow({
         {current.kind === "po" && (
           <PoTurn
             poName={roles?.po?.displayName ?? current.name}
+            mode={mode}
             allStories={allStories}
             onOpenWorkItem={onOpenWorkItem}
             value={checkIns[current.key] ?? null}
@@ -634,7 +636,9 @@ function GoalTurn({
           team needs while scoring confidence. */}
       <div className="df-goal-detail">
         {!goal ? (
-          <p className="daily-flow__empty">Ingen sprintmålsinformation hittades i wikin.</p>
+          // The "(Inget sprintmål)" bucket has no wiki entry by definition, so saying the lookup
+          // failed reads as a fault. It's simply the leftovers, and gets said plainly as a heading.
+          <h2 className="df-goal-title df-goal-title--other">Övriga kort – ej tillhörande ett sprintmål</h2>
         ) : (
           <>
             {/* The goal's own name, as a plain heading - the left column only says which number
@@ -655,7 +659,7 @@ function GoalTurn({
               </GoalSection>
             )}
             {goal.deliverables.length > 0 && (
-              <GoalSection title="Leverabler">
+              <GoalSection title="Delleverans">
                 <ul className="df-goal-detail__list">
                   {goal.deliverables.map((d) => (
                     <li key={d.id} className={d.done ? "df-goal-detail__done" : ""}>
@@ -693,7 +697,14 @@ function GoalTurn({
       </div>
 
       <div className="df-goal-checkin">
-        <CheckInGauge label="Hur säkra är vi på att nå det här sprintmålet? (1-5)" value={value} onChange={onChange} stacked />
+        {/* The leftovers bucket has no goal to reach, so asking how confident we are of reaching
+            it reads as nonsense there - it still gets a check-in, just a fitting question. */}
+        <CheckInGauge
+          label={goal ? "Hur säkra är vi på att nå det här sprintmålet? (1-5)" : "Hur ligger vi till med de här korten? (1-5)"}
+          value={value}
+          onChange={onChange}
+          stacked
+        />
       </div>
     </>
   );
@@ -701,12 +712,14 @@ function GoalTurn({
 
 function PoTurn({
   poName,
+  mode,
   allStories,
   onOpenWorkItem,
   value,
   onChange,
 }: {
   poName: string;
+  mode: GroupMode;
   allStories: DailyStoryDto[];
   onOpenWorkItem: (id: number) => void;
   value: number | null;
@@ -728,7 +741,17 @@ function PoTurn({
           <strong>{relevant.length}</strong> kort
         </span>
       </div>
-      <CheckInGauge label="Hur känns sprinten just nu? (1-5)" value={value} onChange={onChange} />
+      {/* A sprintmål round has just walked through every goal, so the PO's turn is about how
+          that landed - not the generic "how does the sprint feel" the developer round ends on. */}
+      <CheckInGauge
+        label={
+          mode === "goals"
+            ? "Hur trygg känner du dig med teamets framfart mot sprintmålen? (1-5)"
+            : "Hur känns sprinten just nu? (1-5)"
+        }
+        value={value}
+        onChange={onChange}
+      />
       {relevant.length === 0 ? (
         <p className="daily-flow__empty">Inga kort just nu.</p>
       ) : (

@@ -778,3 +778,9 @@
   border-color: var(--color-primary);
   color: #ffffff;
 }
+
+/* Same weight as a real sprint goal heading - the leftovers bucket is a legitimate step, not an
+   error state, so it should look like every other goal's title. */
+.df-goal-title--other {
+  color: var(--color-text-muted);
+}

@@ -557,7 +557,12 @@ namespace AvekiScrum.Application.Services
                                 header.Contains("domanexpert", StringComparison.Ordinal) ||
                                 header.Contains("domänexpert", StringComparison.Ordinal)
                     => "sakkunnig",
-                var header when header.StartsWith("leverabel", StringComparison.Ordinal)
+                // "Delleverans" is what the Syd table calls this column; "Leverabler" is the
+                // heading the renderer below writes. Both mean the same thing, and only matching
+                // one of them left the column silently unread.
+                var header when header.StartsWith("leverabel", StringComparison.Ordinal) ||
+                                header.StartsWith("delleverans", StringComparison.Ordinal) ||
+                                header.StartsWith("leverans", StringComparison.Ordinal)
                     => "leverabler",
                 var header when header.StartsWith("definitionofdone", StringComparison.Ordinal) ||
                                 header == "dod"

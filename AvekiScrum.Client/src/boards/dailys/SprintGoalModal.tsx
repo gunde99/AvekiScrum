@@ -49,7 +49,7 @@ export function SprintGoalModal({ goal, onClose, onOpenWorkItem }: SprintGoalMod
           )}
 
           {goal.deliverables.length > 0 && (
-            <Section title="Leverabler">
+            <Section title="Delleverans">
               <ul className="sg-checklist">
                 {goal.deliverables.map((d) => (
                   <li key={d.id} className={d.done ? "sg-checklist__item--done" : ""}>
