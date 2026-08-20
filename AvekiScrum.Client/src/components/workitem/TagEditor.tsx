@@ -4,11 +4,17 @@ import "./TagEditor.css";
 interface TagEditorProps {
   tags: string[];
   onChange: (tags: string[]) => void;
+  /** Tags already used in the project, offered as suggestions. Free text still works, so a
+   *  genuinely new tag can be typed - the list is there to stop the same tag being reinvented
+   *  with a different spelling. */
+  suggestions?: string[];
 }
 
-/** Free-text add/remove tag chips - reused wherever a work item's System.Tags needs editing. */
-export function TagEditor({ tags, onChange }: TagEditorProps) {
+/** Add/remove tag chips with autocomplete against the project's existing tags. */
+export function TagEditor({ tags, onChange, suggestions = [] }: TagEditorProps) {
   const [draft, setDraft] = useState("");
+  const listId = "tag-suggestions";
+  const available = suggestions.filter((s) => !tags.some((t) => t.toLowerCase() === s.toLowerCase()));
 
   function addTag() {
     const value = draft.trim();
@@ -39,7 +45,8 @@ export function TagEditor({ tags, onChange }: TagEditorProps) {
         <input
           type="text"
           value={draft}
-          placeholder="Lägg till tagg…"
+          list={listId}
+          placeholder={available.length > 0 ? "Välj eller skriv en tagg…" : "Lägg till tagg…"}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
@@ -48,6 +55,11 @@ export function TagEditor({ tags, onChange }: TagEditorProps) {
             }
           }}
         />
+        <datalist id={listId}>
+          {available.map((s) => (
+            <option key={s} value={s} />
+          ))}
+        </datalist>
         <button type="button" className="wi-btn" onClick={addTag} disabled={!draft.trim()}>
           Lägg till
         </button>

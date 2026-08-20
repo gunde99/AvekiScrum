@@ -1,0 +1,72 @@
+.wi-new-item__open {
+  align-self: flex-start;
+}
+
+.wi-new-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+}
+
+.wi-new-item__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-end;
+}
+
+.wi-new-item__field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.wi-new-item__field > span {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.wi-new-item__field input,
+.wi-new-item__field select {
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.85rem;
+}
+
+/* The title is the field that actually needs room; the pickers stay at their natural width. */
+.wi-new-item__field--title {
+  flex: 1 1 260px;
+}
+
+.wi-new-item__field--type {
+  flex: 0 0 auto;
+}
+
+.wi-new-item__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.wi-new-item__hint {
+  margin-right: auto;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.wi-new-item__error {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--color-danger);
+}

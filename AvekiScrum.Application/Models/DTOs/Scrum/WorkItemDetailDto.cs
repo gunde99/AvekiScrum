@@ -26,6 +26,8 @@ namespace AvekiScrum.Application.Models.DTOs.Scrum
         public double? OriginalEstimate { get; set; }
         public double? RemainingWork { get; set; }
         public double? CompletedWork { get; set; }
+        public string? AssignedTeam { get; set; }
+        public string? Stakeholders { get; set; }
         public List<string> Tags { get; set; } = new();
         public string DescriptionHtml { get; set; } = "";
         public string AcceptanceCriteriaHtml { get; set; } = "";

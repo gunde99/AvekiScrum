@@ -103,6 +103,21 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
         public Task<int> CreateRelatedUserStoryAsync(int relatedToId, string title, string? assignedTo, string? areaPath, string? iterationPath, CancellationToken ct = default)
             => _boards.CreateRelatedUserStoryAsync(relatedToId, title, assignedTo, areaPath, iterationPath, ct);
 
+        public Task<int> CreateWorkItemAsync(string workItemType, IReadOnlyDictionary<string, object?> fields, int? linkToId, string? linkRel, CancellationToken ct = default)
+            => _boards.CreateWorkItemAsync(workItemType, fields, linkToId, linkRel, ct);
+
+        public Task AddWorkItemCommentAsync(int workItemId, string text, CancellationToken ct = default)
+            => _boards.AddWorkItemCommentAsync(workItemId, text, ct);
+
+        public Task<IReadOnlyList<string>> GetClassificationPathsAsync(bool areas, CancellationToken ct = default)
+            => _boards.GetClassificationPathsAsync(areas, ct);
+
+        public Task<IReadOnlyList<string>> GetTagsAsync(CancellationToken ct = default)
+            => _boards.GetTagsAsync(ct);
+
+        public Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetWorkItemTypeFieldOptionsAsync(string workItemType, CancellationToken ct = default)
+            => _boards.GetWorkItemTypeFieldOptionsAsync(workItemType, ct);
+
         //public Task<IReadOnlyList<WorkItemRevision>> GetRevisionsAsync(int workItemId, CancellationToken ct = default)
         //    => _boards.GetRevisionsAsync(workItemId, ct);
 
@@ -624,6 +639,8 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
                 OriginalEstimate = fields.OriginalEstimate,
                 RemainingWork = fields.RemainingWork,
                 CompletedWork = fields.CompletedWork,
+                AssignedTeam = fields.AssignedTeam,
+                Stakeholders = fields.Stakeholders,
                 Tags = string.IsNullOrWhiteSpace(fields.Tags)
                     ? new List<string>()
                     : fields.Tags.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),

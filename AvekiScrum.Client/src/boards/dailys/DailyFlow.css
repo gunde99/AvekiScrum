@@ -612,6 +612,14 @@
   font-size: 0.78rem;
 }
 
+.df-goal-title {
+  margin: 0 0 var(--space-1);
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--color-text);
+}
+
 .df-goal-detail {
   flex: 1;
   min-width: 320px;

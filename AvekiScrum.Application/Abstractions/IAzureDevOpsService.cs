@@ -49,6 +49,13 @@ namespace AvekiScrum.Application.Abstractions
         Task<IReadOnlyList<PlanningSprintGoal>> GetSprintGoalsAsync(DeveloperTeam team, CancellationToken ct = default);
         Task<int> CreateTaskAsync(int parentId, string title, string? activity, string? assignedTo, string? state, string? areaPath, string? iterationPath, CancellationToken ct = default);
         Task<int> CreateRelatedUserStoryAsync(int relatedToId, string title, string? assignedTo, string? areaPath, string? iterationPath, CancellationToken ct = default);
+        Task<int> CreateWorkItemAsync(string workItemType, IReadOnlyDictionary<string, object?> fields, int? linkToId, string? linkRel, CancellationToken ct = default);
+        Task AddWorkItemCommentAsync(int workItemId, string text, CancellationToken ct = default);
+        /// <summary>All area paths (true) or iteration paths (false) in the project, for the pickers.</summary>
+        Task<IReadOnlyList<string>> GetClassificationPathsAsync(bool areas, CancellationToken ct = default);
+        Task<IReadOnlyList<string>> GetTagsAsync(CancellationToken ct = default);
+        /// <summary>Picklists the process template defines for one work item type, by field ref name.</summary>
+        Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetWorkItemTypeFieldOptionsAsync(string workItemType, CancellationToken ct = default);
         //public Task<WorkItemWithFields> GetWorkItemDetailsAsync(int workItemId);
         //public Task<List<WorkItemWithFields>> GetWorkItemsDetailsAsync(List<int> workItemIds);
         ////public Task<List<TeamCapacity>> GetTeamCapacityAsync(string project, string team, string iterationId);

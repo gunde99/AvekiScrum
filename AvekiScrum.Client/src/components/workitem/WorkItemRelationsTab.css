@@ -15,3 +15,9 @@
   padding: var(--space-4);
   text-align: center;
 }
+
+.wi-relations-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}

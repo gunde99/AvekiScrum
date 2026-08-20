@@ -637,6 +637,10 @@ function GoalTurn({
           <p className="daily-flow__empty">Ingen sprintmålsinformation hittades i wikin.</p>
         ) : (
           <>
+            {/* The goal's own name, as a plain heading - the left column only says which number
+                it is, and turning the title into another orange section head would make it read
+                as a fourth field rather than as what the sections below are about. */}
+            {goal.title && <h2 className="df-goal-title">{goal.title}</h2>}
             {goal.description && (
               <GoalSection title="Beskrivning">
                 <div className="df-goal-section__text">{goal.description}</div>

@@ -131,11 +131,28 @@ app.MapGet("/api/dailys", async (
         teamRoleProvider.GetTeamMembersForRoleGroup(TeamRoleType.ProductOwners, $"Team{developerTeam}"),
         StringComparer.OrdinalIgnoreCase);
 
-    bool IsOwnedByTeam(AvekiScrum.Application.Models.DTOs.Scrum.WorkItemDto wi) =>
-        string.IsNullOrWhiteSpace(wi.AssignedToEmail) || teamDeveloperEmails.Contains(wi.AssignedToEmail);
+    // The Assigned Team field is the one place someone states outright which team owns a card, so
+    // when it is set it decides - over the assignee, and over an unassigned card's habit of
+    // showing up on both boards. It's rarely filled in, which is exactly why it matters when it is.
+    // Returns null when the field is empty or holds something that isn't a team name.
+    static DeveloperTeam? ExplicitTeam(AvekiScrum.Application.Models.DTOs.Scrum.WorkItemDto wi) =>
+        string.IsNullOrWhiteSpace(wi.AssignedTeam) ? null : DeveloperTeamExtensions.FromAzureDevOpsName(wi.AssignedTeam.Trim());
 
-    bool IsOwnedByProductOwner(AvekiScrum.Application.Models.DTOs.Scrum.WorkItemDto wi) =>
-        !string.IsNullOrWhiteSpace(wi.AssignedToEmail) && teamProductOwnerEmails.Contains(wi.AssignedToEmail);
+    bool IsOwnedByTeam(AvekiScrum.Application.Models.DTOs.Scrum.WorkItemDto wi)
+    {
+        var explicitTeam = ExplicitTeam(wi);
+        if (explicitTeam.HasValue)
+            return explicitTeam.Value == developerTeam;
+        return string.IsNullOrWhiteSpace(wi.AssignedToEmail) || teamDeveloperEmails.Contains(wi.AssignedToEmail);
+    }
+
+    bool IsOwnedByProductOwner(AvekiScrum.Application.Models.DTOs.Scrum.WorkItemDto wi)
+    {
+        if (string.IsNullOrWhiteSpace(wi.AssignedToEmail) || !teamProductOwnerEmails.Contains(wi.AssignedToEmail))
+            return false;
+        var explicitTeam = ExplicitTeam(wi);
+        return !explicitTeam.HasValue || explicitTeam.Value == developerTeam;
+    }
 
     List<AvekiScrum.Application.Models.DTOs.Scrum.WorkItemDto> scopedWorkItems;
     HashSet<int> productOwnerStoryIds;
@@ -309,6 +326,20 @@ app.MapPatch("/api/workitems/{id:int}", async (
     if (request.AreaPath != null) fields["System.AreaPath"] = request.AreaPath;
     if (request.IterationPath != null) fields["System.IterationPath"] = request.IterationPath;
     if (request.Tags != null) fields["System.Tags"] = string.Join("; ", request.Tags);
+    if (request.Reason != null) fields["System.Reason"] = request.Reason;
+    if (request.Priority.HasValue) fields["Microsoft.VSTS.Common.Priority"] = request.Priority.Value;
+    if (request.Severity != null) fields["Microsoft.VSTS.Common.Severity"] = request.Severity;
+    if (request.Activity != null) fields["Microsoft.VSTS.Common.Activity"] = request.Activity;
+    if (request.RemainingWork.HasValue) fields["Microsoft.VSTS.Scheduling.RemainingWork"] = request.RemainingWork.Value;
+    if (request.CompletedWork.HasValue) fields["Microsoft.VSTS.Scheduling.CompletedWork"] = request.CompletedWork.Value;
+    if (request.OriginalEstimate.HasValue) fields["Microsoft.VSTS.Scheduling.OriginalEstimate"] = request.OriginalEstimate.Value;
+    if (request.BusinessValue.HasValue) fields["Microsoft.VSTS.Common.BusinessValue"] = request.BusinessValue.Value;
+    if (request.ValueArea != null) fields["Microsoft.VSTS.Common.ValueArea"] = request.ValueArea;
+    if (request.Source != null) fields["Custom.Source"] = request.Source;
+    if (request.AssignedTeam != null) fields["Custom.AssignedTeam"] = request.AssignedTeam;
+    // Stakeholders is an identity field, so an empty string has to become a real null to clear it.
+    if (request.Stakeholders != null)
+        fields["Custom.Stakeholders"] = string.IsNullOrEmpty(request.Stakeholders) ? null : request.Stakeholders;
 
     if (fields.Count == 0)
         return Results.BadRequest("No fields to update.");
@@ -352,6 +383,97 @@ app.MapPost("/api/workitems/{id:int}/tasks", async (
     return Results.Ok(new { created = createdIds.Count, ids = createdIds });
 })
 .WithName("CreateWorkItemTasks");
+
+// Creating a work item from an open card: "child" from the taskboard, "related" from the
+// relations tab. Area/iteration default to the card's own, so a new item lands in the same sprint
+// and area as the work it belongs to unless told otherwise.
+app.MapPost("/api/workitems/{id:int}/children", async (
+    int id,
+    CreateWorkItemRequest request,
+    IAzureDevOpsService azureDevOpsService,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Title))
+        return Results.BadRequest("A new work item needs a title.");
+    if (string.IsNullOrWhiteSpace(request.Type))
+        return Results.BadRequest("A new work item needs a type.");
+
+    var linkRel = request.LinkKind?.Trim().ToLowerInvariant() switch
+    {
+        "child" => "System.LinkTypes.Hierarchy-Reverse",
+        "related" => "System.LinkTypes.Related",
+        _ => null,
+    };
+    if (linkRel is null)
+        return Results.BadRequest("linkKind must be 'child' or 'related'.");
+
+    var source = await azureDevOpsService.GetWorkItemDetailAsync(id, ct);
+    if (source is null)
+        return Results.NotFound();
+
+    var fields = new Dictionary<string, object?>
+    {
+        ["System.Title"] = request.Title,
+        ["System.AreaPath"] = string.IsNullOrWhiteSpace(request.AreaPath) ? source.AreaPath : request.AreaPath,
+        ["System.IterationPath"] = string.IsNullOrWhiteSpace(request.IterationPath) ? source.IterationPath : request.IterationPath,
+    };
+    if (!string.IsNullOrWhiteSpace(request.AssignedTo)) fields["System.AssignedTo"] = request.AssignedTo;
+    if (!string.IsNullOrWhiteSpace(request.Activity)) fields["Microsoft.VSTS.Common.Activity"] = request.Activity;
+    if (request.Tags is { Count: > 0 }) fields["System.Tags"] = string.Join("; ", request.Tags);
+    if (!string.IsNullOrWhiteSpace(request.Description))
+    {
+        fields[string.Equals(request.Type, "Bug", StringComparison.OrdinalIgnoreCase)
+            ? "Microsoft.VSTS.TCM.ReproSteps"
+            : "System.Description"] = request.Description;
+    }
+
+    var newId = await azureDevOpsService.CreateWorkItemAsync(request.Type, fields, id, linkRel, ct);
+    return Results.Ok(new { id = newId });
+})
+.WithName("CreateLinkedWorkItem");
+
+app.MapPost("/api/workitems/{id:int}/comments", async (
+    int id,
+    AddCommentRequest request,
+    IAzureDevOpsService azureDevOpsService,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Text))
+        return Results.BadRequest("A comment needs text.");
+
+    await azureDevOpsService.AddWorkItemCommentAsync(id, request.Text, ct);
+    var updated = await azureDevOpsService.GetWorkItemDetailAsync(id, ct);
+    return updated is null ? Results.NotFound() : Results.Ok(updated);
+})
+.WithName("AddWorkItemComment");
+
+// Feeds every picker in the card view: Area Path, Iteration, tags, and the per-type picklists
+// (State, Reason, Severity, Activity, Value Area, Source, Assigned Team). The picklists come from
+// the process template rather than being hardcoded - the real values are not guessable
+// ("2 - High (< 16 h )", "Internal"), and a wrong one makes Azure reject the entire save.
+app.MapGet("/api/classification", async (IAzureDevOpsService azureDevOpsService, CancellationToken ct) =>
+{
+    var areas = await azureDevOpsService.GetClassificationPathsAsync(areas: true, ct);
+    var iterations = await azureDevOpsService.GetClassificationPathsAsync(areas: false, ct);
+    var tags = await azureDevOpsService.GetTagsAsync(ct);
+
+    var fieldOptions = new Dictionary<string, IReadOnlyDictionary<string, IReadOnlyList<string>>>();
+    foreach (var type in new[] { "User Story", "Bug", "Task", "Feature", "Epic" })
+    {
+        try
+        {
+            fieldOptions[type] = await azureDevOpsService.GetWorkItemTypeFieldOptionsAsync(type, ct);
+        }
+        catch
+        {
+            // A type this project doesn't define shouldn't take the whole picker payload down -
+            // the client falls back to leaving that type's dropdowns as free-form.
+        }
+    }
+
+    return Results.Ok(new { areas, iterations, tags, fieldOptions });
+})
+.WithName("GetClassification");
 
 app.MapPost("/api/workitems/{id:int}/helptext-story", async (
     int id,
@@ -438,7 +560,35 @@ internal sealed record WorkItemFieldUpdateRequest(
     string? AcceptanceCriteria,
     string? AreaPath,
     string? IterationPath,
+    List<string>? Tags,
+    // Everything below is editable too - the card view used to render these read-only, which meant
+    // the app could show a field it had no way to correct.
+    int? Priority,
+    string? Severity,
+    string? Source,
+    string? Activity,
+    double? RemainingWork,
+    double? CompletedWork,
+    double? OriginalEstimate,
+    double? BusinessValue,
+    string? ValueArea,
+    string? AssignedTeam,
+    string? Stakeholders,
+    string? Reason);
+
+internal sealed record CreateWorkItemRequest(
+    string Type,
+    string Title,
+    /// "child" links the new item under this card, "related" links it beside it.
+    string LinkKind,
+    string? AssignedTo,
+    string? Description,
+    string? Activity,
+    string? AreaPath,
+    string? IterationPath,
     List<string>? Tags);
+
+internal sealed record AddCommentRequest(string Text);
 
 internal sealed record NewTaskRequest(string Title, string? Activity, string? AssignedTo, string? State);
 

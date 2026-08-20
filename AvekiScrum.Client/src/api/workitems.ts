@@ -63,6 +63,8 @@ export interface WorkItemDetail {
   originalEstimate: number | null;
   remainingWork: number | null;
   completedWork: number | null;
+  assignedTeam: string | null;
+  stakeholders: string | null;
   tags: string[];
   descriptionHtml: string;
   acceptanceCriteriaHtml: string;
@@ -80,6 +82,7 @@ export interface WorkItemDetail {
 export interface WorkItemFieldUpdate {
   title?: string;
   state?: string;
+  reason?: string;
   assignedTo?: string;
   developmentPartner?: string;
   storyPoints?: number;
@@ -88,6 +91,17 @@ export interface WorkItemFieldUpdate {
   areaPath?: string;
   iterationPath?: string;
   tags?: string[];
+  priority?: number;
+  severity?: string;
+  source?: string;
+  activity?: string;
+  remainingWork?: number;
+  completedWork?: number;
+  originalEstimate?: number;
+  businessValue?: number;
+  valueArea?: string;
+  assignedTeam?: string;
+  stakeholders?: string;
 }
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:5273";
@@ -142,4 +156,89 @@ export async function createHelptextStory(parentId: number): Promise<{ storyId: 
     throw new Error(`Failed to create hjälptext story for work item ${parentId}: HTTP ${response.status}`);
   }
   return (await response.json()) as { storyId: number; taskId: number };
+}
+
+export interface CreateLinkedWorkItemRequest {
+  type: string;
+  title: string;
+  /** "child" links the new item under the card, "related" links it beside it. */
+  linkKind: "child" | "related";
+  assignedTo?: string | null;
+  description?: string | null;
+  activity?: string | null;
+  areaPath?: string | null;
+  iterationPath?: string | null;
+  tags?: string[];
+}
+
+/** Creates a work item linked to `id`. Area and iteration default to the source card's. */
+export async function createLinkedWorkItem(id: number, request: CreateLinkedWorkItemRequest): Promise<{ id: number }> {
+  const response = await fetch(`${API_BASE_URL}/api/workitems/${id}/children`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  if (!response.ok) {
+    throw new Error(`Kunde inte skapa kortet: HTTP ${response.status}`);
+  }
+  return (await response.json()) as { id: number };
+}
+
+export async function addWorkItemComment(id: number, text: string): Promise<WorkItemDetail> {
+  const response = await fetch(`${API_BASE_URL}/api/workitems/${id}/comments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  if (!response.ok) {
+    throw new Error(`Kunde inte lägga till kommentaren: HTTP ${response.status}`);
+  }
+  return (await response.json()) as WorkItemDetail;
+}
+
+export interface ClassificationOptions {
+  areas: string[];
+  iterations: string[];
+  tags: string[];
+  /** Work item type -> Azure field reference name -> the values that type actually allows. */
+  fieldOptions: Record<string, Record<string, string[]>>;
+}
+
+/** Azure field reference names the card view offers pickers for. */
+export const FIELD = {
+  state: "System.State",
+  reason: "System.Reason",
+  severity: "Microsoft.VSTS.Common.Severity",
+  priority: "Microsoft.VSTS.Common.Priority",
+  activity: "Microsoft.VSTS.Common.Activity",
+  valueArea: "Microsoft.VSTS.Common.ValueArea",
+  source: "Custom.Source",
+  assignedTeam: "Custom.AssignedTeam",
+} as const;
+
+/** The values `type` allows for `field`, or an empty list when the template didn't say. */
+export function fieldOptionsFor(
+  classification: ClassificationOptions | null,
+  type: string,
+  field: string,
+): string[] {
+  return classification?.fieldOptions?.[type]?.[field] ?? [];
+}
+
+/** Project-wide area paths, iteration paths and tags - the sources for the card view's pickers.
+ *  Cached module-side: these change rarely and every open card would otherwise refetch them. */
+let classificationCache: Promise<ClassificationOptions> | null = null;
+
+export function fetchClassification(): Promise<ClassificationOptions> {
+  classificationCache ??= fetch(`${API_BASE_URL}/api/classification`)
+    .then((response) => {
+      if (!response.ok) throw new Error(`Failed to load classification: HTTP ${response.status}`);
+      return response.json() as Promise<ClassificationOptions>;
+    })
+    .catch((err) => {
+      // A failed fetch must not poison the cache - the next card should try again.
+      classificationCache = null;
+      throw err;
+    });
+  return classificationCache;
 }

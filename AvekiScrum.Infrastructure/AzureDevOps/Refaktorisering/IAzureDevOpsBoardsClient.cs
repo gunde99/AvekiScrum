@@ -91,5 +91,30 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             string? areaPath,
             string? iterationPath,
             CancellationToken ct = default);
+
+        /// <summary>
+        /// Creates a work item of any type, optionally linked to another one via `linkRel`
+        /// ("System.LinkTypes.Hierarchy-Reverse" for a child, "System.LinkTypes.Related" for a
+        /// sibling). The two methods above are the fixed-shape cases the DoR flow needs; this is
+        /// the general one the card view creates from.
+        /// </summary>
+        Task<int> CreateWorkItemAsync(
+            string workItemType,
+            IReadOnlyDictionary<string, object?> fields,
+            int? linkToId,
+            string? linkRel,
+            CancellationToken ct = default);
+
+        Task AddWorkItemCommentAsync(int workItemId, string text, CancellationToken ct = default);
+
+        /// <summary>All area paths (true) or iteration paths (false) in the project.</summary>
+        Task<IReadOnlyList<string>> GetClassificationPathsAsync(bool areas, CancellationToken ct = default);
+
+        Task<IReadOnlyList<string>> GetTagsAsync(CancellationToken ct = default);
+
+        /// <summary>Picklists the process template defines for one work item type, by field ref name.</summary>
+        Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetWorkItemTypeFieldOptionsAsync(
+            string workItemType,
+            CancellationToken ct = default);
     }
 }

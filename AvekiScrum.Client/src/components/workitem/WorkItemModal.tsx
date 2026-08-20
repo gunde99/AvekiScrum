@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchWorkItemDetail, updateWorkItemFields, type WorkItemDetail, type WorkItemFieldUpdate, type WorkItemRelationRef } from "../../api/workitems";
+import {
+  fetchClassification,
+  fetchWorkItemDetail,
+  updateWorkItemFields,
+  type ClassificationOptions,
+  type WorkItemDetail,
+  type WorkItemFieldUpdate,
+  type WorkItemRelationRef,
+} from "../../api/workitems";
+import { fetchAllPeople, type PersonOption } from "../../api/people";
 import { Breadcrumb, type BreadcrumbHop } from "./Breadcrumb";
 import { getWorkItemTypeConfig } from "./workItemTypeConfig";
 import { WorkItemOverviewTab } from "./WorkItemOverviewTab";
@@ -38,6 +47,8 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<WorkItemFieldUpdate>({});
   const [saving, setSaving] = useState(false);
+  const [classification, setClassification] = useState<ClassificationOptions | null>(null);
+  const [people, setPeople] = useState<PersonOption[]>([]);
 
   const currentId = stack[stack.length - 1].id;
 
@@ -66,6 +77,17 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentId]);
 
+  // Picker sources. Both are cheap and cached, and a failure only costs the dropdowns their
+  // suggestions - the card itself stays fully usable, so neither is allowed to surface an error.
+  useEffect(() => {
+    fetchClassification()
+      .then(setClassification)
+      .catch(() => setClassification(null));
+    fetchAllPeople()
+      .then(setPeople)
+      .catch(() => setPeople([]));
+  }, []);
+
   useEffect(() => {
     // Embedded there is nothing to dismiss - Escape must stay available to whatever hosts it.
     if (embedded) return;
@@ -78,6 +100,16 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
 
   const config = useMemo(() => getWorkItemTypeConfig(detail?.type ?? ""), [detail?.type]);
 
+  /** Pulls the card again after something was created against it, so the new child or related
+   *  item shows up (and the tab counts move) without closing and reopening the card. */
+  async function reload() {
+    try {
+      setDetail(await fetchWorkItemDetail(currentId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kunde inte läsa om kortet.");
+    }
+  }
+
   function openRelation(item: WorkItemRelationRef, relationLabel: string) {
     setStack((prev) => [...prev, { id: item.id, type: item.type, title: item.title, relationLabel }]);
   }
@@ -88,6 +120,8 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
 
   function startEdit() {
     if (!detail) return;
+    // Every editable field is seeded, so a save carries the card's current values through
+    // untouched rather than the PATCH silently omitting whatever the form didn't seed.
     setDraft({
       title: detail.title,
       state: detail.state,
@@ -98,6 +132,17 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
       areaPath: detail.areaPath ?? "",
       iterationPath: detail.iterationPath ?? "",
       tags: detail.tags,
+      priority: detail.priority ?? undefined,
+      severity: detail.severity ?? "",
+      source: detail.source ?? "",
+      activity: detail.activity ?? "",
+      remainingWork: detail.remainingWork ?? undefined,
+      completedWork: detail.completedWork ?? undefined,
+      originalEstimate: detail.originalEstimate ?? undefined,
+      businessValue: detail.businessValue ?? undefined,
+      valueArea: detail.valueArea ?? "",
+      assignedTeam: detail.assignedTeam ?? "",
+      stakeholders: detail.stakeholders ?? "",
     });
     setEditing(true);
   }
@@ -127,7 +172,8 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
   const tabs: { id: TabId; label: string; count?: number }[] = [
     { id: "overview", label: "Översikt" },
     { id: "relations", label: "Relationer", count: relationCount },
-    { id: "taskboard", label: "Taskboard", count: taskCount },
+    // A Task links follow-up work as Related, never as children, so it has no taskboard to show.
+    ...(config.showTaskboard ? [{ id: "taskboard" as const, label: "Taskboard", count: taskCount }] : []),
     { id: "discussion", label: "Diskussion", count: detail?.comments.length ?? 0 },
     { id: "prs", label: "PRs", count: detail?.pullRequests.length ?? 0 },
     { id: "history", label: "Historik" },
@@ -201,11 +247,17 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
                   editing={editing}
                   draft={draft}
                   onDraftChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
+                  classification={classification}
+                  people={people}
                 />
               )}
-              {tab === "relations" && <WorkItemRelationsTab detail={detail} onOpenRelation={openRelation} />}
-              {tab === "taskboard" && <WorkItemTaskboardTab detail={detail} onOpenRelation={openRelation} />}
-              {tab === "discussion" && <WorkItemDiscussionTab comments={detail.comments} />}
+              {tab === "relations" && (
+                <WorkItemRelationsTab detail={detail} onOpenRelation={openRelation} onCreated={reload} people={people} />
+              )}
+              {tab === "taskboard" && (
+                <WorkItemTaskboardTab detail={detail} onOpenRelation={openRelation} onCreated={reload} people={people} />
+              )}
+              {tab === "discussion" && <WorkItemDiscussionTab detail={detail} onPosted={setDetail} />}
               {tab === "prs" && <WorkItemPullRequestsTab pullRequests={detail.pullRequests} />}
               {tab === "history" && <WorkItemHistoryTab history={detail.history} />}
               {tab === "details" && <WorkItemDetailsTab detail={detail} />}

@@ -588,6 +588,124 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             return document.RootElement.GetProperty("id").GetInt32();
         }
 
+        /// <summary>
+        /// Creates a work item of any type, optionally linked to another one. `linkRel` is the
+        /// Azure link type: "System.LinkTypes.Hierarchy-Reverse" makes the new item a child of
+        /// `linkToId`, "System.LinkTypes.Related" makes it a sibling.
+        /// </summary>
+        public async Task<int> CreateWorkItemAsync(
+            string workItemType,
+            IReadOnlyDictionary<string, object?> fields,
+            int? linkToId,
+            string? linkRel,
+            CancellationToken ct = default)
+        {
+            var patch = fields
+                .Where(field => !string.IsNullOrWhiteSpace(field.Key) && field.Value is not null && field.Value is not "")
+                .Select(field => new WorkItemPatchOperation("add", "/fields/" + field.Key, field.Value))
+                .ToList();
+
+            if (patch.Count == 0)
+                throw new ArgumentException("A new work item needs at least one field.", nameof(fields));
+
+            if (linkToId.HasValue && !string.IsNullOrWhiteSpace(linkRel))
+            {
+                patch.Add(new WorkItemPatchOperation("add", "/relations/-", new
+                {
+                    rel = linkRel,
+                    url = $"{_absoluteBaseUrl}_apis/wit/workitems/{linkToId.Value}"
+                }));
+            }
+
+            var response = await _rest.PostJsonPatchAsync(AzureUrlHelper.GetCreateWorkItemUrl(workItemType), patch, ct);
+            using var document = JsonDocument.Parse(response.Body);
+            return document.RootElement.GetProperty("id").GetInt32();
+        }
+
+        public async Task AddWorkItemCommentAsync(int workItemId, string text, CancellationToken ct = default)
+        {
+            await _rest.PostJsonAsync(AzureUrlHelper.GetWorkItemCommentsUrl(workItemId), new { text }, ct);
+        }
+
+        /// <summary>Every area (or iteration) path in the project, project-qualified and sorted.</summary>
+        public async Task<IReadOnlyList<string>> GetClassificationPathsAsync(bool areas, CancellationToken ct = default)
+        {
+            var json = await _rest.GetStringAsync(AzureUrlHelper.GetClassificationNodesUrl(areas ? "areas" : "iterations"), ct);
+            using var document = JsonDocument.Parse(json);
+            var paths = new List<string>();
+            // The root node is the project itself, so its own name starts every path and the
+            // recursion just appends child names below it.
+            Walk(document.RootElement, null);
+            return paths.OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToList();
+
+            void Walk(JsonElement node, string? parentPath)
+            {
+                if (!node.TryGetProperty("name", out var nameElement)) return;
+                var name = nameElement.GetString();
+                if (string.IsNullOrWhiteSpace(name)) return;
+
+                var path = parentPath is null ? name : $"{parentPath}\\{name}";
+                paths.Add(path);
+
+                if (!node.TryGetProperty("children", out var children) || children.ValueKind != JsonValueKind.Array) return;
+                foreach (var child in children.EnumerateArray())
+                    Walk(child, path);
+            }
+        }
+
+        /// <summary>
+        /// The picklists one work item type actually offers, keyed by field reference name. Read
+        /// from the process template rather than hardcoded: the values are not what a reasonable
+        /// guess would produce (Severity is "2 - High (&lt; 16 h )", Source is "Internal" not
+        /// "Internt"), and a wrong value makes Azure reject the whole save with a 400.
+        /// </summary>
+        public async Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetWorkItemTypeFieldOptionsAsync(
+            string workItemType,
+            CancellationToken ct = default)
+        {
+            var json = await _rest.GetStringAsync(AzureUrlHelper.GetWorkItemTypeFieldsUrl(workItemType), ct);
+            using var document = JsonDocument.Parse(json);
+            var result = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+
+            if (!document.RootElement.TryGetProperty("value", out var value) || value.ValueKind != JsonValueKind.Array)
+                return result;
+
+            foreach (var field in value.EnumerateArray())
+            {
+                if (!field.TryGetProperty("referenceName", out var nameElement)) continue;
+                var name = nameElement.GetString();
+                if (string.IsNullOrWhiteSpace(name)) continue;
+                if (!field.TryGetProperty("allowedValues", out var allowed) || allowed.ValueKind != JsonValueKind.Array) continue;
+
+                var values = allowed
+                    .EnumerateArray()
+                    .Select(v => v.GetString())
+                    .Where(v => !string.IsNullOrWhiteSpace(v))
+                    .Select(v => v!)
+                    .ToList();
+                if (values.Count > 0)
+                    result[name] = values;
+            }
+
+            return result;
+        }
+
+        public async Task<IReadOnlyList<string>> GetTagsAsync(CancellationToken ct = default)
+        {
+            var json = await _rest.GetStringAsync(AzureUrlHelper.GetTagsUrl(), ct);
+            using var document = JsonDocument.Parse(json);
+            if (!document.RootElement.TryGetProperty("value", out var value) || value.ValueKind != JsonValueKind.Array)
+                return Array.Empty<string>();
+
+            return value
+                .EnumerateArray()
+                .Select(t => t.TryGetProperty("name", out var n) ? n.GetString() : null)
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .Select(n => n!)
+                .OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+        }
+
         public async Task<IReadOnlyList<Entities.WorkItemCommentEntity>> GetWorkItemCommentsAsync(
             int workItemId,
             CancellationToken ct = default)

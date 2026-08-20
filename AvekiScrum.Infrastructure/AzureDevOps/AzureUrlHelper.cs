@@ -264,6 +264,28 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             return $"{BaseUrl}_apis/wit/workItems/{workItemId}/comments?api-version=7.1-preview.4";
         }
 
+        /// <summary>Area or iteration tree for the project, deep enough to reach every leaf.</summary>
+        public static string GetClassificationNodesUrl(string structureGroup)
+        {
+            return $"{BaseUrl}_apis/wit/classificationnodes/{structureGroup}?$depth=10&{_apiVersion}";
+        }
+
+        /// <summary>
+        /// One work item type's fields with their allowed values - the picklists the process
+        /// template actually defines. The per-field endpoint omits allowedValues, so this
+        /// type-scoped list is the only place they come from.
+        /// </summary>
+        public static string GetWorkItemTypeFieldsUrl(string workItemType)
+        {
+            return $"{BaseUrl}_apis/wit/workitemtypes/{Uri.EscapeDataString(workItemType)}/fields?$expand=allowedValues&{_apiVersion}";
+        }
+
+        /// <summary>Every tag defined in the project, for the tag picker.</summary>
+        public static string GetTagsUrl()
+        {
+            return $"{BaseUrl}_apis/wit/tags?api-version=7.1-preview.1";
+        }
+
         public static string GetWorkItemRevisionsUrl(int workItemId)
         {
             return $"{BaseUrl}_apis/wit/workItems/{workItemId}/revisions?expand=fields&{_apiVersion}";
