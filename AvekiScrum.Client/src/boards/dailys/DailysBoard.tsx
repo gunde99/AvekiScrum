@@ -590,6 +590,7 @@ export function DailysBoard() {
               mode={mode}
               groups={groups}
               allStories={filteredStories}
+              unfilteredStories={stories}
               onHighlightChange={handleFlowHighlightChange}
               onOpenWorkItem={setOpenWorkItemId}
               onTaskAssigned={handleTaskAssigned}

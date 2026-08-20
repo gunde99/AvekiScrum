@@ -49,6 +49,10 @@ interface DailyFlowProps {
   mode: GroupMode;
   groups: StoryGroup[];
   allStories: DailyStoryDto[];
+  /** Every card on the team's board, before any filtering. Cards tagged "Stäm av med teamet" are
+   *  found here rather than in `allStories`: someone tagged them precisely so they'd come up, and
+   *  a filter set for browsing the board is no reason to skip them. */
+  unfilteredStories: DailyStoryDto[];
   onHighlightChange: (groupId: string | null) => void;
   onOpenWorkItem: (id: number) => void;
   /** Lets the board patch its local copy after a test task is reassigned, so the change shows
@@ -70,6 +74,7 @@ export function DailyFlow({
   mode,
   groups,
   allStories,
+  unfilteredStories,
   onHighlightChange,
   onOpenWorkItem,
   onTaskAssigned,
@@ -99,8 +104,9 @@ export function DailyFlow({
 
     // Cards tagged "Stäm av med teamet" - on the card itself or on one of its tasks - are walked
     // through first, whichever mode the daily runs in. With none tagged this is simply empty and
-    // the daily starts as before.
-    const reviewSteps: FlowStep[] = collectReviewTargets(allStories).map((t) => ({
+    // the daily starts as before. Deliberately read from the unfiltered set: hiding bugs or
+    // long-closed cards while browsing must not quietly drop a card someone asked to discuss.
+    const reviewSteps: FlowStep[] = collectReviewTargets(unfilteredStories).map((t) => ({
       kind: "review" as const,
       key: `review-${t.storyId}`,
       name: t.title,
@@ -181,7 +187,9 @@ export function DailyFlow({
    * stall on a bookkeeping write.
    */
   async function clearReviewTag(step: FlowStep) {
-    const story = allStories.find((s) => s.id === step.workItemId);
+    // Same set the step was built from - a filtered-out card must still be findable here, or
+    // clearing its tag would silently do nothing.
+    const story = unfilteredStories.find((s) => s.id === step.workItemId);
     if (!story) return;
     // The tag can sit on the card, on one or more of its tasks, or on both - each one is its own
     // work item and needs its own write. They're cleared independently so one failure (a task
