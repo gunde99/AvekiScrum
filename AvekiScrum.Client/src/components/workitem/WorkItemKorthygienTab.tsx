@@ -7,6 +7,7 @@ import {
   type WorkItemRelationRef,
 } from "../../api/workitems";
 import type { PersonOption } from "../../api/people";
+import { fullPersonName, samePerson } from "../../lib/personNames";
 import { getWorkItemTypeConfig } from "./workItemTypeConfig";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { TagEditor } from "./TagEditor";
@@ -109,14 +110,15 @@ function Row({ label, sub, ok, warnOnly, okText, notOkText, warnText, children }
 }
 
 /**
- * <select> that always includes the current value even if it fell out of the fetched list (e.g.
- * someone who left the team) - never silently discards a real Azure value.
+ * <select> over the team, submitting the person's email (uniqueName) rather than a display name
+ * we synthesized - Azure rejects an identity string it doesn't recognise.
  *
- * Submits the person's email (uniqueName), not a display name we synthesized from it - Azure's
- * own display names can include diacritics ("Nordström") that a naive email-derived guess
- * ("Nordstrom") won't match, and Azure rejects an unrecognized identity string outright. An
- * untouched existing value (already a valid Azure display name, since it's already assigned
- * there) is preserved as-is via the fallback option below.
+ * The draft, though, usually starts out holding Azure's *display name* ("Johan Sundin"), which
+ * matches no option's value. A plain `value={value}` then silently falls back to the first option,
+ * so a card with an assignee rendered as "– välj –" - and the better the name matched, the more
+ * certainly it vanished, since a name that didn't match at least got a fallback option of its own.
+ * The current value is therefore resolved to the person it refers to, and only a value matching
+ * nobody keeps its own option (formatted, so a raw guest identity doesn't leak into the list).
  */
 function PersonSelect({
   value,
@@ -131,11 +133,17 @@ function PersonSelect({
   disabled?: boolean;
   emptyLabel?: string;
 }) {
-  const hasCurrent = !value || options.some((o) => o.displayName === value || o.email === value);
+  // samePerson keys on the first name, so it's only trusted when exactly one person answers to
+  // it - two Johans must not have a card silently reattributed between them.
+  const byName = value ? options.filter((o) => samePerson(o.displayName, value)) : [];
+  const matched = value
+    ? options.find((o) => o.email === value) ?? (byName.length === 1 ? byName[0] : undefined)
+    : undefined;
+  const selected = matched ? matched.email : value;
   return (
-    <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+    <select value={selected} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
       <option value="">{emptyLabel}</option>
-      {!hasCurrent && <option value={value}>{value}</option>}
+      {value && !matched && <option value={value}>{fullPersonName(value) || value}</option>}
       {options.map((o) => (
         <option key={o.email} value={o.email}>
           {o.displayName}

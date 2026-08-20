@@ -665,11 +665,51 @@ app.MapPost("/api/attachments", async (
 
 app.Run();
 
-static string FormatDisplayName(string email)
+static string FormatDisplayName(string email) => PersonNames.Format(email);
+
+/// <summary>
+/// Turns an Azure login (or a display-name-less guest identity) into the name the person actually
+/// spells. Azure logins are ASCII, so a naive derivation gets Swedish names wrong ("Bergstrom",
+/// "Jongren") - and that spelling then fails to match the real display name on a card, which is
+/// how an assigned card could end up looking unassigned. Mirrors lib/personNames.ts on the client.
+/// </summary>
+internal static class PersonNames
 {
-    var local = email.Split('@')[0];
-    var parts = local.Split('.', StringSplitOptions.RemoveEmptyEntries);
-    return string.Join(" ", parts.Select(p => char.ToUpperInvariant(p[0]) + p[1..]));
+    private static readonly Dictionary<string, string> KnownParts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["bjorn"] = "Björn",
+        ["goran"] = "Göran",
+        ["jorgen"] = "Jörgen",
+        ["lindstrom"] = "Lindström",
+        ["bergstrom"] = "Bergström",
+        ["angstrom"] = "Ångström",
+        ["jongren"] = "Jöngren",
+        ["nordstrom"] = "Nordström",
+        ["lonnblom"] = "Lönnblom",
+        ["backo"] = "Backö",
+        ["alhindy"] = "AlHindy",
+    };
+
+    /// <summary>
+    /// External guests often have no display name set and surface as "local.part domain.tld" - the
+    /// @ effectively swapped for a space (e.g. "dennis.bergstrom invit.se"). Recognised so the
+    /// trailing domain isn't title-cased into the middle of someone's name.
+    /// </summary>
+    private static readonly System.Text.RegularExpressions.Regex GuestIdentity =
+        new(@"^([\w.-]+)\s+[\w-]+\.[a-z]{2,}$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    public static string Format(string? value)
+    {
+        var raw = (value ?? "").Trim();
+        if (raw.Length == 0) return "";
+
+        var guest = GuestIdentity.Match(raw);
+        var local = raw.Contains('@') ? raw.Split('@')[0] : guest.Success ? guest.Groups[1].Value : raw;
+
+        var parts = local.Split(new[] { '.', '_', '-', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        return string.Join(" ", parts.Select(p =>
+            KnownParts.TryGetValue(p, out var known) ? known : char.ToUpperInvariant(p[0]) + p[1..].ToLowerInvariant()));
+    }
 }
 
 internal sealed record PersonOption(string Email, string DisplayName);

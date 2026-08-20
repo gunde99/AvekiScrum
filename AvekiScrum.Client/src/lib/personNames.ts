@@ -1,5 +1,7 @@
 // Shared person-name formatting, used anywhere a board or component needs to turn an Azure
 // DevOps display name (or, historically, an email local-part) into a consistent display form.
+// Kept in step with KnownNameParts on the API side - both turn an ASCII login into the name the
+// person actually spells, so a derived name and Azure's own display name agree.
 const KNOWN_NAME_PARTS: Record<string, string> = {
   bjorn: "Björn",
   goran: "Göran",
@@ -7,6 +9,11 @@ const KNOWN_NAME_PARTS: Record<string, string> = {
   lindstrom: "Lindström",
   bergstrom: "Bergström",
   angstrom: "Ångström",
+  jongren: "Jöngren",
+  nordstrom: "Nordström",
+  lonnblom: "Lönnblom",
+  backo: "Backö",
+  alhindy: "AlHindy",
 };
 
 function namePart(part: string): string {
