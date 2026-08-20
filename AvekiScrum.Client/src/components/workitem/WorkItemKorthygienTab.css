@@ -127,3 +127,7 @@
     grid-template-columns: 1fr;
   }
 }
+
+.kh-hint--error {
+  color: var(--color-danger);
+}

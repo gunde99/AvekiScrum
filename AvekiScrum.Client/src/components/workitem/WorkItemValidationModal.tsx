@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
-import { fetchWorkItemDetail, updateWorkItemFields, type WorkItemDetail, type WorkItemRelationRef } from "../../api/workitems";
+import {
+  fetchClassification,
+  fetchParentCandidates,
+  fetchWorkItemDetail,
+  updateWorkItemFields,
+  type ClassificationOptions,
+  type ParentCandidate,
+  type WorkItemDetail,
+  type WorkItemRelationRef,
+} from "../../api/workitems";
 import { fetchTeamMembers, fetchDevelopers, type PersonOption } from "../../api/people";
 import type { DeveloperTeamId } from "../../api/dailys";
 import { WorkItemKorthygienTab, draftFromDetail, korthygienOk, type KorthygienDraft } from "./WorkItemKorthygienTab";
@@ -41,6 +50,8 @@ export function WorkItemValidationModal({ workItemId, team, onClose, onOpenRelat
   const [ansvarigOptions, setAnsvarigOptions] = useState<PersonOption[]>([]);
   const [partnerOptions, setPartnerOptions] = useState<PersonOption[]>([]);
   const [behovsbedomningOk, setBehovsbedomningOk] = useState(false);
+  const [classification, setClassification] = useState<ClassificationOptions | null>(null);
+  const [parentCandidates, setParentCandidates] = useState<ParentCandidate[]>([]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -48,6 +59,25 @@ export function WorkItemValidationModal({ workItemId, team, onClose, onOpenRelat
     fetchDevelopers(controller.signal).then(setPartnerOptions).catch(() => setPartnerOptions([]));
     return () => controller.abort();
   }, [team]);
+
+  // Picker sources for the Korthygien rows. A failure only costs the dropdowns their contents,
+  // so neither is allowed to surface an error over the checklist itself.
+  useEffect(() => {
+    fetchClassification()
+      .then(setClassification)
+      .catch(() => setClassification(null));
+  }, []);
+
+  useEffect(() => {
+    if (!detail?.type) return;
+    let cancelled = false;
+    fetchParentCandidates(detail.type)
+      .then((c) => !cancelled && setParentCandidates(c))
+      .catch(() => !cancelled && setParentCandidates([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [detail?.type]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -186,6 +216,9 @@ export function WorkItemValidationModal({ workItemId, team, onClose, onOpenRelat
                   onOpenRelation={onOpenRelation}
                   ansvarigOptions={ansvarigOptions}
                   partnerOptions={partnerOptions}
+                  classification={classification}
+                  parentCandidates={parentCandidates}
+                  onDetailChanged={setDetail}
                 />
                 {saveError && <p className="wi-modal__status wi-modal__status--error">{saveError}</p>}
                 <button type="button" className="wi-btn wi-btn--success wi-validation__save" onClick={saveKorthygien} disabled={saving}>

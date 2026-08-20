@@ -42,6 +42,8 @@ namespace AvekiScrum.Application.Abstractions
         public Task<IReadOnlyList<WorkItemDto>> GetAllWorkItemsWithDetailsAsync(string iterationPath, DeveloperTeam team, CancellationToken ct);
         Task<IReadOnlyList<WorkItemDto>> GetIterationWorkItemsAsync(string iterationPath, IEnumerable<string> areaPaths, IEnumerable<WorkItemType> workItemTypes, CancellationToken ct);
         Task<WorkItemUpdatesRoot> GetWorkItemUpdatesAsync(int workItemId, CancellationToken ct = default);
+        Task<IReadOnlyList<int>> RunWiqlIdsAsync(string wiql, CancellationToken ct = default);
+        Task<IReadOnlyList<WorkItemDto>> GetWorkItemsDetailsAsync(IReadOnlyList<int> workItemIds, CancellationToken ct = default);
         Task UpdateWorkItemFieldsAsync(int workItemId, IReadOnlyDictionary<string, object?> fields, CancellationToken ct = default);
         Task<WorkItemDetailDto?> GetWorkItemDetailAsync(int workItemId, CancellationToken ct = default);
         Task<(byte[] Bytes, string ContentType)> GetWorkItemAttachmentAsync(Guid attachmentId, string? fileName, CancellationToken ct = default);

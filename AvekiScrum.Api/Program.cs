@@ -542,6 +542,35 @@ app.MapPost("/api/workitems/{id:int}/comments", async (
 })
 .WithName("AddWorkItemComment");
 
+// The cards that may legitimately be the parent of `type`, for the Korthygien parent picker.
+// Closed items are left out: attaching new work under something already finished is almost never
+// what's meant, and it keeps the list short enough to scan.
+app.MapGet("/api/workitems/parent-candidates", async (
+    string type,
+    IAzureDevOpsService azureDevOpsService,
+    CancellationToken ct) =>
+{
+    var parentTypes = WorkItemHierarchy.ParentTypesFor(type);
+    if (parentTypes.Count == 0)
+        return Results.Ok(Array.Empty<object>());
+
+    var typeList = string.Join(", ", parentTypes.Select(t => $"'{t}'"));
+    var wiql =
+        $"SELECT [System.Id] FROM WorkItems WHERE [System.WorkItemType] IN ({typeList}) " +
+        "AND [System.State] <> 'Closed' AND [System.State] <> 'Removed' ORDER BY [System.Id] DESC";
+
+    var ids = await azureDevOpsService.RunWiqlIdsAsync(wiql, ct);
+    if (ids.Count == 0)
+        return Results.Ok(Array.Empty<object>());
+
+    var items = await azureDevOpsService.GetWorkItemsDetailsAsync(ids.Take(400).ToList(), ct);
+    return Results.Ok(items
+        .Select(i => new { id = i.Id, type = i.Type, title = i.Title, state = i.State })
+        .OrderBy(i => i.title, StringComparer.CurrentCultureIgnoreCase)
+        .ToList());
+})
+.WithName("GetParentCandidates");
+
 // Feeds every picker in the card view: Area Path, Iteration, tags, and the per-type picklists
 // (State, Reason, Severity, Activity, Value Area, Source, Assigned Team). The picklists come from
 // the process template rather than being hardcoded - the real values are not guessable
@@ -704,6 +733,13 @@ internal static class WorkItemHierarchy
         ["Bug"] = new[] { "Task" },
         ["Task"] = Array.Empty<string>(),
     };
+
+    /// <summary>The types allowed to be the parent of <paramref name="childType"/>.</summary>
+    public static IReadOnlyList<string> ParentTypesFor(string childType) =>
+        AllowedChildren
+            .Where(pair => pair.Value.Contains(childType ?? "", StringComparer.OrdinalIgnoreCase))
+            .Select(pair => pair.Key)
+            .ToList();
 
     public static bool CanParent(string parentType, string childType) =>
         AllowedChildren.TryGetValue(parentType ?? "", out var allowed) &&

@@ -138,7 +138,13 @@ export function WorkItemBehovsbedomningTab({
 
   const hasDorTag = useMemo(() => detail.tags.some((t) => t.trim().toLowerCase() === "dor"), [detail.tags]);
 
-  const allDecided = CATEGORIES.every((c) => existingByCategory[c.key] || decisions[c.key]);
+  // The DoR tag *is* the record that every row was decided. A category with no task on an
+  // approved card therefore means "behövs ej" - the same reading the board's N/A pills use -
+  // rather than an unanswered question the person is being asked again.
+  const decisionFor = (key: string): NeedDecision | undefined =>
+    decisions[key] ?? (hasDorTag && !existingByCategory[key] ? "not-needed" : undefined);
+
+  const allDecided = CATEGORIES.every((c) => existingByCategory[c.key] || decisionFor(c.key));
   const canApprove = allDecided && korthygienOk;
   const sectionOk = hasDorTag || canApprove;
 
@@ -236,7 +242,7 @@ export function WorkItemBehovsbedomningTab({
         <div className="bb-rows">
           {CATEGORIES.map((category) => {
             const existing = existingByCategory[category.key];
-            const decision = decisions[category.key];
+            const decision = decisionFor(category.key);
             const decided = !!existing || !!decision;
             const busy = busyRow === category.key;
 

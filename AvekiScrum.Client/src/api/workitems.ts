@@ -279,3 +279,30 @@ export async function deleteWorkItem(id: number): Promise<void> {
     throw new Error(`Kunde inte ta bort #${id}: HTTP ${response.status}`);
   }
 }
+
+export interface ParentCandidate {
+  id: number;
+  type: string;
+  title: string;
+  state: string;
+}
+
+/** Cards allowed to be the parent of `type` - fills the Korthygien parent picker. Cached per
+ *  type, since the list is project-wide and doesn't change while a validation is open. */
+const parentCandidateCache = new Map<string, Promise<ParentCandidate[]>>();
+
+export function fetchParentCandidates(type: string): Promise<ParentCandidate[]> {
+  const cached = parentCandidateCache.get(type);
+  if (cached) return cached;
+  const request = fetch(`${API_BASE_URL}/api/workitems/parent-candidates?type=${encodeURIComponent(type)}`)
+    .then((response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json() as Promise<ParentCandidate[]>;
+    })
+    .catch((err) => {
+      parentCandidateCache.delete(type);
+      throw err;
+    });
+  parentCandidateCache.set(type, request);
+  return request;
+}

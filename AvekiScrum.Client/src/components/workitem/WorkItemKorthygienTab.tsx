@@ -1,5 +1,11 @@
-import type { ReactNode } from "react";
-import type { WorkItemDetail, WorkItemRelationRef } from "../../api/workitems";
+import { useState, type ReactNode } from "react";
+import {
+  addWorkItemRelation,
+  type ClassificationOptions,
+  type ParentCandidate,
+  type WorkItemDetail,
+  type WorkItemRelationRef,
+} from "../../api/workitems";
 import type { PersonOption } from "../../api/people";
 import { getWorkItemTypeConfig } from "./workItemTypeConfig";
 import { MarkdownEditor } from "./MarkdownEditor";
@@ -63,14 +69,17 @@ function StatusPill({
   warnOnly,
   okText = "Uppfyllt",
   notOkText = "Saknas",
+  warnText = "Rekommenderas",
 }: {
   ok: boolean;
   warnOnly?: boolean;
   okText?: string;
   notOkText?: string;
+  /** What the soft-warning state says. Naming what is missing beats a generic "Rekommenderas". */
+  warnText?: string;
 }) {
   const cls = ok ? "kh-pill--ok" : warnOnly ? "kh-pill--warn" : "kh-pill--missing";
-  const text = ok ? okText : warnOnly ? "Rekommenderas" : notOkText;
+  const text = ok ? okText : warnOnly ? warnText : notOkText;
   return <span className={`kh-pill ${cls}`}>{text}</span>;
 }
 
@@ -82,17 +91,18 @@ interface RowProps {
   warnOnly?: boolean;
   okText?: string;
   notOkText?: string;
+  warnText?: string;
   children: ReactNode;
 }
 
-function Row({ label, sub, ok, warnOnly, okText, notOkText, children }: RowProps) {
+function Row({ label, sub, ok, warnOnly, okText, notOkText, warnText, children }: RowProps) {
   return (
     <div className="kh-row">
       <div className="kh-row__label">
         <span>{label}</span>
         {sub && <span className="kh-row__sub">{sub}</span>}
       </div>
-      <StatusPill ok={ok} warnOnly={warnOnly} okText={okText} notOkText={notOkText} />
+      <StatusPill ok={ok} warnOnly={warnOnly} okText={okText} notOkText={notOkText} warnText={warnText} />
       <div className="kh-row__control">{children}</div>
     </div>
   );
@@ -142,6 +152,12 @@ interface WorkItemKorthygienTabProps {
   onOpenRelation?: (item: WorkItemRelationRef) => void;
   ansvarigOptions: PersonOption[];
   partnerOptions: PersonOption[];
+  /** Area paths and known tags for the pickers - null while still loading. */
+  classification: ClassificationOptions | null;
+  /** Cards allowed to be this one's parent. */
+  parentCandidates: ParentCandidate[];
+  /** Handed the reloaded card after a parent is linked. */
+  onDetailChanged: (detail: WorkItemDetail) => void;
 }
 
 /**
@@ -157,8 +173,25 @@ export function WorkItemKorthygienTab({
   onOpenRelation,
   ansvarigOptions,
   partnerOptions,
+  classification,
+  parentCandidates,
+  onDetailChanged,
 }: WorkItemKorthygienTabProps) {
   const config = getWorkItemTypeConfig(detail.type);
+  const [linkingParent, setLinkingParent] = useState(false);
+  const [parentError, setParentError] = useState<string | null>(null);
+
+  async function linkParent(targetId: number) {
+    setLinkingParent(true);
+    setParentError(null);
+    try {
+      onDetailChanged(await addWorkItemRelation(detail.id, targetId, "parent"));
+    } catch (err) {
+      setParentError(err instanceof Error ? err.message : "Kunde inte koppla parent.");
+    } finally {
+      setLinkingParent(false);
+    }
+  }
   const hasSprintGoalTag = draft.tags.some((t) => /^sprintm[aå]l/i.test(t.trim()));
   const devPartnerOk = draft.developmentPartnerNotApplicable || !!draft.developmentPartner.trim();
 
@@ -231,7 +264,19 @@ export function WorkItemKorthygienTab({
           </Row>
 
           <Row label="Area Path" ok={!!draft.areaPath}>
-            <input type="text" value={draft.areaPath} onChange={(e) => onDraftChange({ areaPath: e.target.value })} />
+            {/* Picked from the project's tree rather than typed - a typo here silently moves the
+                card out of the team's area. The current value is always kept in the list. */}
+            <select value={draft.areaPath} onChange={(e) => onDraftChange({ areaPath: e.target.value })}>
+              <option value="">– välj –</option>
+              {draft.areaPath && !(classification?.areas ?? []).includes(draft.areaPath) && (
+                <option value={draft.areaPath}>{draft.areaPath}</option>
+              )}
+              {(classification?.areas ?? []).map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
           </Row>
 
           {detail.type !== "Bug" && (
@@ -246,7 +291,27 @@ export function WorkItemKorthygienTab({
                 </button>
               ) : (
                 <div className="kh-dev-partner">
-                  <span className="kh-hint">Inget parent kopplat - koppla via Relationer-fliken i Work Item-formuläret.</span>
+                  {/* Linking happens straight from here now - having to leave the checklist for
+                      the Relationer tab was the main reason this row got waved through. */}
+                  <select
+                    value=""
+                    disabled={linkingParent || parentCandidates.length === 0}
+                    onChange={(e) => e.target.value && void linkParent(Number(e.target.value))}
+                  >
+                    <option value="">
+                      {parentCandidates.length === 0
+                        ? "– inga möjliga parents –"
+                        : linkingParent
+                          ? "Kopplar…"
+                          : "– välj parent –"}
+                    </option>
+                    {parentCandidates.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.type} #{c.id} - {c.title}
+                      </option>
+                    ))}
+                  </select>
+                  {parentError && <span className="kh-hint kh-hint--error">{parentError}</span>}
                   <label className="kh-checkbox">
                     <input
                       type="checkbox"
@@ -260,8 +325,8 @@ export function WorkItemKorthygienTab({
             </Row>
           )}
 
-          <Row label="Taggar (inkl. Sprintmål)" ok={hasSprintGoalTag} warnOnly>
-            <TagEditor tags={draft.tags} onChange={(tags) => onDraftChange({ tags })} />
+          <Row label="Taggar (inkl. Sprintmål)" ok={hasSprintGoalTag} warnOnly warnText="Inget sprintmål">
+            <TagEditor tags={draft.tags} onChange={(tags) => onDraftChange({ tags })} suggestions={classification?.tags ?? []} />
           </Row>
         </div>
       </Section>

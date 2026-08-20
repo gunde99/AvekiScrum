@@ -94,6 +94,9 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
         public Task<WorkItemUpdatesRoot> GetWorkItemUpdatesAsync(int workItemId, CancellationToken ct = default)
             => _boards.GetWorkItemUpdatesAsync(workItemId, ct);
 
+        public Task<IReadOnlyList<int>> RunWiqlIdsAsync(string wiql, CancellationToken ct = default)
+            => _boards.RunWiqlIdsAsync(wiql, ct);
+
         public Task UpdateWorkItemFieldsAsync(int workItemId, IReadOnlyDictionary<string, object?> fields, CancellationToken ct = default)
             => _boards.UpdateWorkItemFieldsAsync(workItemId, fields, ct);
 
