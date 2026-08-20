@@ -109,6 +109,9 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
         public Task AddWorkItemCommentAsync(int workItemId, string text, CancellationToken ct = default)
             => _boards.AddWorkItemCommentAsync(workItemId, text, ct);
 
+        public Task DeleteWorkItemAsync(int workItemId, CancellationToken ct = default)
+            => _boards.DeleteWorkItemAsync(workItemId, ct);
+
         public Task AddWorkItemRelationAsync(int workItemId, int targetId, string linkRel, CancellationToken ct = default)
             => _boards.AddWorkItemRelationAsync(workItemId, targetId, linkRel, ct);
 

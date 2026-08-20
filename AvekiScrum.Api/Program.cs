@@ -447,6 +447,28 @@ app.MapPost("/api/workitems/{id:int}/children", async (
 })
 .WithName("CreateLinkedWorkItem");
 
+// Used by the DoR checklist when a category is switched from "task finns" to "behövs ej".
+// Azure moves the item to the project's recycle bin rather than destroying it, so a mistake here
+// is recoverable from Azure DevOps.
+app.MapDelete("/api/workitems/{id:int}", async (
+    int id,
+    IAzureDevOpsService azureDevOpsService,
+    CancellationToken ct) =>
+{
+    var item = await azureDevOpsService.GetWorkItemDetailAsync(id, ct);
+    if (item is null)
+        return Results.NotFound();
+
+    // The hjälptext satellite is a story that owns its own Documentation task; deleting only the
+    // story would leave that task orphaned, so its children go first.
+    foreach (var child in item.Children)
+        await azureDevOpsService.DeleteWorkItemAsync(child.Id, ct);
+
+    await azureDevOpsService.DeleteWorkItemAsync(id, ct);
+    return Results.Ok(new { deleted = id, alsoDeleted = item.Children.Select(c => c.Id).ToList() });
+})
+.WithName("DeleteWorkItem");
+
 // Links an existing work item to this one, and unlinks again. The hierarchy rules are enforced
 // here as well as in the UI - the UI stops the obvious mistakes, this stops the rest, since an
 // invalid parent/child pair is rejected by Azure with a message nobody can act on.

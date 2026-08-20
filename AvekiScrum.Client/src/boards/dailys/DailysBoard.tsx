@@ -105,6 +105,7 @@ export function DailysBoard() {
   const [sprintGoals, setSprintGoals] = useState<SprintGoal[]>([]);
   const [developerRoster, setDeveloperRoster] = useState<PersonOption[]>([]);
   const [flowExcludedByDefault, setFlowExcludedByDefault] = useState<PersonOption[]>([]);
+  const [flowRoles, setFlowRoles] = useState<{ po: PersonOption | null; testLead: PersonOption | null }>({ po: null, testLead: null });
   // Explicit ticks and unticks only. Anyone absent falls back to participantOnByDefault, so a new
   // team member is picked up automatically instead of inheriting a stale saved list.
   const [participantChoices, setParticipantChoices] = useState<Record<string, boolean>>({});
@@ -161,12 +162,14 @@ export function DailysBoard() {
       .then((roles) => {
         setDeveloperRoster(roles.developers);
         setFlowExcludedByDefault(roles.flowExcludedByDefault ?? []);
+        setFlowRoles({ po: roles.po, testLead: roles.testLead });
       })
       .catch((err: unknown) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
         // Falls back to buildGroups' own card-derived grouping if the roster can't be loaded.
         setDeveloperRoster([]);
         setFlowExcludedByDefault([]);
+        setFlowRoles({ po: null, testLead: null });
       });
     return () => controller.abort();
   }, [team]);
@@ -254,8 +257,8 @@ export function DailysBoard() {
   );
 
   const flowParticipants = useMemo(
-    () => buildFlowParticipants(allGroups, developerRoster),
-    [allGroups, developerRoster],
+    () => buildFlowParticipants(allGroups, developerRoster, flowRoles.po, flowRoles.testLead),
+    [allGroups, developerRoster, flowRoles],
   );
 
   const selectedParticipants = useMemo(

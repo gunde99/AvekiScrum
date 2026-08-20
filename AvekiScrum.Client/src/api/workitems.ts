@@ -271,3 +271,11 @@ export function removeWorkItemRelation(id: number, targetId: number, linkKind: L
     "DELETE",
   );
 }
+
+/** Deletes a work item (and any children) into Azure's recycle bin - recoverable, not destroyed. */
+export async function deleteWorkItem(id: number): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/workitems/${id}`, { method: "DELETE" });
+  if (!response.ok) {
+    throw new Error(`Kunde inte ta bort #${id}: HTTP ${response.status}`);
+  }
+}

@@ -280,6 +280,12 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             return $"{BaseUrl}_apis/wit/workitemtypes/{Uri.EscapeDataString(workItemType)}/fields?$expand=allowedValues&{_apiVersion}";
         }
 
+        /// <summary>Deletes a work item into the recycle bin (destroy=false, so it is recoverable).</summary>
+        public static string GetDeleteWorkItemUrl(int workItemId)
+        {
+            return $"{BaseUrl}_apis/wit/workitems/{workItemId}?{_apiVersion}";
+        }
+
         /// <summary>Every tag defined in the project, for the tag picker.</summary>
         public static string GetTagsUrl()
         {

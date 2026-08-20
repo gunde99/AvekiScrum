@@ -51,6 +51,7 @@ namespace AvekiScrum.Application.Abstractions
         Task<int> CreateRelatedUserStoryAsync(int relatedToId, string title, string? assignedTo, string? areaPath, string? iterationPath, CancellationToken ct = default);
         Task<int> CreateWorkItemAsync(string workItemType, IReadOnlyDictionary<string, object?> fields, int? linkToId, string? linkRel, CancellationToken ct = default);
         Task AddWorkItemCommentAsync(int workItemId, string text, CancellationToken ct = default);
+        Task DeleteWorkItemAsync(int workItemId, CancellationToken ct = default);
         Task AddWorkItemRelationAsync(int workItemId, int targetId, string linkRel, CancellationToken ct = default);
         Task RemoveWorkItemRelationAsync(int workItemId, int targetId, string linkRel, CancellationToken ct = default);
         /// <summary>All area paths (true) or iteration paths (false) in the project, for the pickers.</summary>

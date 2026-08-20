@@ -107,6 +107,9 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
 
         Task AddWorkItemCommentAsync(int workItemId, string text, CancellationToken ct = default);
 
+        /// <summary>Deletes a work item into the project's recycle bin (recoverable).</summary>
+        Task DeleteWorkItemAsync(int workItemId, CancellationToken ct = default);
+
         Task AddWorkItemRelationAsync(int workItemId, int targetId, string linkRel, CancellationToken ct = default);
 
         /// <summary>Removes the link of type <paramref name="linkRel"/> to <paramref name="targetId"/>.</summary>

@@ -230,6 +230,9 @@ export interface FlowParticipant {
   cardCount: number;
   /** On the team's configured developer roster, as opposed to merely owning a card here. */
   isRoster: boolean;
+  /** Which closing step this person owns, if any - the PO and test lead are in the picker too
+   *  since neither is always at the standup. */
+  role?: "po" | "testlead";
 }
 
 /**
@@ -237,12 +240,33 @@ export interface FlowParticipant {
  * (including anyone currently without cards, who still gets asked how it's going) plus whoever
  * else owns cards on the board. "Ej tilldelad" is left out - it's a bucket, not a person.
  */
-export function buildFlowParticipants(groups: StoryGroup[], roster: PersonRef[]): FlowParticipant[] {
+export function buildFlowParticipants(
+  groups: StoryGroup[],
+  roster: PersonRef[],
+  po?: PersonRef | null,
+  testLead?: PersonRef | null,
+): FlowParticipant[] {
   const participants = new Map<string, FlowParticipant>();
+
+  // The PO and test lead close every round, and neither is always there, so both belong in the
+  // picker. They go in first so their role label survives even if they also own cards.
+  for (const [role, person] of [["po", po], ["testlead", testLead]] as const) {
+    if (!person) continue;
+    const key = personKey(person.displayName);
+    if (!key) continue;
+    const group = groups.find((g) => samePerson(g.label, person.displayName));
+    participants.set(key, {
+      key,
+      displayName: person.displayName,
+      cardCount: group?.stories.length ?? 0,
+      isRoster: true,
+      role,
+    });
+  }
 
   for (const dev of roster) {
     const key = personKey(dev.displayName);
-    if (!key) continue;
+    if (!key || participants.has(key)) continue;
     const group = groups.find((g) => samePerson(g.label, dev.displayName));
     participants.set(key, {
       key,

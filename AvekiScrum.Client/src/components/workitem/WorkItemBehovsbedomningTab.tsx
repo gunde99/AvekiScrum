@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { createHelptextStory, createWorkItemTasks, type WorkItemDetail, type WorkItemRelationRef } from "../../api/workitems";
+import {
+  createHelptextStory,
+  createWorkItemTasks,
+  deleteWorkItem,
+  fetchWorkItemDetail,
+  type WorkItemDetail,
+  type WorkItemRelationRef,
+} from "../../api/workitems";
 import { Section } from "./Section";
 import { useToast } from "../Toast";
 import "./WorkItemBehovsbedomningTab.css";
@@ -10,49 +17,85 @@ interface NeedCategory {
   key: string;
   label: string;
   activity: string;
-  /** Keywords used to spot a matching task that already exists among the card's children. Also
-   *  used to exclude "Utveckling"'s match from grabbing another category's Development-activity task. */
-  detectKeywords: string[];
+  /**
+   * Title prefixes that identify a task as belonging to this category. Matched before activity,
+   * because Activity is very often blank on real cards - the prefix is what people actually
+   * write, so it is the reliable signal and activity only fills in the gaps.
+   */
+  prefixes: string[];
 }
 
 const CATEGORIES: NeedCategory[] = [
-  { key: "development", label: "Utveckling", activity: "Development", detectKeywords: [] },
-  { key: "audit", label: "Auditloggning", activity: "Development", detectKeywords: ["audit"] },
-  { key: "test", label: "Test", activity: "Testing", detectKeywords: [] },
-  { key: "helptext", label: "Hjälptext", activity: "Documentation", detectKeywords: ["hjälptext", "hjalptext"] },
-  { key: "dbdoc", label: "Databasdokumentation", activity: "Documentation", detectKeywords: ["databasdok"] },
-  { key: "techdoc", label: "Teknisk dokumentation", activity: "Documentation", detectKeywords: ["teknisk dok"] },
-  { key: "versionchange", label: "Versionsförändring", activity: "Documentation", detectKeywords: ["versionsförändring", "versionsforandring"] },
+  // "Utveckling" is the catch-all: any task no other category claimed. It carries no prefix of
+  // its own, so a card that simply has development work already satisfies the row.
+  { key: "development", label: "Utveckling", activity: "Development", prefixes: [] },
+  { key: "unittest", label: "Enhetstester", activity: "Development", prefixes: ["enhetstest", "unittest", "unit test"] },
+  { key: "audit", label: "Auditloggning", activity: "Development", prefixes: ["audit"] },
+  {
+    key: "test",
+    label: "Manuella tester",
+    activity: "Testing",
+    prefixes: ["manuell test", "manuella test", "acceptanstest", "testkort", "testa "],
+  },
+  { key: "helptext", label: "Hjälptext", activity: "Documentation", prefixes: ["hjälptext", "hjalptext"] },
+  { key: "dbdoc", label: "Databasdokumentation", activity: "Documentation", prefixes: ["databasdok"] },
+  { key: "techdoc", label: "Teknisk dokumentation", activity: "Documentation", prefixes: ["teknisk dok"] },
+  { key: "versionchange", label: "Versionsförändring", activity: "Documentation", prefixes: ["versionsförändring", "versionsforandring"] },
 ];
 
-const AUDIT_KEYWORDS = CATEGORIES.find((c) => c.key === "audit")!.detectKeywords;
-
-function matchesKeywords(title: string, keywords: string[]): boolean {
-  const lower = title.toLowerCase();
-  return keywords.some((kw) => lower.includes(kw.toLowerCase()));
+function matchesPrefix(title: string, prefixes: string[]): boolean {
+  const lower = (title || "").toLowerCase();
+  return prefixes.some((p) => lower.includes(p.toLowerCase()));
 }
 
-function findExistingTask(
-  category: NeedCategory,
-  children: WorkItemRelationRef[],
-  related: WorkItemRelationRef[],
-): WorkItemRelationRef | undefined {
-  const tasks = children.filter((c) => c.type === "Task" && c.activity === category.activity);
-  if (category.key === "development") {
-    // "Utveckling" is whichever Development-activity task ISN'T the Audit task - the base dev
-    // work is identified by exclusion, the same way the rest of the app already treats it.
-    return tasks.find((t) => !matchesKeywords(t.title, AUDIT_KEYWORDS));
+function sameActivity(a: string | null, b: string): boolean {
+  return (a || "").trim().toLowerCase() === b.toLowerCase();
+}
+
+/**
+ * Assigns each child task to at most one category.
+ *
+ * Order matters: a prefix match is definitive, so those are claimed first and can't then be
+ * stolen by a broader activity rule. Only afterwards does activity fill in - and only where it is
+ * unambiguous (Testing has a single category; the four Documentation categories are told apart by
+ * prefix alone). Anything still unclaimed counts as plain development work, including the many
+ * real tasks that carry no Activity at all.
+ */
+function assignTasks(children: WorkItemRelationRef[], related: WorkItemRelationRef[]): Record<string, WorkItemRelationRef | undefined> {
+  const tasks = children.filter((c) => c.type === "Task");
+  const claimed = new Map<number, string>();
+  const result: Record<string, WorkItemRelationRef | undefined> = {};
+
+  for (const category of CATEGORIES) {
+    if (category.prefixes.length === 0) continue;
+    for (const task of tasks) {
+      if (claimed.has(task.id)) continue;
+      if (matchesPrefix(task.title, category.prefixes)) claimed.set(task.id, category.key);
+    }
   }
-  if (category.key === "helptext") {
-    // Transition period: hjälptext work used to live as a direct child Task, and is now being
-    // broken out into a separate related User Story (with its own Documentation task) instead.
-    // Recognize either pattern so this row doesn't offer to create a duplicate.
-    const directTask = tasks.find((t) => matchesKeywords(t.title, category.detectKeywords));
-    if (directTask) return directTask;
-    return related.find((r) => r.type === "User Story" && matchesKeywords(r.title, category.detectKeywords));
+
+  for (const task of tasks) {
+    if (claimed.has(task.id)) continue;
+    if (sameActivity(task.activity, "Testing")) claimed.set(task.id, "test");
   }
-  if (category.detectKeywords.length === 0) return tasks[0];
-  return tasks.find((t) => matchesKeywords(t.title, category.detectKeywords));
+
+  for (const task of tasks) {
+    if (claimed.has(task.id)) continue;
+    // Documentation work with no recognisable prefix belongs to no specific row - leaving it
+    // unclaimed is better than crediting an arbitrary documentation category with it.
+    if (sameActivity(task.activity, "Documentation")) continue;
+    claimed.set(task.id, "development");
+  }
+
+  for (const [taskId, key] of claimed) {
+    result[key] ??= tasks.find((t) => t.id === taskId);
+  }
+
+  // Hjälptext is in transition: it used to be a direct child Task and is now a separate related
+  // User Story with its own Documentation task. Either pattern counts.
+  result.helptext ??= related.find((r) => r.type === "User Story" && matchesPrefix(r.title, CATEGORIES.find((c) => c.key === "helptext")!.prefixes));
+
+  return result;
 }
 
 interface WorkItemBehovsbedomningTabProps {
@@ -79,14 +122,11 @@ export function WorkItemBehovsbedomningTab({
 }: WorkItemBehovsbedomningTabProps) {
   const [decisions, setDecisions] = useState<Record<string, NeedDecision | undefined>>({});
   const [saving, setSaving] = useState(false);
+  const [busyRow, setBusyRow] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { showToast } = useToast();
 
-  const existingByCategory = useMemo(() => {
-    const map: Record<string, WorkItemRelationRef | undefined> = {};
-    for (const category of CATEGORIES) map[category.key] = findExistingTask(category, detail.children, detail.related);
-    return map;
-  }, [detail.children, detail.related]);
+  const existingByCategory = useMemo(() => assignTasks(detail.children, detail.related), [detail.children, detail.related]);
 
   // Reset per-row decisions whenever the card (or its children) changes - nothing is pre-checked
   // except rows where a matching task genuinely already exists. Every other row must be actively
@@ -105,6 +145,41 @@ export function WorkItemBehovsbedomningTab({
   useEffect(() => {
     onOkChange?.(sectionOk);
   }, [sectionOk, onOkChange]);
+
+  /** Creates the category's card straight away - used once the card is already DoR-approved,
+   *  where there is no pending approval left to defer the work to. */
+  async function createNow(category: NeedCategory) {
+    setBusyRow(category.key);
+    setError(null);
+    try {
+      if (category.key === "helptext") await createHelptextStory(detail.id);
+      else await createWorkItemTasks(detail.id, [{ title: category.label, activity: category.activity }]);
+      onUpdated(await fetchWorkItemDetail(detail.id));
+      showToast(`${category.label} skapad på #${detail.id}.`, "success");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kunde inte skapa kortet.");
+    } finally {
+      setBusyRow(null);
+    }
+  }
+
+  /** Switches an already-created category back to "behövs ej" by deleting its card. Azure keeps
+   *  it in the recycle bin, so this is recoverable. */
+  async function removeNow(category: NeedCategory, existing: WorkItemRelationRef) {
+    if (!window.confirm(`Ta bort #${existing.id} "${existing.title}"?\n\nKortet hamnar i papperskorgen i Azure DevOps och går att återställa där.`))
+      return;
+    setBusyRow(category.key);
+    setError(null);
+    try {
+      await deleteWorkItem(existing.id);
+      onUpdated(await fetchWorkItemDetail(detail.id));
+      showToast(`#${existing.id} borttagen - ${category.label} markerad som "behövs ej".`, "success");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kunde inte ta bort kortet.");
+    } finally {
+      setBusyRow(null);
+    }
+  }
 
   async function handleApprove() {
     setSaving(true);
@@ -146,14 +221,24 @@ export function WorkItemBehovsbedomningTab({
     <div className="bb-tab">
       <Section title="Behovsbedömning" hint={hasDorTag ? "Kortet har DoR-taggen" : "Kortet saknar DoR-taggen"} ok={sectionOk}>
         <p className="bb-intro">
-          Gå igenom varje rad och ta aktivt ställning. Godkännandet sparar även Korthygien-fliken, sätter taggen{" "}
-          <code>DoR</code> och skapar de valda task-korten.
+          {hasDorTag ? (
+            <>
+              Kortet är DoR-godkänt. Varje rad går att ändra i efterhand - <em>Behövs ej</em> tar bort kortet, och{" "}
+              <em>Skapa task</em> lägger tillbaka det. Ändringarna slår igenom direkt.
+            </>
+          ) : (
+            <>
+              Gå igenom varje rad och ta aktivt ställning. Godkännandet sparar även Korthygien-fliken, sätter taggen{" "}
+              <code>DoR</code> och skapar de valda task-korten.
+            </>
+          )}
         </p>
         <div className="bb-rows">
           {CATEGORIES.map((category) => {
             const existing = existingByCategory[category.key];
             const decision = decisions[category.key];
             const decided = !!existing || !!decision;
+            const busy = busyRow === category.key;
 
             return (
               <div key={category.key} className="bb-row">
@@ -162,27 +247,35 @@ export function WorkItemBehovsbedomningTab({
                   {decided ? "Uppfyllt" : "Ej valt"}
                 </span>
                 <div className="bb-row__control">
-                  {existing ? (
+                  {/* Both options are always offered. Before approval, "Skapa task" only records
+                      the intent and Godkänn does the work; afterwards each click acts at once,
+                      since there is no approval step left to carry it out. */}
+                  <div className="bb-switch">
+                    <button
+                      type="button"
+                      className={`bb-switch__opt ${existing || decision === "create" ? "bb-switch__opt--active" : ""}`}
+                      disabled={busy || !!existing}
+                      onClick={() =>
+                        hasDorTag ? void createNow(category) : setDecisions((d) => ({ ...d, [category.key]: "create" }))
+                      }
+                    >
+                      Skapa task
+                    </button>
+                    <button
+                      type="button"
+                      className={`bb-switch__opt ${!existing && decision === "not-needed" ? "bb-switch__opt--active" : ""}`}
+                      disabled={busy}
+                      onClick={() =>
+                        existing ? void removeNow(category, existing) : setDecisions((d) => ({ ...d, [category.key]: "not-needed" }))
+                      }
+                    >
+                      {busy ? "…" : "Behövs ej"}
+                    </button>
+                  </div>
+                  {existing && (
                     <span className="bb-existing">
                       Finns redan: #{existing.id} {existing.title} ({existing.state})
                     </span>
-                  ) : (
-                    <div className="bb-switch">
-                      <button
-                        type="button"
-                        className={`bb-switch__opt ${decision === "create" ? "bb-switch__opt--active" : ""}`}
-                        onClick={() => setDecisions((d) => ({ ...d, [category.key]: "create" }))}
-                      >
-                        Skapa task
-                      </button>
-                      <button
-                        type="button"
-                        className={`bb-switch__opt ${decision === "not-needed" ? "bb-switch__opt--active" : ""}`}
-                        onClick={() => setDecisions((d) => ({ ...d, [category.key]: "not-needed" }))}
-                      >
-                        Behövs ej
-                      </button>
-                    </div>
                   )}
                 </div>
               </div>
@@ -190,15 +283,17 @@ export function WorkItemBehovsbedomningTab({
           })}
         </div>
         {error && <p className="bb-error">{error}</p>}
-        <button
-          type="button"
-          className="wi-btn wi-btn--success bb-approve"
-          onClick={handleApprove}
-          disabled={saving || !canApprove}
-          title={canApprove ? undefined : !allDecided ? "Ta ställning till varje rad först" : "Korthygien måste också vara uppfylld"}
-        >
-          {saving ? "Sparar…" : "Godkänn DoR"}
-        </button>
+        {!hasDorTag && (
+          <button
+            type="button"
+            className="wi-btn wi-btn--success bb-approve"
+            onClick={handleApprove}
+            disabled={saving || !canApprove}
+            title={canApprove ? undefined : !allDecided ? "Ta ställning till varje rad först" : "Korthygien måste också vara uppfylld"}
+          >
+            {saving ? "Sparar…" : "Godkänn DoR"}
+          </button>
+        )}
       </Section>
     </div>
   );

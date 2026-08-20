@@ -131,14 +131,20 @@ export function DailyFlow({
       .then((r) => {
         if (cancelled) return;
         setRoles(r);
-        const poStep: FlowStep = { kind: "po", key: "po", name: r.po?.displayName || "Product Owner" };
-        const testStep: FlowStep = { kind: "testlead", key: "testlead", name: r.testLead?.displayName || "Testansvarig" };
+        // The picker covers the closing steps too - neither the PO nor the test lead is always
+        // at the standup, and an unticked person shouldn't get a turn nobody is there to take.
+        const takesPart = (name: string) => participantKeys.has(personKey(name));
+        const closingSteps: FlowStep[] = [];
+        if (!r.po || takesPart(r.po.displayName))
+          closingSteps.push({ kind: "po", key: "po", name: r.po?.displayName || "Product Owner" });
+        if (!r.testLead || takesPart(r.testLead.displayName))
+          closingSteps.push({ kind: "testlead", key: "testlead", name: r.testLead?.displayName || "Testansvarig" });
 
         if (mode === "goals") {
           // Sprint goals keep their existing (meaningful) order instead of being shuffled. The
           // PO and test lead close the round here just as they do in the developer standup - the
           // questions differ, but both still need their turn.
-          start([...groups.map((g) => ({ kind: "goal" as const, key: g.id, name: g.label })), poStep, testStep]);
+          start([...groups.map((g) => ({ kind: "goal" as const, key: g.id, name: g.label })), ...closingSteps]);
           return;
         }
 
@@ -155,7 +161,6 @@ export function DailyFlow({
         );
         // The participant picker has the final say on who gets a turn: someone off sick is
         // unticked before the meeting rather than skipped over live.
-        const takesPart = (name: string) => participantKeys.has(personKey(name));
         const devSteps: FlowStep[] = shuffle([
           ...roster.filter((dev) => takesPart(dev.displayName)).map((dev) => {
             const matchingGroup = groups.find((g) => samePerson(g.label, dev.displayName));
@@ -167,7 +172,7 @@ export function DailyFlow({
             .filter((g) => takesPart(g.label))
             .map((g) => ({ kind: "developer" as const, key: g.id, name: g.label })),
         ]);
-        start([...devSteps, poStep, testStep]);
+        start([...devSteps, ...closingSteps]);
       });
     return () => {
       cancelled = true;

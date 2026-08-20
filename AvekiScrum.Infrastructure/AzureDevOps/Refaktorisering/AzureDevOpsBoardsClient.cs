@@ -659,6 +659,15 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             await _rest.PatchJsonPatchAsync(AzureUrlHelper.GetWorkItemPatchUrl(workItemId), patch, ct);
         }
 
+        /// <summary>
+        /// Deletes a work item. Azure puts it in the project's recycle bin rather than destroying
+        /// it, so an accidental delete from the DoR checklist can be undone from Azure DevOps.
+        /// </summary>
+        public async Task DeleteWorkItemAsync(int workItemId, CancellationToken ct = default)
+        {
+            await _rest.DeleteAsync(AzureUrlHelper.GetDeleteWorkItemUrl(workItemId), ifMatchVersion: null, ct: ct);
+        }
+
         public async Task AddWorkItemCommentAsync(int workItemId, string text, CancellationToken ct = default)
         {
             await _rest.PostJsonAsync(AzureUrlHelper.GetWorkItemCommentsUrl(workItemId), new { text }, ct);
