@@ -100,16 +100,6 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
 
   const config = useMemo(() => getWorkItemTypeConfig(detail?.type ?? ""), [detail?.type]);
 
-  /** Pulls the card again after something was created against it, so the new child or related
-   *  item shows up (and the tab counts move) without closing and reopening the card. */
-  async function reload() {
-    try {
-      setDetail(await fetchWorkItemDetail(currentId));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Kunde inte läsa om kortet.");
-    }
-  }
-
   function openRelation(item: WorkItemRelationRef, relationLabel: string) {
     setStack((prev) => [...prev, { id: item.id, type: item.type, title: item.title, relationLabel }]);
   }
@@ -252,10 +242,10 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
                 />
               )}
               {tab === "relations" && (
-                <WorkItemRelationsTab detail={detail} onOpenRelation={openRelation} onCreated={reload} people={people} />
+                <WorkItemRelationsTab detail={detail} onOpenRelation={openRelation} onChanged={setDetail} people={people} />
               )}
               {tab === "taskboard" && (
-                <WorkItemTaskboardTab detail={detail} onOpenRelation={openRelation} onCreated={reload} people={people} />
+                <WorkItemTaskboardTab detail={detail} onOpenRelation={openRelation} onCreated={setDetail} people={people} />
               )}
               {tab === "discussion" && <WorkItemDiscussionTab detail={detail} onPosted={setDetail} />}
               {tab === "prs" && <WorkItemPullRequestsTab pullRequests={detail.pullRequests} />}

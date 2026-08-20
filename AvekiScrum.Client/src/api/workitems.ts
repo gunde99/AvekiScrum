@@ -158,11 +158,13 @@ export async function createHelptextStory(parentId: number): Promise<{ storyId: 
   return (await response.json()) as { storyId: number; taskId: number };
 }
 
+export type LinkKind = "parent" | "child" | "related";
+
 export interface CreateLinkedWorkItemRequest {
   type: string;
   title: string;
-  /** "child" links the new item under the card, "related" links it beside it. */
-  linkKind: "child" | "related";
+  /** Where the new item sits relative to the card it's created from. */
+  linkKind: LinkKind;
   assignedTo?: string | null;
   description?: string | null;
   activity?: string | null;
@@ -241,4 +243,31 @@ export function fetchClassification(): Promise<ClassificationOptions> {
       throw err;
     });
   return classificationCache;
+}
+
+async function relationCall(url: string, method: "POST" | "DELETE", body?: unknown): Promise<WorkItemDetail> {
+  const response = await fetch(url, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!response.ok) {
+    // The API answers hierarchy violations with a plain-language reason - surfacing it beats a
+    // bare status code, since the whole point is telling someone why the link isn't allowed.
+    const reason = await response.text().catch(() => "");
+    throw new Error(reason?.replace(/^"|"$/g, "") || `HTTP ${response.status}`);
+  }
+  return (await response.json()) as WorkItemDetail;
+}
+
+/** Links an existing work item to this one. Returns the card, reloaded. */
+export function addWorkItemRelation(id: number, targetId: number, linkKind: LinkKind): Promise<WorkItemDetail> {
+  return relationCall(`${API_BASE_URL}/api/workitems/${id}/relations`, "POST", { targetId, linkKind });
+}
+
+export function removeWorkItemRelation(id: number, targetId: number, linkKind: LinkKind): Promise<WorkItemDetail> {
+  return relationCall(
+    `${API_BASE_URL}/api/workitems/${id}/relations?targetId=${targetId}&linkKind=${linkKind}`,
+    "DELETE",
+  );
 }

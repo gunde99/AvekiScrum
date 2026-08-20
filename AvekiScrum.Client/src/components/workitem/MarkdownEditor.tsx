@@ -1,4 +1,4 @@
-import { useRef, useState, type ClipboardEvent } from "react";
+import { useLayoutEffect, useRef, useState, type ClipboardEvent } from "react";
 import { uploadAttachment } from "../../api/attachments";
 import "./MarkdownEditor.css";
 
@@ -7,14 +7,29 @@ interface MarkdownEditorProps {
   onChange: (value: string) => void;
   rows?: number;
   placeholder?: string;
+  /** Starts at `rows` and grows with the text instead of scrolling inside a fixed box - for
+   *  places like the comment composer that should be one line at rest. */
+  autoGrow?: boolean;
+  /** Ceiling for autoGrow, in pixels, after which it scrolls after all. */
+  maxHeight?: number;
 }
 
 /** Textarea with markdown support and paste-image-to-upload, reusable anywhere a work item
  *  (or anything else) needs a rich-text-ish edit field backed by an Azure DevOps attachment. */
-export function MarkdownEditor({ value, onChange, rows = 14, placeholder }: MarkdownEditorProps) {
+export function MarkdownEditor({ value, onChange, rows = 14, placeholder, autoGrow = false, maxHeight = 320 }: MarkdownEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Reset to auto first so the box can shrink again when text is deleted - scrollHeight only
+  // ever reports the larger of content and current height.
+  useLayoutEffect(() => {
+    if (!autoGrow) return;
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
+  }, [value, autoGrow, maxHeight]);
 
   async function handlePaste(e: ClipboardEvent<HTMLTextAreaElement>) {
     const items = e.clipboardData?.items;
@@ -54,7 +69,7 @@ export function MarkdownEditor({ value, onChange, rows = 14, placeholder }: Mark
     <div className="md-editor">
       <textarea
         ref={textareaRef}
-        className="md-editor__textarea"
+        className={"md-editor__textarea" + (autoGrow ? " md-editor__textarea--grow" : "")}
         rows={rows}
         value={value}
         placeholder={placeholder}

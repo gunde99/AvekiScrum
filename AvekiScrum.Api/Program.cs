@@ -337,9 +337,10 @@ app.MapPatch("/api/workitems/{id:int}", async (
     if (request.ValueArea != null) fields["Microsoft.VSTS.Common.ValueArea"] = request.ValueArea;
     if (request.Source != null) fields["Custom.Source"] = request.Source;
     if (request.AssignedTeam != null) fields["Custom.AssignedTeam"] = request.AssignedTeam;
-    // Stakeholders is an identity field, so an empty string has to become a real null to clear it.
-    if (request.Stakeholders != null)
-        fields["Custom.Stakeholders"] = string.IsNullOrEmpty(request.Stakeholders) ? null : request.Stakeholders;
+    // Custom.Stakeholders is an html field, not an identity one - it holds free text (a person,
+    // a municipality, a note), so it goes through as-is. An empty string is handled downstream
+    // as "clear this field".
+    if (request.Stakeholders != null) fields["Custom.Stakeholders"] = request.Stakeholders;
 
     if (fields.Count == 0)
         return Results.BadRequest("No fields to update.");
@@ -398,18 +399,32 @@ app.MapPost("/api/workitems/{id:int}/children", async (
     if (string.IsNullOrWhiteSpace(request.Type))
         return Results.BadRequest("A new work item needs a type.");
 
-    var linkRel = request.LinkKind?.Trim().ToLowerInvariant() switch
+    // Note the flip: the link is stored on the *new* item, so "child" means the new item points
+    // up at this card (Hierarchy-Reverse), and "parent" means it points down (Hierarchy-Forward).
+    var kind = request.LinkKind?.Trim().ToLowerInvariant();
+    var linkRel = kind switch
     {
         "child" => "System.LinkTypes.Hierarchy-Reverse",
+        "parent" => "System.LinkTypes.Hierarchy-Forward",
         "related" => "System.LinkTypes.Related",
         _ => null,
     };
     if (linkRel is null)
-        return Results.BadRequest("linkKind must be 'child' or 'related'.");
+        return Results.BadRequest("linkKind must be 'parent', 'child' or 'related'.");
 
     var source = await azureDevOpsService.GetWorkItemDetailAsync(id, ct);
     if (source is null)
         return Results.NotFound();
+
+    if (kind == "child" && !WorkItemHierarchy.CanParent(source.Type, request.Type))
+        return Results.BadRequest($"{source.Type} kan inte vara parent till {request.Type}.");
+    if (kind == "parent")
+    {
+        if (source.Parent is not null)
+            return Results.BadRequest("Kortet har redan en parent. Ta bort den först.");
+        if (!WorkItemHierarchy.CanParent(request.Type, source.Type))
+            return Results.BadRequest($"{request.Type} kan inte vara parent till {source.Type}.");
+    }
 
     var fields = new Dictionary<string, object?>
     {
@@ -431,6 +446,64 @@ app.MapPost("/api/workitems/{id:int}/children", async (
     return Results.Ok(new { id = newId });
 })
 .WithName("CreateLinkedWorkItem");
+
+// Links an existing work item to this one, and unlinks again. The hierarchy rules are enforced
+// here as well as in the UI - the UI stops the obvious mistakes, this stops the rest, since an
+// invalid parent/child pair is rejected by Azure with a message nobody can act on.
+app.MapPost("/api/workitems/{id:int}/relations", async (
+    int id,
+    RelationRequest request,
+    IAzureDevOpsService azureDevOpsService,
+    CancellationToken ct) =>
+{
+    var linkRel = WorkItemHierarchy.LinkRelFor(request.LinkKind);
+    if (linkRel is null)
+        return Results.BadRequest("linkKind must be 'parent', 'child' or 'related'.");
+    if (request.TargetId == id)
+        return Results.BadRequest("Ett kort kan inte länkas till sig självt.");
+
+    var source = await azureDevOpsService.GetWorkItemDetailAsync(id, ct);
+    var target = await azureDevOpsService.GetWorkItemDetailAsync(request.TargetId, ct);
+    if (source is null || target is null)
+        return Results.NotFound();
+
+    if (request.LinkKind == "parent")
+    {
+        if (source.Parent is not null)
+            return Results.BadRequest("Kortet har redan en parent. Ta bort den först.");
+        if (!WorkItemHierarchy.CanParent(target.Type, source.Type))
+            return Results.BadRequest($"{target.Type} kan inte vara parent till {source.Type}.");
+    }
+    else if (request.LinkKind == "child")
+    {
+        if (!WorkItemHierarchy.CanParent(source.Type, target.Type))
+            return Results.BadRequest($"{source.Type} kan inte vara parent till {target.Type}.");
+        if (target.Parent is not null)
+            return Results.BadRequest($"#{target.Id} har redan en parent. Ett kort kan bara ha en.");
+    }
+
+    await azureDevOpsService.AddWorkItemRelationAsync(id, request.TargetId, linkRel, ct);
+    var updated = await azureDevOpsService.GetWorkItemDetailAsync(id, ct);
+    return updated is null ? Results.NotFound() : Results.Ok(updated);
+})
+.WithName("AddWorkItemRelation");
+
+app.MapDelete("/api/workitems/{id:int}/relations", async (
+    int id,
+    int targetId,
+    string linkKind,
+    IAzureDevOpsService azureDevOpsService,
+    CancellationToken ct) =>
+{
+    var linkRel = WorkItemHierarchy.LinkRelFor(linkKind);
+    if (linkRel is null)
+        return Results.BadRequest("linkKind must be 'parent', 'child' or 'related'.");
+
+    await azureDevOpsService.RemoveWorkItemRelationAsync(id, targetId, linkRel, ct);
+    var updated = await azureDevOpsService.GetWorkItemDetailAsync(id, ct);
+    return updated is null ? Results.NotFound() : Results.Ok(updated);
+})
+.WithName("RemoveWorkItemRelation");
 
 app.MapPost("/api/workitems/{id:int}/comments", async (
     int id,
@@ -589,6 +662,41 @@ internal sealed record CreateWorkItemRequest(
     List<string>? Tags);
 
 internal sealed record AddCommentRequest(string Text);
+
+internal sealed record RelationRequest(int TargetId, string LinkKind);
+
+/// <summary>
+/// The backlog hierarchy this project actually uses: Epic → Feature → User Story/Bug → Task.
+/// A User Story or Bug can't own another one, and a Task is always a leaf. Azure itself is more
+/// permissive than the process the team follows, so the rules live here rather than being left
+/// to whatever the API happens to allow.
+/// </summary>
+internal static class WorkItemHierarchy
+{
+    private static readonly Dictionary<string, string[]> AllowedChildren = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Epic"] = new[] { "Feature" },
+        ["Feature"] = new[] { "User Story", "Product Backlog Item", "Bug" },
+        ["User Story"] = new[] { "Task" },
+        ["Product Backlog Item"] = new[] { "Task" },
+        ["Bug"] = new[] { "Task" },
+        ["Task"] = Array.Empty<string>(),
+    };
+
+    public static bool CanParent(string parentType, string childType) =>
+        AllowedChildren.TryGetValue(parentType ?? "", out var allowed) &&
+        allowed.Contains(childType ?? "", StringComparer.OrdinalIgnoreCase);
+
+    public static string? LinkRelFor(string? linkKind) => linkKind?.Trim().ToLowerInvariant() switch
+    {
+        // "parent" points up from this card, "child" points down - Azure names them from the
+        // perspective of the item the relation is stored on.
+        "parent" => "System.LinkTypes.Hierarchy-Reverse",
+        "child" => "System.LinkTypes.Hierarchy-Forward",
+        "related" => "System.LinkTypes.Related",
+        _ => null,
+    };
+}
 
 internal sealed record NewTaskRequest(string Title, string? Activity, string? AssignedTo, string? State);
 

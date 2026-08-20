@@ -39,3 +39,11 @@
   color: var(--color-danger);
   font-weight: 600;
 }
+
+/* Height is driven from JS while growing, so the shared 220px floor has to go - otherwise the
+   box can never shrink to the single row it should sit at when empty. */
+.md-editor__textarea--grow {
+  min-height: 0;
+  resize: none;
+  overflow-y: auto;
+}

@@ -1,17 +1,19 @@
 import { useState } from "react";
-import { createLinkedWorkItem, type WorkItemDetail } from "../../api/workitems";
+import { createLinkedWorkItem, fetchWorkItemDetail, type LinkKind, type WorkItemDetail } from "../../api/workitems";
 import type { PersonOption } from "../../api/people";
 import { ACTIVITIES, CREATABLE_TYPES } from "./workItemTypeConfig";
 import "./NewWorkItemForm.css";
 
 interface NewWorkItemFormProps {
   source: WorkItemDetail;
-  /** "child" hangs the new item under the card, "related" puts it beside it. */
-  linkKind: "child" | "related";
-  /** Types on offer; the taskboard only ever creates Tasks, relations can create anything. */
+  /** Where the new item sits relative to the card it's created from. */
+  linkKind: LinkKind;
+  /** Types on offer; the taskboard only ever creates Tasks, relations offer what the hierarchy allows. */
   types?: string[];
   people: PersonOption[];
-  onCreated: () => void;
+  /** Handed the reloaded source card so the caller can refresh without a second round trip. */
+  onCreated: (detail: WorkItemDetail) => void;
+  openLabel?: string;
 }
 
 /**
@@ -19,7 +21,7 @@ interface NewWorkItemFormProps {
  * not asked for - the backend copies them from the source card, which is right almost every time
  * and can be changed on the new card afterwards if it isn't.
  */
-export function NewWorkItemForm({ source, linkKind, types = CREATABLE_TYPES, people, onCreated }: NewWorkItemFormProps) {
+export function NewWorkItemForm({ source, linkKind, types = CREATABLE_TYPES, people, onCreated, openLabel }: NewWorkItemFormProps) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState(types[0]);
   const [title, setTitle] = useState("");
@@ -49,7 +51,7 @@ export function NewWorkItemForm({ source, linkKind, types = CREATABLE_TYPES, peo
       });
       reset();
       setOpen(false);
-      onCreated();
+      onCreated(await fetchWorkItemDetail(source.id));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Kunde inte skapa kortet.");
     } finally {
@@ -60,7 +62,7 @@ export function NewWorkItemForm({ source, linkKind, types = CREATABLE_TYPES, peo
   if (!open) {
     return (
       <button type="button" className="wi-btn wi-new-item__open" onClick={() => setOpen(true)}>
-        + {linkKind === "child" ? "Ny task" : "Nytt relaterat kort"}
+        {openLabel ?? (linkKind === "child" ? "+ Ny task" : "+ Nytt kort")}
       </button>
     );
   }

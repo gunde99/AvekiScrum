@@ -622,6 +622,43 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             return document.RootElement.GetProperty("id").GetInt32();
         }
 
+        public async Task AddWorkItemRelationAsync(int workItemId, int targetId, string linkRel, CancellationToken ct = default)
+        {
+            var patch = new List<WorkItemPatchOperation>
+            {
+                new("add", "/relations/-", new
+                {
+                    rel = linkRel,
+                    url = $"{_absoluteBaseUrl}_apis/wit/workitems/{targetId}"
+                })
+            };
+            await _rest.PatchJsonPatchAsync(AzureUrlHelper.GetWorkItemPatchUrl(workItemId), patch, ct);
+        }
+
+        /// <summary>
+        /// Removes the link between two work items. JSON-Patch can only remove a relation by its
+        /// position in the array, so the current relations are read first to find it - and the
+        /// array holds PR and commit artifact links too, which is why the index can't be guessed.
+        /// </summary>
+        public async Task RemoveWorkItemRelationAsync(int workItemId, int targetId, string linkRel, CancellationToken ct = default)
+        {
+            var raw = await GetWorkItemDetailsAsync(workItemId, ct);
+            var relations = raw?.Relations ?? new List<Entities.WorkItemRelation>();
+
+            var index = relations.FindIndex(r =>
+                string.Equals(r.Rel, linkRel, StringComparison.OrdinalIgnoreCase) &&
+                Offline.AzureWorkItemRelationParser.TryParseIdFromUrl(r.Url) == targetId);
+
+            if (index < 0)
+                return; // already gone - nothing to do, and nothing worth failing over
+
+            var patch = new List<WorkItemPatchOperation>
+            {
+                new("remove", $"/relations/{index}", null)
+            };
+            await _rest.PatchJsonPatchAsync(AzureUrlHelper.GetWorkItemPatchUrl(workItemId), patch, ct);
+        }
+
         public async Task AddWorkItemCommentAsync(int workItemId, string text, CancellationToken ct = default)
         {
             await _rest.PostJsonAsync(AzureUrlHelper.GetWorkItemCommentsUrl(workItemId), new { text }, ct);

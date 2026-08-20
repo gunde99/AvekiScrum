@@ -236,15 +236,24 @@ export function WorkItemOverviewTab({ detail, editing, draft, onDraftChange, cla
           </div>
 
           <div className="wi-field">
-            <label>Intressent</label>
+            <label>Development Partner</label>
             {editing ? (
               <PickList
-                value={draft.stakeholders ?? ""}
+                value={draft.developmentPartner ?? ""}
                 options={people.map((p) => p.displayName)}
-                onChange={(stakeholders) => onDraftChange({ stakeholders })}
+                onChange={(developmentPartner) => onDraftChange({ developmentPartner })}
               />
             ) : (
-              <div className="wi-field__value">{fullPersonName(detail.stakeholders) || "–"}</div>
+              <div className="wi-field__value wi-field__value--person">
+                {detail.developmentPartner ? (
+                  <>
+                    <PersonAvatar key={`dp-${detail.id}`} name={detail.developmentPartner} size={26} />
+                    <span>{fullPersonName(detail.developmentPartner)}</span>
+                  </>
+                ) : (
+                  "–"
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -329,6 +338,25 @@ export function WorkItemOverviewTab({ detail, editing, draft, onDraftChange, cla
           )}
         </Section>
       )}
+
+      {/* Custom.Stakeholders is an html field, not an identity one - it routinely holds a
+          person plus a municipality and a note, so it gets the room a rich-text field needs
+          rather than a one-line picker that rendered the markup as literal text. */}
+      <Section title="Stakeholder">
+        {editing ? (
+          <MarkdownEditor
+            rows={5}
+            value={draft.stakeholders ?? ""}
+            onChange={(value) => onDraftChange({ stakeholders: value })}
+            placeholder="Vem har efterfrågat det här, och för vems räkning?"
+          />
+        ) : (
+          <div
+            className="wi-rich-text"
+            dangerouslySetInnerHTML={{ __html: renderWorkItemContent(detail.stakeholders ?? "") || "<em>Ingen stakeholder angiven</em>" }}
+          />
+        )}
+      </Section>
 
       <Section title="Metadata" hint="skapad &amp; senast ändrad">
         <div className="wi-meta-row">

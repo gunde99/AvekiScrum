@@ -44,8 +44,11 @@ export function WorkItemDiscussionTab({ detail, onPosted }: WorkItemDiscussionTa
   return (
     <div className="wi-discussion">
       <div className="wi-discussion__composer">
+        {/* One line at rest, growing as the comment does - a four-row box sat half empty above
+            every discussion. */}
         <MarkdownEditor
-          rows={4}
+          rows={1}
+          autoGrow
           value={text}
           onChange={setText}
           placeholder="Skriv en kommentar. Markdown stöds, och du kan klistra in en bild."

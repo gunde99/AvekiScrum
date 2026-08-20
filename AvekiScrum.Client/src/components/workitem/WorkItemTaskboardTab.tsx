@@ -7,7 +7,7 @@ import "./WorkItemTaskboardTab.css";
 interface WorkItemTaskboardTabProps {
   detail: WorkItemDetail;
   onOpenRelation: (item: WorkItemRelationRef, relationLabel: string) => void;
-  onCreated: () => void;
+  onCreated: (detail: WorkItemDetail) => void;
   people: PersonOption[];
 }
 

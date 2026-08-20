@@ -109,6 +109,12 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
         public Task AddWorkItemCommentAsync(int workItemId, string text, CancellationToken ct = default)
             => _boards.AddWorkItemCommentAsync(workItemId, text, ct);
 
+        public Task AddWorkItemRelationAsync(int workItemId, int targetId, string linkRel, CancellationToken ct = default)
+            => _boards.AddWorkItemRelationAsync(workItemId, targetId, linkRel, ct);
+
+        public Task RemoveWorkItemRelationAsync(int workItemId, int targetId, string linkRel, CancellationToken ct = default)
+            => _boards.RemoveWorkItemRelationAsync(workItemId, targetId, linkRel, ct);
+
         public Task<IReadOnlyList<string>> GetClassificationPathsAsync(bool areas, CancellationToken ct = default)
             => _boards.GetClassificationPathsAsync(areas, ct);
 

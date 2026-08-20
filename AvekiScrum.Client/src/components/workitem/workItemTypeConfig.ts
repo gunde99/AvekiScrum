@@ -143,3 +143,31 @@ export const ASSIGNED_TEAMS = ["Team Nord", "Team Syd"];
 
 /** Types offered when creating a card from an open work item. */
 export const CREATABLE_TYPES = ["User Story", "Bug", "Task", "Feature"];
+
+/**
+ * The backlog hierarchy the team works in: Epic → Feature → User Story/Bug → Task. A User Story
+ * or Bug never owns another one, and a Task is always a leaf. Mirrors the rule the API enforces -
+ * kept here too so the UI only offers links that will actually be accepted.
+ */
+const ALLOWED_CHILDREN: Record<string, string[]> = {
+  Epic: ["Feature"],
+  Feature: ["User Story", "Product Backlog Item", "Bug"],
+  "User Story": ["Task"],
+  "Product Backlog Item": ["Task"],
+  Bug: ["Task"],
+  Task: [],
+};
+
+/** Types that may be created or linked as children of `parentType`. */
+export function allowedChildTypes(parentType: string): string[] {
+  return ALLOWED_CHILDREN[parentType] ?? [];
+}
+
+/** Types that may be the parent of `childType`. */
+export function allowedParentTypes(childType: string): string[] {
+  return Object.keys(ALLOWED_CHILDREN).filter((parent) => ALLOWED_CHILDREN[parent].includes(childType));
+}
+
+export function canParent(parentType: string, childType: string): boolean {
+  return allowedChildTypes(parentType).includes(childType);
+}

@@ -107,6 +107,11 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
 
         Task AddWorkItemCommentAsync(int workItemId, string text, CancellationToken ct = default);
 
+        Task AddWorkItemRelationAsync(int workItemId, int targetId, string linkRel, CancellationToken ct = default);
+
+        /// <summary>Removes the link of type <paramref name="linkRel"/> to <paramref name="targetId"/>.</summary>
+        Task RemoveWorkItemRelationAsync(int workItemId, int targetId, string linkRel, CancellationToken ct = default);
+
         /// <summary>All area paths (true) or iteration paths (false) in the project.</summary>
         Task<IReadOnlyList<string>> GetClassificationPathsAsync(bool areas, CancellationToken ct = default);
 

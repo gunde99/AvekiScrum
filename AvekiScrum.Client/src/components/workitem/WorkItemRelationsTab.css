@@ -21,3 +21,75 @@
   flex-direction: column;
   gap: var(--space-3);
 }
+
+.wi-rel__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.wi-rel__row > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.wi-rel__unlink {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.wi-rel__unlink:hover:not(:disabled) {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+}
+
+.wi-rel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* Once either form is expanded it needs the full row rather than sitting beside the other button. */
+.wi-rel__actions > .wi-new-item,
+.wi-rel__actions > .wi-rel__link {
+  flex: 1 1 100%;
+}
+
+.wi-rel__link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.wi-rel__link input {
+  width: 180px;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+  color: var(--color-text);
+  font-size: 0.85rem;
+}
+
+.wi-rel__error {
+  font-size: 0.78rem;
+  color: var(--color-danger);
+}
+
+.wi-rel__rule {
+  margin: var(--space-2) 0 0;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
