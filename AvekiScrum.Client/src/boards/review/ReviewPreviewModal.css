@@ -1,0 +1,262 @@
+.rvp-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  padding: var(--space-4);
+}
+
+.rvp {
+  width: min(760px, 100%);
+  /* Tall enough to hold a whole lane without the outer dialog jumping between steps, but never
+     taller than the viewport - the body is what scrolls. */
+  max-height: min(80vh, 760px);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.rvp__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-5) var(--space-3);
+  background: var(--color-bg-header);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rvp__head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rvp__eyebrow {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.rvp__title {
+  margin: 0;
+  font-family: var(--font-accent);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.rvp__count {
+  margin-left: auto;
+  flex: none;
+  align-self: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 2px var(--space-3);
+}
+
+.rvp__steps {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rvp__step {
+  flex: 1;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted);
+  padding-top: var(--space-2);
+  border-top: 3px solid var(--color-border);
+}
+
+.rvp__step--active {
+  color: var(--color-text);
+  border-top-color: var(--color-primary);
+}
+
+.rvp__step--done {
+  border-top-color: var(--color-success);
+}
+
+.rvp__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.rvp__empty,
+.rvp__error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.rvp__error {
+  color: var(--color-danger);
+  padding: 0 var(--space-5) var(--space-2);
+}
+
+.rvp__done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) 0;
+  text-align: center;
+  color: var(--color-text);
+}
+
+.rvp__done-icon {
+  font-size: 2.4rem;
+}
+
+.rvp-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rvp-group__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.rvp-group__who {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.rvp-group__name {
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--color-text);
+}
+
+.rvp-group__count {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.rvp-group__cards {
+  list-style: none;
+  margin: 0;
+  /* Indented to line up with the name, so the avatar column reads as a spine down the list. */
+  padding: 0 0 0 calc(36px + var(--space-3));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.rvp-card {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: 0.85rem;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.rvp-card__id {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.rvp-card__title {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-text);
+}
+
+.rvp-card__state,
+.rvp-card__sp {
+  flex: none;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* The generated Adaptive Card, rendered as close to how Teams shows it as makes sense here. */
+.rvp-report {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  padding: var(--space-4);
+}
+
+.rvp-report__line {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.rvp-report__line--large {
+  font-family: var(--font-accent);
+  font-size: 1.25rem;
+}
+
+.rvp-report__line--medium {
+  font-size: 1rem;
+  margin-top: var(--space-3);
+}
+
+.rvp-report__line--bold {
+  font-weight: 700;
+}
+
+.rvp-report__line--subtle {
+  color: var(--color-text-muted);
+}
+
+.rvp-report__line--separator {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-3);
+}
+
+.rvp-report__link {
+  color: var(--color-primary);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.rvp-report__link:hover {
+  text-decoration: underline;
+}
+
+.rvp__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-header);
+}
+
+.rvp__spacer {
+  flex: 1;
+}

@@ -14,15 +14,31 @@ export interface ReviewLane {
   /** One line on what happens to these cards at the review. */
   hint: string;
   icon: string;
+  /** Heading for this lane in the preview walk-through and the published report. */
+  previewTitle: string;
 }
 
+/**
+ * Order matters: Visning first. It's the lane that costs the meeting the most time, so it's the
+ * one people want to see and revise, and it should be the shortest drag from the card list.
+ */
 export const REVIEW_LANES: ReviewLane[] = [
+  {
+    key: "visning",
+    tag: "Review_Visning",
+    label: "Visning",
+    hint: "Demas live för deltagarna.",
+    icon: "🖥️",
+    /** Heading used in the preview walk-through and in the Teams report. */
+    previewTitle: "Det här ska demas",
+  },
   {
     key: "muntligt",
     tag: "Review_Muntligt",
     label: "Muntligt",
     hint: "Berättas kort - ingen demo behövs.",
     icon: "🗣️",
+    previewTitle: "Det här ska vi prata om",
   },
   {
     key: "skriftligt",
@@ -30,13 +46,7 @@ export const REVIEW_LANES: ReviewLane[] = [
     label: "Skriftligt",
     hint: "Sammanfattas i text, tas inte upp på mötet.",
     icon: "📝",
-  },
-  {
-    key: "visning",
-    tag: "Review_Visning",
-    label: "Visning",
-    hint: "Demas live för deltagarna.",
-    icon: "🖥️",
+    previewTitle: "Det här ska vi bara förmedla i skrift",
   },
 ];
 

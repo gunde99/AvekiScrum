@@ -17,6 +17,7 @@ import {
   type TestFilterKey,
 } from "../dailys/dailysLogic";
 import { ReviewCard } from "./ReviewCard";
+import { ReviewPreviewModal } from "./ReviewPreviewModal";
 import { laneOf, REVIEW_LANES, tagsForLane, type ReviewLane, type ReviewLaneKey } from "./reviewLogic";
 import "./ReviewBoard.css";
 
@@ -54,6 +55,10 @@ export function ReviewBoard({ onNavigate }: ReviewBoardProps) {
   const [busyIds, setBusyIds] = useState<Set<number>>(new Set());
   const [dragOverLane, setDragOverLane] = useState<ReviewLaneKey | null>(null);
   const [openWorkItemId, setOpenWorkItemId] = useState<number | null>(null);
+  // Progress of a multi-card move. Each card is its own Azure write, so a batch of ten takes long
+  // enough that the board would otherwise just look frozen.
+  const [moveProgress, setMoveProgress] = useState<{ done: number; total: number; label: string } | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -163,6 +168,10 @@ export function ReviewBoard({ onNavigate }: ReviewBoardProps) {
     if (targets.length === 0) return;
 
     setBusyIds((prev) => new Set([...prev, ...targets.map((t) => t.id)]));
+    // A single card shows its own busy state on the card itself; only a batch gets the splash,
+    // which blocks input and would be needless ceremony for one quick write.
+    const label = lane ? lane.label : "listan";
+    if (targets.length > 1) setMoveProgress({ done: 0, total: targets.length, label });
     const done: DailyStoryDto[] = [];
     const failed: string[] = [];
     for (const story of targets) {
@@ -172,7 +181,9 @@ export function ReviewBoard({ onNavigate }: ReviewBoardProps) {
       } catch (err) {
         failed.push(`#${story.id} (${err instanceof Error ? err.message : "okänt fel"})`);
       }
+      if (targets.length > 1) setMoveProgress({ done: done.length + failed.length, total: targets.length, label });
     }
+    setMoveProgress(null);
 
     // Patch the local copy so the card moves immediately - a full refetch of the sprint takes
     // seconds, which is far too slow for something meant to be done in a few sweeps.
@@ -225,6 +236,7 @@ export function ReviewBoard({ onNavigate }: ReviewBoardProps) {
   }
 
   const selectedInList = untagged.filter((s) => selection.has(s.id)).length;
+  const taggedCount = useMemo(() => [...byLane.values()].reduce((sum, list) => sum + list.length, 0), [byLane]);
 
   return (
     <BoardShell
@@ -322,9 +334,30 @@ export function ReviewBoard({ onNavigate }: ReviewBoardProps) {
             }
           />
         </div>
+
+        <div className="dailys-board__group rv-toolbar__preview" role="group" aria-label="Förhandsgranska">
+          <span className="dailys-board__group-label">Inför mötet</span>
+          <div className="dailys-board__group-body">
+            <button
+              type="button"
+              className="wi-btn wi-btn--primary"
+              onClick={() => setPreviewOpen(true)}
+              disabled={taggedCount === 0}
+              title={taggedCount === 0 ? "Tagga minst ett kort först" : "Gå igenom vad som ska tas upp och publicera i Teams"}
+            >
+              Förhandsgranska ({taggedCount})
+            </button>
+          </div>
+        </div>
       </div>
 
       {loading && <LoadingOverlay message="Hämtar sprintens kort…" />}
+      {moveProgress && (
+        <LoadingOverlay
+          message={`Taggar kort som ${moveProgress.label}…`}
+          sub={`${moveProgress.done} av ${moveProgress.total} klara`}
+        />
+      )}
       {error && <p className="dailys-board__status dailys-board__status--error">Fel: {error}</p>}
 
       {!loading && !error && (
@@ -442,6 +475,17 @@ export function ReviewBoard({ onNavigate }: ReviewBoardProps) {
             })}
           </section>
         </div>
+      )}
+
+      {previewOpen && data && (
+        <ReviewPreviewModal
+          team={team}
+          sprint={data.meta.sprint}
+          sprintStart={data.meta.sprintStart}
+          sprintEnd={data.meta.sprintEnd}
+          byLane={byLane}
+          onClose={() => setPreviewOpen(false)}
+        />
       )}
 
       {openWorkItemId !== null && <WorkItemModal workItemId={openWorkItemId} onClose={() => setOpenWorkItemId(null)} />}

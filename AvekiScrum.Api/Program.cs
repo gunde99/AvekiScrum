@@ -7,6 +7,7 @@ using AvekiScrum.Application.Models.Enums;
 using AvekiScrum.Domain.Entities.Scrum;
 using AvekiScrum.Infrastructure.AzureDevOps;
 using AvekiScrum.Infrastructure.Configuration;
+using AvekiScrum.Api;
 using AvekiScrum.Shared.Enums;
 using Microsoft.Extensions.Options;
 
@@ -34,6 +35,8 @@ var azureSettings = builder.Configuration.GetSection("AzureDevOps").Get<AzureSet
 builder.Services.Configure<AzureSettings>(builder.Configuration.GetSection("AzureDevOps"));
 builder.Services.Configure<TeamRoleConfig>(builder.Configuration.GetSection("TeamRoleConfig"));
 builder.Services.Configure<DailyFlowConfig>(builder.Configuration.GetSection("DailyFlow"));
+// Plain outbound client for the Teams webhook - no Azure DevOps auth on this one.
+builder.Services.AddHttpClient();
 
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(AzureDevOpsService).Assembly));
 
@@ -541,6 +544,44 @@ app.MapPost("/api/workitems/{id:int}/comments", async (
     return updated is null ? Results.NotFound() : Results.Ok(updated);
 })
 .WithName("AddWorkItemComment");
+
+// Builds the sprint-review report and, unless dryRun, posts it to the team's Teams channel.
+// The same payload is used for both, so what the preview shows is exactly what gets posted.
+app.MapPost("/api/review/publish", async (
+    ReviewReportRequest request,
+    IHttpClientFactory httpClientFactory,
+    IConfiguration configuration,
+    CancellationToken ct) =>
+{
+    var payload = ReviewReport.BuildAdaptiveCard(request);
+
+    if (request.DryRun)
+        return Results.Ok(new { posted = false, card = payload });
+
+    var webhookUrl = configuration[$"Teams:ReviewWebhookUrl:{request.Team}"]
+                     ?? configuration["Teams:ReviewWebhookUrl:Default"];
+    if (string.IsNullOrWhiteSpace(webhookUrl))
+    {
+        // Plain text rather than Results.BadRequest: these two messages are shown to the user
+        // verbatim in the preview dialog, and a JSON-encoded string would arrive wrapped in quotes.
+        return Results.Text(
+            "Ingen Teams-webhook är konfigurerad. Lägg in URL:en under Teams:ReviewWebhookUrl i appsettings.json " +
+            "(se docs/TEAMS_SETUP.md).", "text/plain", statusCode: 400);
+    }
+
+    var client = httpClientFactory.CreateClient();
+    // Serialised by hand rather than via PostAsJsonAsync: the TFS client library ships its own
+    // PostAsJsonAsync extension, and with both in scope the call is ambiguous.
+    using var content = new StringContent(
+        ReviewReport.ToJson(payload), System.Text.Encoding.UTF8, "application/json");
+    var response = await client.PostAsync(webhookUrl, content, ct);
+    var body = await response.Content.ReadAsStringAsync(ct);
+    if (!response.IsSuccessStatusCode)
+        return Results.Text($"Teams svarade {(int)response.StatusCode}: {body}", "text/plain", statusCode: 400);
+
+    return Results.Ok(new { posted = true, card = payload });
+})
+.WithName("PublishReviewReport");
 
 // Free-text/ID lookup behind the "länka befintligt kort" picker. A pure number is treated as an
 // id (that's how people refer to cards to each other), anything else as a title search.

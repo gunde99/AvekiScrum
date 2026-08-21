@@ -9,12 +9,18 @@ const BOARDS = [
   { id: "retro", label: "Retro", enabled: false },
 ] as const;
 
+export type BoardId = (typeof BOARDS)[number]["id"];
+
+/** The boards that actually exist. The others are shown in the nav but disabled, so navigation
+ *  can only ever emit one of these - which is what lets the boards themselves narrow their prop. */
+export type NavigableBoardId = Extract<BoardId, "dailys" | "review">;
+
 interface BoardShellProps {
-  activeBoard: (typeof BOARDS)[number]["id"];
+  activeBoard: BoardId;
   title: string;
   subtitle?: string;
   /** Switches board. Only the enabled ones are clickable. */
-  onNavigate?: (board: (typeof BOARDS)[number]["id"]) => void;
+  onNavigate?: (board: NavigableBoardId) => void;
   children: ReactNode;
 }
 
@@ -39,7 +45,7 @@ export function BoardShell({ activeBoard, title, subtitle, onNavigate, children 
                 (!board.enabled ? " board-shell__nav-item--disabled" : "")
               }
               disabled={!board.enabled || board.id === activeBoard}
-              onClick={() => onNavigate?.(board.id)}
+              onClick={() => onNavigate?.(board.id as NavigableBoardId)}
               title={board.enabled ? undefined : "Kommer senare"}
             >
               {board.label}
