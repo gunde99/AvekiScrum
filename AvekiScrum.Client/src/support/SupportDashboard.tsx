@@ -1,27 +1,68 @@
 import { useEffect, useMemo, useState } from "react";
 import { LoadingOverlay } from "../components/LoadingOverlay";
 import { WorkItemModal } from "../components/workitem/WorkItemModal";
-import { fetchSupportBugs, type SupportBug } from "../api/support";
+import { fetchSupportBugs, type SupportBug, type SupportBugsResponse } from "../api/support";
+import { samePerson } from "../lib/personNames";
 import { loadReporter } from "./reporter";
-import { daysSince, FLOW_STAGES, formatDate, shortAreaPath, shortSeverity } from "./supportLogic";
+import { MultiSelect } from "./MultiSelect";
+import {
+  compareBugs,
+  defaultDateRange,
+  formatDate,
+  matchesFilters,
+  shortAreaPath,
+  shortSeverity,
+  SUPPORT_STATUSES,
+  severityRank,
+  type SortKey,
+  type SortState,
+} from "./supportLogic";
 import "./SupportViews.css";
 
 type ScopeKey = "mine" | "all";
 
+interface Column {
+  key: SortKey;
+  label: string;
+  /** Narrow columns are hidden first when the table has to shrink. */
+  className?: string;
+}
+
+const COLUMNS: Column[] = [
+  { key: "id", label: "Id", className: "sup-col--id" },
+  { key: "status", label: "Status", className: "sup-col--status" },
+  { key: "title", label: "Rubrik", className: "sup-col--title" },
+  { key: "severity", label: "Allvarlighet", className: "sup-col--sev" },
+  { key: "version", label: "Version", className: "sup-col--version" },
+  { key: "area", label: "Område", className: "sup-col--area" },
+  { key: "customer", label: "Kund", className: "sup-col--customer" },
+  { key: "reporter", label: "Rapportör", className: "sup-col--person" },
+  { key: "assignee", label: "Tilldelad", className: "sup-col--person" },
+  { key: "created", label: "Skapad", className: "sup-col--date" },
+  { key: "changed", label: "Ändrad", className: "sup-col--date" },
+];
+
 /**
- * Follow-up view: every bug filed through AvekiSupport and how far it has got. Deliberately not a
- * work board - the question a support person has is "har någon tagit tag i mitt ärende", so the
- * flow position is the thing that gets the space.
+ * Follow-up view: every bug support has reported - the ones filed from this tool, and the ones
+ * filed by hand in Azure with a Lime link - and where each one has got to.
+ *
+ * Deliberately not a work board. The question a support person has is whether their bug is still
+ * sitting in the backlog, has been planned in, or is being worked on right now, so that answer is
+ * a colour on every row and a count at the top.
  */
 export function SupportDashboard() {
-  const [bugs, setBugs] = useState<SupportBug[] | null>(null);
+  const [response, setResponse] = useState<SupportBugsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Someone who hasn't filed anything from this browser has no "mina" to show, and an empty list
   // is a bad first impression - they get everyone's cases instead.
   const [scope, setScope] = useState<ScopeKey>(loadReporter() ? "mine" : "all");
-  const [stageFilter, setStageFilter] = useState<Set<string>>(new Set());
+  const [range, setRange] = useState(defaultDateRange);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
+  const [versionFilter, setVersionFilter] = useState<Set<string>>(new Set());
+  const [areaFilter, setAreaFilter] = useState<Set<string>>(new Set());
+  const [sort, setSort] = useState<SortState>({ key: "created", direction: "desc" });
   const [openId, setOpenId] = useState<number | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
@@ -31,9 +72,9 @@ export function SupportDashboard() {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    fetchSupportBugs(controller.signal)
+    fetchSupportBugs(range, controller.signal)
       .then((result) => {
-        setBugs(result);
+        setResponse(result);
         setLoading(false);
       })
       .catch((err: unknown) => {
@@ -42,40 +83,61 @@ export function SupportDashboard() {
         setLoading(false);
       });
     return () => controller.abort();
-  }, [reloadToken]);
+  }, [range, reloadToken]);
 
-  const mine = useMemo(
-    () => (bugs ?? []).filter((bug) => !!me && bug.reporter?.toLowerCase() === me.toLowerCase()),
-    [bugs, me],
+  const bugs = useMemo(() => response?.bugs ?? [], [response]);
+
+  // samePerson rather than a string compare: someone typing "Sofie Backo" without the diacritic
+  // still means the Sofie Backö whose name is on the cards.
+  const mine = useMemo(() => bugs.filter((bug) => samePerson(bug.reporter, me)), [bugs, me]);
+
+  const scoped = scope === "mine" ? mine : bugs;
+
+  const availableVersions = useMemo(
+    () => [...new Set(bugs.flatMap((bug) => bug.versions))].sort().reverse(),
+    [bugs],
+  );
+  const availableAreas = useMemo(
+    () => [...new Set(bugs.map((bug) => bug.areaPath ?? "").filter(Boolean))].sort(),
+    [bugs],
   );
 
-  const visible = useMemo(() => {
-    const base = scope === "mine" ? mine : (bugs ?? []);
-    const query = search.trim().toLowerCase();
-    return base.filter((bug) => {
-      if (stageFilter.size > 0 && !stageFilter.has(bug.stageKey)) return false;
-      if (!query) return true;
-      return (
-        bug.title.toLowerCase().includes(query) ||
-        String(bug.id).includes(query) ||
-        (bug.reporter ?? "").toLowerCase().includes(query) ||
-        bug.stakeholders.some((line) => line.toLowerCase().includes(query))
-      );
-    });
-  }, [scope, mine, bugs, search, stageFilter]);
+  const filters = useMemo(
+    () => ({ search, statuses: statusFilter, versions: versionFilter, areas: areaFilter }),
+    [search, statusFilter, versionFilter, areaFilter],
+  );
 
+  const visible = useMemo(
+    () => scoped.filter((bug) => matchesFilters(bug, filters)).sort((a, b) => compareBugs(a, b, sort)),
+    [scoped, filters, sort],
+  );
+
+  // Counts ignore the status filter itself - otherwise picking one status would zero the others
+  // and there'd be no way to see what you're switching between.
   const counts = useMemo(() => {
-    const base = scope === "mine" ? mine : (bugs ?? []);
-    const map = new Map<string, number>(FLOW_STAGES.map((stage) => [stage.key, 0]));
-    for (const bug of base) map.set(bug.stageKey, (map.get(bug.stageKey) ?? 0) + 1);
+    const withoutStatus = { ...filters, statuses: new Set<string>() };
+    const base = scoped.filter((bug) => matchesFilters(bug, withoutStatus));
+    const map = new Map<string, number>(SUPPORT_STATUSES.map((status) => [status.key, 0]));
+    for (const bug of base) map.set(bug.statusKey, (map.get(bug.statusKey) ?? 0) + 1);
     return map;
-  }, [scope, mine, bugs]);
+  }, [scoped, filters]);
 
-  if (loading) return <LoadingOverlay message="Hämtar ärenden…" />;
-  if (error) return <p className="sup-error">Fel: {error}</p>;
+  const activeFilterCount =
+    statusFilter.size + versionFilter.size + areaFilter.size + (search.trim() ? 1 : 0);
+
+  function toggleSort(key: SortKey) {
+    setSort((prev) =>
+      prev.key === key
+        ? { key, direction: prev.direction === "asc" ? "desc" : "asc" }
+        : // Dates and severity are most useful newest/worst first; text reads better A–Ö.
+          { key, direction: key === "created" || key === "changed" || key === "severity" ? "desc" : "asc" },
+    );
+  }
 
   return (
     <div className="sup-dash">
+      {loading && <LoadingOverlay message="Hämtar ärenden…" sub="Läser buggar från Azure DevOps" />}
+
       <div className="sup-dash__toolbar">
         <div className="sup-dash__group" role="group" aria-label="Urval">
           <button
@@ -90,7 +152,7 @@ export function SupportDashboard() {
             className={"sup-tab" + (scope === "all" ? " sup-tab--active" : "")}
             onClick={() => setScope("all")}
           >
-            Alla inrapporterade ({bugs?.length ?? 0})
+            Alla inrapporterade ({bugs.length})
           </button>
         </div>
 
@@ -98,39 +160,105 @@ export function SupportDashboard() {
           className="sup-input sup-dash__search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Sök på rubrik, id, kund eller rapportör"
+          placeholder="Sök på rubrik, id, kund, rapportör eller tagg"
           aria-label="Sök"
         />
+
+        <MultiSelect
+          label="Version"
+          options={availableVersions}
+          selected={versionFilter}
+          onChange={setVersionFilter}
+        />
+        <MultiSelect
+          label="Område"
+          options={availableAreas}
+          selected={areaFilter}
+          onChange={setAreaFilter}
+          format={shortAreaPath}
+        />
+
+        <div className="sup-dash__dates">
+          <label className="sup-dash__date">
+            <span>Skapade från</span>
+            <input
+              className="sup-input"
+              type="date"
+              value={range.from}
+              max={range.to}
+              onChange={(e) => setRange((prev) => ({ ...prev, from: e.target.value }))}
+            />
+          </label>
+          <label className="sup-dash__date">
+            <span>till</span>
+            <input
+              className="sup-input"
+              type="date"
+              value={range.to}
+              min={range.from}
+              onChange={(e) => setRange((prev) => ({ ...prev, to: e.target.value }))}
+            />
+          </label>
+        </div>
+
+        {activeFilterCount > 0 && (
+          <button
+            type="button"
+            className="wi-btn"
+            onClick={() => {
+              setSearch("");
+              setStatusFilter(new Set());
+              setVersionFilter(new Set());
+              setAreaFilter(new Set());
+            }}
+          >
+            Rensa filter ({activeFilterCount})
+          </button>
+        )}
 
         <button type="button" className="wi-btn" onClick={() => setReloadToken((t) => t + 1)}>
           Uppdatera
         </button>
       </div>
 
-      <div className="sup-stagebar">
-        {FLOW_STAGES.map((stage) => {
-          const active = stageFilter.has(stage.key);
+      <div className="sup-statusbar">
+        {SUPPORT_STATUSES.map((status) => {
+          const active = statusFilter.has(status.key);
           return (
             <button
-              key={stage.key}
+              key={status.key}
               type="button"
-              className={`sup-stagecard sup-stagecard--${stage.key}` + (active ? " sup-stagecard--active" : "")}
+              className={
+                `sup-statuscard sup-statuscard--${status.key}` +
+                (status.primary ? "" : " sup-statuscard--secondary") +
+                (active ? " sup-statuscard--active" : "")
+              }
               onClick={() =>
-                setStageFilter((prev) => {
+                setStatusFilter((prev) => {
                   const next = new Set(prev);
-                  if (next.has(stage.key)) next.delete(stage.key);
-                  else next.add(stage.key);
+                  if (next.has(status.key)) next.delete(status.key);
+                  else next.add(status.key);
                   return next;
                 })
               }
-              title={stage.hint}
+              title={status.hint}
             >
-              <span className="sup-stagecard__count">{counts.get(stage.key) ?? 0}</span>
-              <span className="sup-stagecard__label">{stage.label}</span>
+              <span className="sup-statuscard__count">{counts.get(status.key) ?? 0}</span>
+              <span className="sup-statuscard__label">{status.label}</span>
+              {status.primary && <span className="sup-statuscard__hint">{status.hint}</span>}
             </button>
           );
         })}
       </div>
+
+      {error && <p className="sup-error">Fel: {error}</p>}
+
+      {response?.truncated && (
+        <p className="sup-dash__notice">
+          Datumintervallet matchar {response.total} ärenden – de {bugs.length} senaste visas. Korta ner
+          intervallet för att se resten.
+        </p>
+      )}
 
       {scope === "mine" && !me && (
         <p className="sup-dash__empty">
@@ -138,42 +266,47 @@ export function SupportDashboard() {
         </p>
       )}
 
-      {visible.length === 0 ? (
+      {!loading && visible.length === 0 ? (
         <p className="sup-dash__empty">Inga ärenden matchar urvalet.</p>
       ) : (
-        <ul className="sup-list">
-          {visible.map((bug) => (
-            <li key={bug.id}>
-              <button type="button" className="sup-row" onClick={() => setOpenId(bug.id)}>
-                <div className="sup-row__head">
-                  <span className="sup-row__id">#{bug.id}</span>
-                  <span className="sup-row__title">{bug.title}</span>
-                  <span className={`sup-sev sup-sev--${severityKey(bug.severity)}`}>{shortSeverity(bug.severity)}</span>
-                </div>
+        <div className="sup-tablewrap">
+          <table className="sup-table">
+            <thead>
+              <tr>
+                {COLUMNS.map((column) => (
+                  <th
+                    key={column.key}
+                    className={
+                      (column.className ?? "") + (sort.key === column.key ? " sup-th--sorted" : "")
+                    }
+                    aria-sort={
+                      sort.key === column.key ? (sort.direction === "asc" ? "ascending" : "descending") : "none"
+                    }
+                  >
+                    <button type="button" className="sup-th__button" onClick={() => toggleSort(column.key)}>
+                      {column.label}
+                      <span className="sup-th__arrow" aria-hidden="true">
+                        {sort.key === column.key ? (sort.direction === "asc" ? "▲" : "▼") : "↕"}
+                      </span>
+                    </button>
+                  </th>
+                ))}
+                <th className="sup-col--link">Lime</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((bug) => (
+                <BugRow key={bug.id} bug={bug} onOpen={setOpenId} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-                <div className="sup-row__meta">
-                  <span>{shortAreaPath(bug.areaPath)}</span>
-                  <span>·</span>
-                  <span>Rapporterad {formatDate(bug.createdDate)}</span>
-                  {bug.assignedTo && (
-                    <>
-                      <span>·</span>
-                      <span>{bug.assignedTo}</span>
-                    </>
-                  )}
-                  {scope === "all" && bug.reporter && (
-                    <>
-                      <span>·</span>
-                      <span>av {bug.reporter}</span>
-                    </>
-                  )}
-                </div>
-
-                <FlowTrack bug={bug} />
-              </button>
-            </li>
-          ))}
-        </ul>
+      {!loading && visible.length > 0 && (
+        <p className="sup-dash__count">
+          {visible.length} av {scoped.length} ärenden
+        </p>
       )}
 
       {openId !== null && (
@@ -190,30 +323,56 @@ export function SupportDashboard() {
   );
 }
 
-/** The five flow steps with everything up to the bug's current one filled in. */
-function FlowTrack({ bug }: { bug: SupportBug }) {
-  const age = daysSince(bug.changedDate ?? bug.createdDate);
+function BugRow({ bug, onOpen }: { bug: SupportBug; onOpen: (id: number) => void }) {
   return (
-    <div className="sup-track">
-      {FLOW_STAGES.map((stage, index) => (
-        <span
-          key={stage.key}
-          className={
-            "sup-track__step" +
-            (index < bug.stageStep ? " sup-track__step--done" : "") +
-            (index === bug.stageStep ? ` sup-track__step--current sup-track__step--${bug.stageKey}` : "")
-          }
-        >
-          <span className="sup-track__label">{stage.label}</span>
-        </span>
-      ))}
-      <span className="sup-track__age">{age === null ? "" : age === 0 ? "ändrad idag" : `${age} d sedan ändring`}</span>
-    </div>
+    <tr className="sup-tr" onClick={() => onOpen(bug.id)} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && onOpen(bug.id)}>
+      <td className="sup-col--id">#{bug.id}</td>
+      <td className="sup-col--status">
+        <span className={`sup-status sup-status--${bug.statusKey}`}>{bug.statusLabel}</span>
+      </td>
+      <td className="sup-col--title">
+        <span className="sup-tr__title">{bug.title}</span>
+        {bug.colleagues.length > 0 && <span className="sup-tr__sub">{bug.colleagues.join(", ")}</span>}
+      </td>
+      <td className="sup-col--sev">
+        <span className={`sup-sev sup-sev--${severityRank(bug.severity)}`}>{shortSeverity(bug.severity)}</span>
+      </td>
+      <td className="sup-col--version">{bug.versions.join(", ") || "–"}</td>
+      <td className="sup-col--area" title={bug.areaPath ?? ""}>
+        {shortAreaPath(bug.areaPath)}
+      </td>
+      <td className="sup-col--customer" title={bug.customers.join("\n")}>
+        {bug.customers[0] ?? "–"}
+        {bug.customers.length > 1 && <span className="sup-tr__more"> +{bug.customers.length - 1}</span>}
+      </td>
+      <td className="sup-col--person">{bug.reporter ?? "–"}</td>
+      <td className="sup-col--person">{bug.assignedTo ?? "–"}</td>
+      <td className="sup-col--date">{formatDate(bug.createdDate)}</td>
+      <td className="sup-col--date">{formatDate(bug.changedDate)}</td>
+      <td className="sup-col--link">
+        {bug.externalLink && isClickable(bug.externalLink) ? (
+          <a
+            href={bug.externalLink}
+            target="_blank"
+            rel="noreferrer"
+            title={bug.externalLink}
+            onClick={(e) => e.stopPropagation()}
+          >
+            ↗
+          </a>
+        ) : (
+          <span title={bug.externalLink ?? ""}>{bug.externalLink ? "•" : ""}</span>
+        )}
+      </td>
+    </tr>
   );
 }
 
-/** "1 - Critical (< 8 h )" → "1", for the severity pill's colour. */
-function severityKey(severity: string | null): string {
-  const match = /^\s*([1-4])/.exec(severity ?? "");
-  return match ? match[1] : "none";
+/**
+ * The External link field holds a real URL on most cards, but sometimes just a note ("Dalavatten
+ * (fredrik knapp)"). Only the former becomes a link; the rest is a dot with the text in its title,
+ * rather than an anchor that goes nowhere.
+ */
+function isClickable(link: string): boolean {
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(link.trim());
 }

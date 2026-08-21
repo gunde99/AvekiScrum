@@ -7,7 +7,9 @@ type SupportView = "nytt" | "oversikt";
 
 const NAV = [
   { id: "nytt", label: "Nytt ärende" },
-  { id: "oversikt", label: "Mina ärenden" },
+  // Not "Mina ärenden": that's one of two tabs inside the view, and having the nav claim the same
+  // name made the heading lie as soon as you switched to everyone else's.
+  { id: "oversikt", label: "Ärenden" },
 ];
 
 interface SupportAppProps {
@@ -29,11 +31,11 @@ export function SupportApp({ onHome }: SupportAppProps) {
       activeId={view}
       onNavigate={(id) => setView(id as SupportView)}
       onHome={onHome}
-      title={view === "nytt" ? "Rapportera en bugg" : "Mina ärenden"}
+      title={view === "nytt" ? "Rapportera en bugg" : "Inrapporterade buggar"}
       subtitle={
         view === "nytt"
           ? "Fyll i det du vet – ärendet hamnar direkt i produktägarens backlogg."
-          : "Följ dina inrapporterade buggar, och se vad som är på gång i övrigt."
+          : "Allt supporten rapporterat in: dina egna ärenden, och alla andras."
       }
     >
       {view === "nytt" ? <NewBugForm onCreated={() => undefined} /> : <SupportDashboard />}

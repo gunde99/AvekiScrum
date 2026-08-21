@@ -828,6 +828,7 @@ app.MapPost("/api/support/bugs", async (
     if (!string.IsNullOrWhiteSpace(request.Severity)) fields["Microsoft.VSTS.Common.Severity"] = request.Severity;
     if (!string.IsNullOrWhiteSpace(request.Source)) fields["Custom.Source"] = request.Source;
     if (!string.IsNullOrWhiteSpace(request.SystemInfo)) fields["Microsoft.VSTS.TCM.SystemInfo"] = request.SystemInfo;
+    if (!string.IsNullOrWhiteSpace(request.ExternalLink)) fields["Custom.Externallink"] = request.ExternalLink.Trim();
 
     var id = await azureDevOpsService.CreateWorkItemAsync("Bug", fields, null, null, ct);
     var organization = configuration["AzureDevOps:Organization"] ?? "";
@@ -835,36 +836,70 @@ app.MapPost("/api/support/bugs", async (
 })
 .WithName("CreateSupportBug");
 
-// The dashboard: every bug this tool has filed, with where it has got to. Not filtered by reporter
-// server-side - support wants to see each other's cases too, and the client does the "mina" split.
+// The dashboard. A bug belongs to support if it carries the support tag (this tool filed it) or
+// has a Lime link in the External link field (support filed it by hand in Azure) - the second is
+// how the several hundred already-reported bugs get picked up.
+//
+// The date window is a query parameter rather than a client-side filter: there are hundreds of
+// these, and fetching every one of them since the beginning of time to then hide most is both slow
+// and misleading about what the list contains.
 app.MapGet("/api/support/bugs", async (
+    string? from,
+    string? to,
     IAzureDevOpsService azureDevOpsService,
     IConfiguration configuration,
+    IOptions<TeamRoleConfig> teamRoles,
     CancellationToken ct) =>
 {
     var project = configuration["AzureDevOps:Project"] ?? "";
     var organization = configuration["AzureDevOps:Organization"] ?? "";
     var supportTag = configuration["Support:BugTag"] ?? "AvekiSupport";
 
+    var fromDate = ParseDate(from) ?? DateTime.UtcNow.Date.AddYears(-1);
+    var toDate = ParseDate(to);
+
+    var conditions = new List<string>
+    {
+        "[System.WorkItemType] = 'Bug'",
+        "[System.State] <> 'Removed'",
+        $"([System.Tags] CONTAINS '{supportTag.Replace("'", "''")}' OR [Custom.Externallink] <> '')",
+        $"[System.CreatedDate] >= '{fromDate:yyyy-MM-dd}T00:00:00Z'",
+    };
+    // Azure compares CreatedDate inclusively against the instant, so "to" needs the following
+    // midnight or the last day of the range drops out.
+    if (toDate.HasValue)
+        conditions.Add($"[System.CreatedDate] < '{toDate.Value.AddDays(1):yyyy-MM-dd}T00:00:00Z'");
+
     var ids = await azureDevOpsService.RunWiqlIdsAsync(
-        "SELECT [System.Id] FROM WorkItems " +
-        "WHERE [System.WorkItemType] = 'Bug' " +
-        $"AND [System.Tags] CONTAINS '{supportTag.Replace("'", "''")}' " +
-        "AND [System.State] <> 'Removed' " +
-        "ORDER BY [System.CreatedDate] DESC", ct);
+        "SELECT [System.Id] FROM WorkItems WHERE " + string.Join(" AND ", conditions) +
+        " ORDER BY [System.CreatedDate] DESC", ct);
 
     if (ids.Count == 0)
-        return Results.Ok(new { bugs = Array.Empty<object>() });
+        return Results.Ok(new { bugs = Array.Empty<object>(), truncated = false, total = 0 });
 
-    var items = await azureDevOpsService.GetWorkItemsDetailsAsync(ids.Take(300).ToList(), ct);
+    // A hard ceiling so a wide date range can't turn into a minutes-long request. The client says
+    // so when it bites, rather than quietly showing a partial list.
+    const int maxItems = 600;
+    var truncated = ids.Count > maxItems;
+    var items = await azureDevOpsService.GetWorkItemsDetailsAsync(ids.Take(maxItems).ToList(), ct);
+
+    // Everyone at the company, for telling colleagues apart from customers in the stakeholder
+    // field: the role config is the closest thing to a staff list we have, plus any extra names
+    // for people (support, sales) who aren't on a Scrum team.
+    var colleagueNames = (teamRoles.Value.TeamRoleMapping ?? new())
+        .SelectMany(group => group.Value ?? new List<string>())
+        .Select(PersonNames.Format)
+        .Concat(configuration.GetSection("Support:AdditionalCompanyNames").Get<string[]>() ?? Array.Empty<string>())
+        .ToList();
+    var directory = new SupportBugs.CompanyDirectory(colleagueNames);
+
     var bugs = items.Select(item =>
     {
-        var (stageKey, stageLabel, step) = SupportBugs.FlowStageFor(item.State, item.IterationPath, project);
-        var stakeholderLines = (item.Stakeholders ?? new List<string>())
-            .SelectMany(entry => SupportBugs.StripHtml(entry).Split('\n'))
-            .Select(line => line.Trim())
-            .Where(line => line.Length > 0)
-            .ToList();
+        var (statusKey, statusLabel) = SupportBugs.StatusFor(item.State, item.IterationPath);
+        // The raw html, not the ';'-split list: pasted Word markup and &nbsp; entities both
+        // contain semicolons, and the split turns them into nonsense "stakeholders".
+        var rawStakeholders = item.StakeholdersHtml;
+        var parsed = SupportBugs.ParseStakeholders(rawStakeholders, directory);
         return new
         {
             id = item.Id,
@@ -875,21 +910,25 @@ app.MapGet("/api/support/bugs", async (
             areaPath = item.AreaPath,
             iterationPath = item.IterationPath,
             assignedTo = item.AssignedTo,
+            createdBy = item.CreatedBy,
             createdDate = item.CreatedDate,
             changedDate = item.ChangedDate,
             closedDate = item.ClosedDate,
-            reporter = SupportBugs.ReporterFrom(item.Stakeholders ?? new List<string>()),
-            stakeholders = stakeholderLines,
+            reporter = SupportBugs.ReporterFrom(rawStakeholders, item.CreatedBy),
+            // Everything that isn't a customer is one of ours - a recognised name, or a line this
+            // tool labelled itself as Buggrapportör/Support/Intern.
+            colleagues = parsed.Where(p => p.Category != "Kund").Select(p => p.Name).ToList(),
+            customers = parsed.Where(p => p.Category == "Kund").Select(p => p.Name).ToList(),
+            versions = SupportBugs.VersionsFor(item.IterationPath, item.Tags),
+            externalLink = item.ExternalLink,
             tags = item.Tags,
-            stageKey,
-            stageLabel,
-            stageStep = step,
-            stageCount = SupportBugs.FlowStepCount,
+            statusKey,
+            statusLabel,
             webUrl = $"https://dev.azure.com/{organization}/{project}/_workitems/edit/{item.Id}",
         };
     }).ToList();
 
-    return Results.Ok(new { bugs });
+    return Results.Ok(new { bugs, truncated, total = ids.Count });
 })
 .WithName("GetSupportBugs");
 
@@ -899,6 +938,14 @@ static string FormatDisplayName(string email) => PersonNames.Format(email);
 
 /// <summary>Config value, or the given default when the key is missing or blank.</summary>
 static string Fallback(string? value, string fallback) => string.IsNullOrWhiteSpace(value) ? fallback : value;
+
+/// <summary>A yyyy-MM-dd query parameter, or null when absent or unparseable.</summary>
+static DateTime? ParseDate(string? value) =>
+    DateTime.TryParse(value, System.Globalization.CultureInfo.InvariantCulture,
+        System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal,
+        out var parsed)
+        ? parsed.Date
+        : null;
 
 /// <summary>
 /// Turns an Azure login (or a display-name-less guest identity) into the name the person actually

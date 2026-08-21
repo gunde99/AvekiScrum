@@ -143,6 +143,8 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
                 StateEnum = AzureEnumMapper.MapState(workItemWithFields.Fields.State),
                 AssignedTeam = workItemWithFields.Fields.AssignedTeam,
                 Source = workItemWithFields.Fields.Source,
+                ExternalLink = workItemWithFields.Fields.ExternalLink,
+                StakeholdersHtml = workItemWithFields.Fields.Stakeholders,
                 Stakeholders = workItemWithFields.Fields.Stakeholders != null
                     ? workItemWithFields.Fields.Stakeholders.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
                         .Select(t => t.Trim())

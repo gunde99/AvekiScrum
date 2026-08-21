@@ -19,9 +19,16 @@ Ett vanligt **Bug**-work item skapas i samma projekt som resten – det finns in
 | `System.AreaPath` | Område |
 | `System.IterationPath` | `Support:BacklogIterationPath` – tom betyder projektets rot, dvs. PO:s backlogg |
 | `System.Tags` | `Support:BugTag` (default `AvekiSupport`) |
+| `Custom.Externallink` | Länk till Lime-ärendet (observera litet "l" i fältnamnet) |
 
-Taggen är hur dashboarden hittar korten igen. **Byter du tagg försvinner de gamla ärendena ur
-översikten** – de finns kvar i Azure, men verktyget söker på den nya taggen.
+## Vilka buggar räknas som supportens
+
+Två saker gör en bugg till supportens, och det räcker med den ena:
+
+1. **Support-taggen** – satt automatiskt på allt som skapas här.
+2. **External link är ifylld** – det är så supporten redan märker sina ärenden när de skapar dem
+   direkt i Azure. Det är den regeln som gör att de flera hundra redan inrapporterade buggarna
+   dyker upp i översikten utan att någon behöver tagga om dem.
 
 ## Repro steps-mallen
 
@@ -53,28 +60,70 @@ ett dussin olika format, vilket gör det oanvändbart att söka i. Kategorierna 
 `SupportBugs.StakeholderCategories` på servern så att etiketten i formuläret och etiketten som
 skrivs till Azure inte kan glida isär.
 
-## Vem är du?
+## Vem rapporterade?
 
-Det finns ingen inloggning än – Api:t kör på en delad PAT, så Azures `CreatedBy` säger samma namn
-på varje kort. Därför skriver rapportören sitt namn själv (sparas i webbläsarens localStorage), och
-det namnet hamnar på kortets Buggrapportör-rad. Det är också den raden "mina ärenden" filtrerar på.
+Två källor, i den här ordningen:
+
+1. Kortets **Buggrapportör-rad** i Stakeholders – det som verktyget själv skriver.
+2. **`System.CreatedBy`** – för buggar som skapats för hand i Azure är det supportpersonen själv.
+
+Ordningen spelar roll: kort som *det här verktyget* skapar får PAT-ägaren som CreatedBy, eftersom
+det inte finns någon inloggning än. Rapportören skriver därför sitt namn själv (sparas i
+webbläsarens localStorage) och det är det namnet "Mina ärenden" jämför mot – utan hänsyn till
+diakriter, så "Sofie Backo" hittar ändå Sofie Backös ärenden.
 
 Byt ut det mot Aveki ID-identiteten så fort inloggningen finns: resten av verktyget frågar bara
 efter ett namn (`src/support/reporter.ts`).
 
-## Flödet på dashboarden
+## Berörda på befintliga kort
 
-| Steg | Betyder |
+Stakeholders-fältet på de gamla korten är fritext i ett dussin format: `<div>`-rader, `<br>`,
+inklistrad Word-markup, kommatecken, ärendenummer. Översikten läser det ändå, best-effort:
+
+- Namn som matchar någon i företaget blir **Support**. Listan byggs av `TeamRoleConfig` plus
+  `Support:AdditionalCompanyNames` (för support och sälj som inte sitter i något Scrum-team).
+- Allt annat som står kvar på raden blir **Kund** – "Lidköping Matilda Smedman", "Sollentuna (SEOM)".
+
+Matchningen är avsiktligt försiktig. Ett helt namn matchar var som helst på raden (även med ett
+mellannamn emellan, "Alva Widerberg Palmfeldt"), men ett ensamt förnamn godtas bara när det står
+själv på raden eller efter ett bindeord ("Trollhättan via Emma"). Utan den regeln blev
+"Dala Vatten, Fredrik Knapp" en kollega vid namn Fredrik och en kund som hette "Dala Vatten, Knapp".
+
+Fältet läses som rå html, inte den `;`-splittade listan som boarden använder – inklistrad css och
+`&nbsp;` innehåller båda semikolon.
+
+## Status på dashboarden
+
+| Status | Betyder |
 |---|---|
-| Inkommen | Ligger i produktägarens backlogg (state `New`, ingen sprint) |
-| Planerad | Inplanerad i en sprint (state `New`, iteration ≠ projektroten) |
-| Under arbete | `Active` |
-| Testas | `Resolved` |
+| **I backloggen** | `New`, och iterationen är projektroten – ingen har planerat in den än |
+| **Inplanerad** | `New`, men ligger i en sprint |
+| **Under arbete** | `Active` |
+| Löst – testas | `Resolved` |
 | Klar | `Closed` |
 
-Härleds i `SupportBugs.FlowStageFor` på servern, speglas av `FLOW_STAGES` i klienten. Klick på ett
-kort öppnar samma work item-vy som Scrum-boarden använder, så supporten kan läsa diskussionen och
-kommentera.
+De tre första är de supporten faktiskt frågar om, så de får färg och plats; de två sista är frågor
+som redan är besvarade och tonas ned.
+
+Härleds i `SupportBugs.StatusFor`, speglas av `SUPPORT_STATUSES` i klienten. "Inplanerad" avgörs på
+iterationens *djup*, inte på projektnamnet: buggar från före projektbytet ligger kvar under den
+gamla roten (`Utveckling\v27.1\sp2`), och en namnjämförelse hade kallat varenda en oplanerad.
+
+## Listan
+
+Sorterbar på alla kolumner (klick på rubriken växlar riktning): id, status, rubrik, allvarlighet,
+version, område, kund, rapportör, tilldelad, skapad, ändrad. Utöver fritextsökningen finns filter
+på status (statuskorten fungerar som filterknappar), version, en kombination av områden, och ett
+datumintervall.
+
+**Datumintervallet är ett serverparameter**, inte ett klientfilter: det finns flera hundra ärenden,
+och att hämta alla för att sedan dölja de flesta är både långsamt och missvisande om vad listan
+innehåller. Matchar intervallet fler än 600 ärenden hämtas de senaste och listan säger det.
+
+Version läses från både taggar (`27.1`) och iterationssökvägen (`v27.1`) – båda vanorna finns.
+
+Klick på en rad öppnar samma work item-vy som Scrum-boarden använder, så supporten kan läsa
+diskussionen och kommentera.
 
 ## Konfiguration
 
@@ -85,6 +134,7 @@ kommentera.
   "DefaultAreaPath": "",
   "DefaultSeverity": "3 - Medium",
   "DefaultSource": "Customer",
+  "AdditionalCompanyNames": ["Namn på kollega som inte sitter i något Scrum-team"],
   "SystemInfoTemplate": "Produkt/app: \nVersion: \n…"
 }
 ```
@@ -98,4 +148,4 @@ besvarad, så slipper alla komma ihåg vad som ska med.
 |---|---|---|
 | `GET` | `/api/support/options` | Picklistor, områden, mallar – allt formuläret behöver i ett anrop |
 | `POST` | `/api/support/bugs` | Skapar buggen |
-| `GET` | `/api/support/bugs` | Alla ärenden med taggen, med flödessteg |
+| `GET` | `/api/support/bugs?from=&to=` | Supportens ärenden i ett datumintervall, med status, version och tolkade berörda |

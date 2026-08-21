@@ -180,6 +180,14 @@ namespace AvekiScrum.Infrastructure.AzureDevOps.Entities
 
         [JsonPropertyName("Custom.Stakeholders")]
         public string Stakeholders { get; set; }
+
+        /// <summary>
+        /// Link to the case in Lime, the CRM support works in. Note the lowercase "l" - that is
+        /// how the field is actually named in the process ("Custom.Externallink"), and getting it
+        /// wrong silently yields null rather than an error.
+        /// </summary>
+        [JsonPropertyName("Custom.Externallink")]
+        public string ExternalLink { get; set; }
     }
 
     public class IdentityRef

@@ -48,6 +48,7 @@ export function NewBugForm({ onCreated }: NewBugFormProps) {
   const [source, setSource] = useState("");
   const [systemInfo, setSystemInfo] = useState("");
   const [areaPath, setAreaPath] = useState("");
+  const [externalLink, setExternalLink] = useState("");
   const [stakeholders, setStakeholders] = useState<SupportStakeholder[]>([]);
 
   useEffect(() => {
@@ -92,6 +93,7 @@ export function NewBugForm({ onCreated }: NewBugFormProps) {
         // whose case this is.
         stakeholders: [reporterLine, ...stakeholders],
         areaPath,
+        externalLink,
       });
       saveReporter(reporter);
       setCreated(result);
@@ -109,6 +111,7 @@ export function NewBugForm({ onCreated }: NewBugFormProps) {
     setTitle("");
     setParts(EMPTY_REPRO_PARTS);
     setStakeholders([]);
+    setExternalLink("");
     if (options) {
       setSeverity(options.defaultSeverity);
       setSource(options.defaultSource);
@@ -216,6 +219,23 @@ export function NewBugForm({ onCreated }: NewBugFormProps) {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="sup-field sup-field--wide">
+            <label className="sup-label" htmlFor="sup-lime">
+              Länk till Lime-ärendet
+            </label>
+            <input
+              id="sup-lime"
+              className="sup-input"
+              value={externalLink}
+              onChange={(e) => setExternalLink(e.target.value)}
+              placeholder="https://lime.aveki.se/client/object/helpdesk/… eller limecrm://…"
+            />
+            <p className="sup-repro__hint">
+              Klistra in länken från Lime. Den är också vad som gör att ärendet dyker upp under “Mina
+              ärenden” – även för buggar som skapats direkt i Azure.
+            </p>
           </div>
         </div>
       </section>

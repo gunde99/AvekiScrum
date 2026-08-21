@@ -28,7 +28,16 @@ namespace AvekiScrum.Application.Models.DTOs.Scrum
         public bool IsBlocked { get; set; }
         public string AssignedTeam { get; set; }
         public string Source { get; set; }
+        /// <summary>Link to the Lime case this bug came from. Set on anything support reported.</summary>
+        public string ExternalLink { get; set; }
         public List<string> Stakeholders { get; set; } = new();
+        /// <summary>
+        /// The stakeholder field exactly as Azure stores it. <see cref="Stakeholders"/> splits on
+        /// ';', which is fine for the hand-written "Namn; Namn" style but shreds anything pasted
+        /// from Word - inline css and &amp;nbsp; entities both contain semicolons. Anything parsing
+        /// the field rather than just listing it wants this one.
+        /// </summary>
+        public string StakeholdersHtml { get; set; }
         //Tags
         public List<string> Tags { get; set; } = new List<string>();
 

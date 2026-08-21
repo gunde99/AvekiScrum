@@ -1,4 +1,4 @@
-import type { SupportStakeholder } from "../api/support";
+import type { SupportBug as SupportBugRow, SupportStakeholder } from "../api/support";
 
 /**
  * The repro-steps template the team already uses, as separate fields. Support is used to filling
@@ -92,16 +92,28 @@ export function formatStakeholderLine(stakeholder: SupportStakeholder): string {
   return `${stakeholder.category}: ${stakeholder.name.trim()}${note ? ` (${note})` : ""}`;
 }
 
-/** The support flow, in order. Mirrors SupportBugs.FlowStageFor on the server. */
-export const FLOW_STAGES = [
-  { key: "inkommen", label: "Inkommen", hint: "Ligger i produktägarens backlogg" },
-  { key: "planerad", label: "Planerad", hint: "Inplanerad i en sprint" },
-  { key: "arbete", label: "Under arbete", hint: "Ett team har börjat" },
-  { key: "testas", label: "Testas", hint: "Rättad, väntar på verifiering" },
-  { key: "klar", label: "Klar", hint: "Stängd" },
+/**
+ * The five states a reported bug can be in, in order. Mirrors SupportBugs.StatusFor on the server.
+ *
+ * The first three are what support actually asks about - is it still sitting in the backlog, has
+ * it been planned into a sprint, is someone working on it - so those are the ones that get colour
+ * and prominence. Resolved and closed are kept but played down; by then the question is answered.
+ */
+export const SUPPORT_STATUSES = [
+  { key: "backlogg", label: "I backloggen", hint: "Inte inplanerad än", primary: true },
+  { key: "planerad", label: "Inplanerad", hint: "Ligger i en sprint, inte påbörjad", primary: true },
+  { key: "arbete", label: "Under arbete", hint: "Ett team jobbar med den nu", primary: true },
+  { key: "testas", label: "Löst – testas", hint: "Rättad, väntar på verifiering", primary: false },
+  { key: "klar", label: "Klar", hint: "Stängd", primary: false },
 ] as const;
 
-export type FlowStageKey = (typeof FLOW_STAGES)[number]["key"];
+export type SupportStatusKey = (typeof SUPPORT_STATUSES)[number]["key"];
+
+/** Rank for sorting: backlog first, closed last - the order the states appear in above. */
+export function statusRank(key: string): number {
+  const index = SUPPORT_STATUSES.findIndex((status) => status.key === key);
+  return index < 0 ? SUPPORT_STATUSES.length : index;
+}
 
 /** Severity without Azure's estimate suffix: "1 - Critical (< 8 h )" reads as "Critical". */
 export function shortSeverity(severity: string | null | undefined): string {
@@ -131,4 +143,117 @@ export function daysSince(value: string | null | undefined): number | null {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
   return Math.max(0, Math.floor((Date.now() - date.getTime()) / 86_400_000));
+}
+
+// -----------------------------------------------------------------------------------------------
+// Dashboard: sorting and filtering
+// -----------------------------------------------------------------------------------------------
+
+/** The columns the list can be sorted on. */
+export type SortKey =
+  | "id"
+  | "status"
+  | "title"
+  | "severity"
+  | "version"
+  | "area"
+  | "customer"
+  | "reporter"
+  | "assignee"
+  | "created"
+  | "changed";
+
+export interface SortState {
+  key: SortKey;
+  direction: "asc" | "desc";
+}
+
+/** "1 - Critical (< 8 h )" → 1, so severity sorts by seriousness rather than alphabetically. */
+export function severityRank(severity: string | null | undefined): number {
+  const match = /^\s*([1-4])/.exec(severity ?? "");
+  // Unset severity sorts last whichever way round the column is - it's the absence of a value,
+  // not a value between Low and Critical.
+  return match ? Number(match[1]) : 9;
+}
+
+function textOf(value: string | null | undefined): string {
+  return (value ?? "").toLowerCase();
+}
+
+function timeOf(value: string | null | undefined): number {
+  const time = value ? new Date(value).getTime() : Number.NaN;
+  return Number.isNaN(time) ? 0 : time;
+}
+
+export function compareBugs(a: SupportBugRow, b: SupportBugRow, sort: SortState): number {
+  const factor = sort.direction === "asc" ? 1 : -1;
+  switch (sort.key) {
+    case "id":
+      return (a.id - b.id) * factor;
+    case "status":
+      return (statusRank(a.statusKey) - statusRank(b.statusKey) || a.id - b.id) * factor;
+    case "title":
+      return a.title.localeCompare(b.title, "sv") * factor;
+    case "severity":
+      return (severityRank(a.severity) - severityRank(b.severity) || a.id - b.id) * factor;
+    case "version":
+      return (a.versions[0] ?? "").localeCompare(b.versions[0] ?? "", "sv") * factor;
+    case "area":
+      return textOf(a.areaPath).localeCompare(textOf(b.areaPath), "sv") * factor;
+    case "customer":
+      return textOf(a.customers[0]).localeCompare(textOf(b.customers[0]), "sv") * factor;
+    case "reporter":
+      return textOf(a.reporter).localeCompare(textOf(b.reporter), "sv") * factor;
+    case "assignee":
+      return textOf(a.assignedTo).localeCompare(textOf(b.assignedTo), "sv") * factor;
+    case "created":
+      return (timeOf(a.createdDate) - timeOf(b.createdDate)) * factor;
+    case "changed":
+      return (timeOf(a.changedDate) - timeOf(b.changedDate)) * factor;
+    default:
+      return 0;
+  }
+}
+
+/** Everything the list can be narrowed by, all at once. */
+export interface SupportFilters {
+  search: string;
+  statuses: Set<string>;
+  versions: Set<string>;
+  areas: Set<string>;
+}
+
+export function matchesFilters(bug: SupportBugRow, filters: SupportFilters): boolean {
+  if (filters.statuses.size > 0 && !filters.statuses.has(bug.statusKey)) return false;
+  // A bug with no version at all can't match a version filter - "27.1" means that release, not
+  // "27.1 or unknown".
+  if (filters.versions.size > 0 && !bug.versions.some((version) => filters.versions.has(version))) return false;
+  if (filters.areas.size > 0 && !filters.areas.has(bug.areaPath ?? "")) return false;
+
+  const query = filters.search.trim().toLowerCase();
+  if (!query) return true;
+  return (
+    bug.title.toLowerCase().includes(query) ||
+    String(bug.id).includes(query) ||
+    textOf(bug.reporter).includes(query) ||
+    textOf(bug.assignedTo).includes(query) ||
+    bug.customers.some((name) => name.toLowerCase().includes(query)) ||
+    bug.colleagues.some((name) => name.toLowerCase().includes(query)) ||
+    bug.tags.some((tag) => tag.toLowerCase().includes(query))
+  );
+}
+
+/** Today, and a year back, as yyyy-MM-dd - the default window the dashboard opens on. */
+export function defaultDateRange(): { from: string; to: string } {
+  const today = new Date();
+  const from = new Date(today);
+  from.setFullYear(from.getFullYear() - 1);
+  return { from: isoDate(from), to: isoDate(today) };
+}
+
+export function isoDate(date: Date): string {
+  // Local date parts, not toISOString(): that converts to UTC and can land on the previous day.
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
 }

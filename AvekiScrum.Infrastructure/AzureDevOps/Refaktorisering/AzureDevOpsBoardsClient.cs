@@ -42,17 +42,20 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             "System.State",
             "System.WorkItemType",
             "System.AssignedTo",
+            "System.CreatedBy",
             "System.CreatedDate",
             "System.ChangedDate",
             "System.AreaPath",
             "System.IterationPath",
             "System.Tags",
+            "Microsoft.VSTS.Common.Severity",
             "Microsoft.VSTS.Scheduling.StoryPoints",
             "Microsoft.VSTS.Common.Activity",
             "Microsoft.VSTS.CMMI.Blocked",
             "Custom.AssignedTeam",
             "Custom.Source",
             "Custom.Stakeholders",
+            "Custom.Externallink",
             "Custom.DevelopmentPartner"
         };
 
@@ -94,6 +97,7 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             "Custom.AssignedTeam",
             "Custom.Source",
             "Custom.Stakeholders",
+            "Custom.Externallink",
             "Custom.DevelopmentPartner"
         };
 

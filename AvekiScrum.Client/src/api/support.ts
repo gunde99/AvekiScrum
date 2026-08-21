@@ -27,6 +27,8 @@ export interface CreateSupportBugRequest {
   systemInfo: string;
   stakeholders: SupportStakeholder[];
   areaPath: string;
+  /** Link to the case in Lime. */
+  externalLink: string;
   tags?: string[];
 }
 
@@ -39,17 +41,29 @@ export interface SupportBug {
   areaPath: string | null;
   iterationPath: string | null;
   assignedTo: string | null;
+  createdBy: string | null;
   createdDate: string;
   changedDate: string | null;
   closedDate: string | null;
+  /** Who filed it: the card's Buggrapportör line, or whoever created it in Azure. */
   reporter: string | null;
-  stakeholders: string[];
+  /** Names in the stakeholder field that match someone at the company. */
+  colleagues: string[];
+  /** Everyone else named in the stakeholder field - municipalities, contacts, case numbers. */
+  customers: string[];
+  versions: string[];
+  externalLink: string | null;
   tags: string[];
-  stageKey: string;
-  stageLabel: string;
-  stageStep: number;
-  stageCount: number;
+  statusKey: string;
+  statusLabel: string;
   webUrl: string;
+}
+
+export interface SupportBugsResponse {
+  bugs: SupportBug[];
+  /** True when the date range matched more bugs than the server is willing to fetch details for. */
+  truncated: boolean;
+  total: number;
 }
 
 export async function fetchSupportOptions(signal?: AbortSignal): Promise<SupportOptions> {
@@ -71,9 +85,19 @@ export async function createSupportBug(request: CreateSupportBugRequest): Promis
   return (await response.json()) as { id: number; url: string };
 }
 
-export async function fetchSupportBugs(signal?: AbortSignal): Promise<SupportBug[]> {
-  const response = await fetch(`${API_BASE_URL}/api/support/bugs`, { signal });
+/**
+ * The bugs support has reported, within a date range. The range is a server parameter rather than
+ * a client-side filter because there are hundreds of these - fetching them all to then hide most
+ * would be both slow and misleading about what the list contains.
+ */
+export async function fetchSupportBugs(
+  range: { from: string; to: string },
+  signal?: AbortSignal,
+): Promise<SupportBugsResponse> {
+  const params = new URLSearchParams();
+  if (range.from) params.set("from", range.from);
+  if (range.to) params.set("to", range.to);
+  const response = await fetch(`${API_BASE_URL}/api/support/bugs?${params}`, { signal });
   if (!response.ok) throw new Error(`Kunde inte hämta ärenden: HTTP ${response.status}`);
-  const body = (await response.json()) as { bugs: SupportBug[] };
-  return body.bugs;
+  return (await response.json()) as SupportBugsResponse;
 }
