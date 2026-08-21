@@ -35,9 +35,11 @@ const TEAMS: { id: DeveloperTeamId; label: string }[] = [
  */
 interface ReviewBoardProps {
   onNavigate?: (board: "dailys" | "review") => void;
+  /** Back to the start page, where AvekiSupport lives. */
+  onHome?: () => void;
 }
 
-export function ReviewBoard({ onNavigate }: ReviewBoardProps) {
+export function ReviewBoard({ onNavigate, onHome }: ReviewBoardProps) {
   const { showToast } = useToast();
   const [team, setTeam] = useState<DeveloperTeamId>("Syd");
   const [mode, setMode] = useState<GroupMode>("developer");
@@ -242,6 +244,7 @@ export function ReviewBoard({ onNavigate }: ReviewBoardProps) {
     <BoardShell
       activeBoard="review"
       onNavigate={onNavigate}
+      onHome={onHome}
       title="Review"
       subtitle={data ? `${data.meta.sprint} · ${data.meta.sprintStart} – ${data.meta.sprintEnd}` : undefined}
     >

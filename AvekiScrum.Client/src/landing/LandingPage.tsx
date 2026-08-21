@@ -1,0 +1,111 @@
+import { useTheme } from "../theme/ThemeContext";
+import "./LandingPage.css";
+
+export type AppKey = "scrum" | "support";
+
+interface LandingPageProps {
+  onPick: (app: AppKey) => void;
+}
+
+interface Entrance {
+  key: AppKey;
+  brandPrefix: string;
+  brandSuffix: string;
+  image: string;
+  /** Describes the photo for anyone who can't see it. */
+  imageAlt: string;
+  tagline: string;
+  body: string;
+  bullets: string[];
+  cta: string;
+}
+
+const ENTRANCES: Entrance[] = [
+  {
+    key: "scrum",
+    brandPrefix: "Aveki",
+    brandSuffix: "Scrum",
+    image: "/startbilder/scrum.jpg",
+    imageAlt: "Ett team i möte framför en tavla med lappar",
+    tagline: "För teamen",
+    body: "Boarden för sprintens möten – planering, dailys, review och retro på ett ställe, utan att gå omvägen via Azure DevOps.",
+    bullets: ["Dailys med flöde per utvecklare och sprintmål", "Review-taggning och rapport till Teams", "Korthygien och DoR direkt i kortet"],
+    cta: "Öppna AvekiScrum",
+  },
+  {
+    key: "support",
+    brandPrefix: "Aveki",
+    brandSuffix: "Support",
+    image: "/startbilder/support.jpg",
+    imageAlt: "Supportmedarbetare med headset vid sina datorer",
+    tagline: "För supporten",
+    body: "Rapportera en bugg på någon minut och följ den hela vägen – utan att behöva lära dig Azures gränssnitt.",
+    bullets: ["Färdig mall för repro steps", "Kunder och kontakter formateras alltid lika", "Se var ärendet ligger i flödet"],
+    cta: "Öppna AvekiSupport",
+  },
+];
+
+/**
+ * The start page: two doors, one per tool. The people who use AvekiSupport open it a handful of
+ * times a year, so the entrance has to say what's behind it rather than assume anyone recognises
+ * the name - hence the photographs and the plain-language summaries.
+ */
+export function LandingPage({ onPick }: LandingPageProps) {
+  const { theme, toggleTheme } = useTheme();
+
+  return (
+    <div className="landing">
+      <header className="landing__top">
+        <div className="landing__wordmark">
+          Aveki<span>·</span>
+        </div>
+        <button
+          type="button"
+          className="landing__theme-toggle"
+          onClick={toggleTheme}
+          title={theme === "dark" ? "Byt till ljust läge" : "Byt till mörkt läge"}
+          aria-label="Växla mellan ljust och mörkt läge"
+        >
+          {theme === "dark" ? "☀️" : "🌙"}
+        </button>
+      </header>
+
+      <div className="landing__intro">
+        <h1>Vad ska du göra idag?</h1>
+        <p>Välj ingång. Du kan alltid byta uppe till vänster.</p>
+      </div>
+
+      <div className="landing__cards">
+        {ENTRANCES.map((entrance) => (
+          <button
+            key={entrance.key}
+            type="button"
+            className={`landing-card landing-card--${entrance.key}`}
+            onClick={() => onPick(entrance.key)}
+          >
+            <div className="landing-card__photo">
+              <img src={entrance.image} alt={entrance.imageAlt} loading="lazy" />
+              <span className="landing-card__tagline">{entrance.tagline}</span>
+            </div>
+            <div className="landing-card__body">
+              <h2 className="landing-card__title">
+                {entrance.brandPrefix}
+                <span>{entrance.brandSuffix}</span>
+              </h2>
+              <p className="landing-card__text">{entrance.body}</p>
+              <ul className="landing-card__bullets">
+                {entrance.bullets.map((bullet) => (
+                  <li key={bullet}>{bullet}</li>
+                ))}
+              </ul>
+              <span className="landing-card__cta">
+                {entrance.cta}
+                <span aria-hidden="true">→</span>
+              </span>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}

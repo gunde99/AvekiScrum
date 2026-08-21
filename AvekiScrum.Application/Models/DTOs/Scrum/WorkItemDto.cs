@@ -22,6 +22,7 @@ namespace AvekiScrum.Application.Models.DTOs.Scrum
         public double? StoryPoints { get; set; }
         public int SPInt => (int)Math.Round(StoryPoints ?? 0.0);
         public string AreaPath { get; set; }
+        public string IterationPath { get; set; }
         public string Activity { get; set; }
         public string Blocked { get; set; }
         public bool IsBlocked { get; set; }

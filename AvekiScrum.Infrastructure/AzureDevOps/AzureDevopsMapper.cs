@@ -132,6 +132,7 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
                 Severity = workItemWithFields.Fields.Severity,
                 StoryPoints = workItemWithFields.Fields.StoryPoints ?? 0.0,
                 AreaPath = workItemWithFields.Fields.AreaPath,
+                IterationPath = workItemWithFields.Fields.IterationPath,
                 Activity = workItemWithFields.Fields.Activity,
                 Blocked = workItemWithFields.Fields.Blocked,
                 ClosedDate = workItemWithFields.Fields.ClosedDate,

@@ -741,9 +741,164 @@ app.MapPost("/api/attachments", async (
 })
 .WithName("UploadAttachment");
 
+// ---------------------------------------------------------------------------------------------
+// AvekiSupport: a small surface for people who report bugs but don't live in Azure DevOps.
+// Everything below writes ordinary Bugs into the same project - there is no separate store.
+// ---------------------------------------------------------------------------------------------
+
+// Everything the new-bug form needs in one call: the real picklists from the process template,
+// the area paths to file under, and the System Info skeleton.
+app.MapGet("/api/support/options", async (
+    IAzureDevOpsService azureDevOpsService,
+    IConfiguration configuration,
+    CancellationToken ct) =>
+{
+    var areas = await azureDevOpsService.GetClassificationPathsAsync(areas: true, ct);
+
+    IReadOnlyList<string> severities = Array.Empty<string>();
+    IReadOnlyList<string> sources = Array.Empty<string>();
+    try
+    {
+        var fieldOptions = await azureDevOpsService.GetWorkItemTypeFieldOptionsAsync("Bug", ct);
+        if (fieldOptions.TryGetValue("Microsoft.VSTS.Common.Severity", out var severityValues)) severities = severityValues;
+        if (fieldOptions.TryGetValue("Custom.Source", out var sourceValues)) sources = sourceValues;
+    }
+    catch
+    {
+        // A picklist we can't read shouldn't block the form - it falls back to a plain text field.
+    }
+
+    var project = configuration["AzureDevOps:Project"] ?? "";
+    // Note the IsNullOrWhiteSpace rather than ??: an unset key in appsettings.json is an empty
+    // string, not null, so ?? would hand the client "" and leave the picker blank.
+    var configuredArea = configuration["Support:DefaultAreaPath"];
+    var configuredTemplate = configuration["Support:SystemInfoTemplate"];
+    return Results.Ok(new
+    {
+        areas,
+        severities,
+        sources,
+        stakeholderCategories = SupportBugs.StakeholderCategories,
+        systemInfoTemplate = string.IsNullOrWhiteSpace(configuredTemplate) ? SupportBugs.DefaultSystemInfoTemplate : configuredTemplate,
+        defaultAreaPath = string.IsNullOrWhiteSpace(configuredArea) ? project : configuredArea,
+        defaultSeverity = Fallback(configuration["Support:DefaultSeverity"], "3 - Medium"),
+        defaultSource = Fallback(configuration["Support:DefaultSource"], "Customer"),
+    });
+})
+.WithName("GetSupportOptions");
+
+app.MapPost("/api/support/bugs", async (
+    CreateSupportBugRequest request,
+    IAzureDevOpsService azureDevOpsService,
+    IConfiguration configuration,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Title))
+        return Results.Text("Ärendet behöver en rubrik.", "text/plain", statusCode: 400);
+    if (string.IsNullOrWhiteSpace(request.ReproSteps))
+        return Results.Text("Ärendet behöver en beskrivning.", "text/plain", statusCode: 400);
+
+    var reporter = request.Stakeholders?.FirstOrDefault(
+        s => string.Equals(s.Category, "Buggrapportör", StringComparison.OrdinalIgnoreCase));
+    if (reporter is null || string.IsNullOrWhiteSpace(reporter.Name))
+        return Results.Text("Ärendet behöver en buggrapportör.", "text/plain", statusCode: 400);
+
+    var project = configuration["AzureDevOps:Project"] ?? "";
+    // The PO's backlog is the project root iteration: a bug lands there unplanned, and moving it
+    // into a sprint is exactly what the team's prioritisation does.
+    var backlogIteration = configuration["Support:BacklogIterationPath"];
+    if (string.IsNullOrWhiteSpace(backlogIteration)) backlogIteration = project;
+    var supportTag = configuration["Support:BugTag"] ?? "AvekiSupport";
+
+    var tags = new List<string> { supportTag };
+    if (request.Tags is { Count: > 0 })
+        tags.AddRange(request.Tags.Where(t => !string.IsNullOrWhiteSpace(t)));
+
+    var fields = new Dictionary<string, object?>
+    {
+        ["System.Title"] = request.Title.Trim(),
+        ["System.AreaPath"] = string.IsNullOrWhiteSpace(request.AreaPath)
+            ? (string.IsNullOrWhiteSpace(configuration["Support:DefaultAreaPath"]) ? project : configuration["Support:DefaultAreaPath"])
+            : request.AreaPath,
+        ["System.IterationPath"] = backlogIteration,
+        ["Microsoft.VSTS.TCM.ReproSteps"] = request.ReproSteps,
+        ["System.Tags"] = string.Join("; ", tags.Distinct(StringComparer.OrdinalIgnoreCase)),
+        ["Custom.Stakeholders"] = SupportBugs.FormatStakeholders(request.Stakeholders ?? new List<SupportStakeholder>()),
+    };
+    if (!string.IsNullOrWhiteSpace(request.Severity)) fields["Microsoft.VSTS.Common.Severity"] = request.Severity;
+    if (!string.IsNullOrWhiteSpace(request.Source)) fields["Custom.Source"] = request.Source;
+    if (!string.IsNullOrWhiteSpace(request.SystemInfo)) fields["Microsoft.VSTS.TCM.SystemInfo"] = request.SystemInfo;
+
+    var id = await azureDevOpsService.CreateWorkItemAsync("Bug", fields, null, null, ct);
+    var organization = configuration["AzureDevOps:Organization"] ?? "";
+    return Results.Ok(new { id, url = $"https://dev.azure.com/{organization}/{project}/_workitems/edit/{id}" });
+})
+.WithName("CreateSupportBug");
+
+// The dashboard: every bug this tool has filed, with where it has got to. Not filtered by reporter
+// server-side - support wants to see each other's cases too, and the client does the "mina" split.
+app.MapGet("/api/support/bugs", async (
+    IAzureDevOpsService azureDevOpsService,
+    IConfiguration configuration,
+    CancellationToken ct) =>
+{
+    var project = configuration["AzureDevOps:Project"] ?? "";
+    var organization = configuration["AzureDevOps:Organization"] ?? "";
+    var supportTag = configuration["Support:BugTag"] ?? "AvekiSupport";
+
+    var ids = await azureDevOpsService.RunWiqlIdsAsync(
+        "SELECT [System.Id] FROM WorkItems " +
+        "WHERE [System.WorkItemType] = 'Bug' " +
+        $"AND [System.Tags] CONTAINS '{supportTag.Replace("'", "''")}' " +
+        "AND [System.State] <> 'Removed' " +
+        "ORDER BY [System.CreatedDate] DESC", ct);
+
+    if (ids.Count == 0)
+        return Results.Ok(new { bugs = Array.Empty<object>() });
+
+    var items = await azureDevOpsService.GetWorkItemsDetailsAsync(ids.Take(300).ToList(), ct);
+    var bugs = items.Select(item =>
+    {
+        var (stageKey, stageLabel, step) = SupportBugs.FlowStageFor(item.State, item.IterationPath, project);
+        var stakeholderLines = (item.Stakeholders ?? new List<string>())
+            .SelectMany(entry => SupportBugs.StripHtml(entry).Split('\n'))
+            .Select(line => line.Trim())
+            .Where(line => line.Length > 0)
+            .ToList();
+        return new
+        {
+            id = item.Id,
+            title = item.Title,
+            state = item.State,
+            severity = item.Severity,
+            source = item.Source,
+            areaPath = item.AreaPath,
+            iterationPath = item.IterationPath,
+            assignedTo = item.AssignedTo,
+            createdDate = item.CreatedDate,
+            changedDate = item.ChangedDate,
+            closedDate = item.ClosedDate,
+            reporter = SupportBugs.ReporterFrom(item.Stakeholders ?? new List<string>()),
+            stakeholders = stakeholderLines,
+            tags = item.Tags,
+            stageKey,
+            stageLabel,
+            stageStep = step,
+            stageCount = SupportBugs.FlowStepCount,
+            webUrl = $"https://dev.azure.com/{organization}/{project}/_workitems/edit/{item.Id}",
+        };
+    }).ToList();
+
+    return Results.Ok(new { bugs });
+})
+.WithName("GetSupportBugs");
+
 app.Run();
 
 static string FormatDisplayName(string email) => PersonNames.Format(email);
+
+/// <summary>Config value, or the given default when the key is missing or blank.</summary>
+static string Fallback(string? value, string fallback) => string.IsNullOrWhiteSpace(value) ? fallback : value;
 
 /// <summary>
 /// Turns an Azure login (or a display-name-less guest identity) into the name the person actually

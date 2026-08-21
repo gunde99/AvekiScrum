@@ -85,9 +85,11 @@ function writeParticipantChoices(team: DeveloperTeamId, choices: Record<string, 
 
 interface DailysBoardProps {
   onNavigate?: (board: "dailys" | "review") => void;
+  /** Back to the start page, where AvekiSupport lives. */
+  onHome?: () => void;
 }
 
-export function DailysBoard({ onNavigate }: DailysBoardProps) {
+export function DailysBoard({ onNavigate, onHome }: DailysBoardProps) {
   const { showToast } = useToast();
   const [team, setTeam] = useState<DeveloperTeamId>("Syd");
   const [mode, setMode] = useState<GroupMode>("goals");
@@ -481,6 +483,7 @@ export function DailysBoard({ onNavigate }: DailysBoardProps) {
     <BoardShell
       activeBoard="dailys"
       onNavigate={onNavigate}
+      onHome={onHome}
       title="Dailys"
       subtitle={data ? `${data.meta.sprint} · ${data.meta.sprintStart} – ${data.meta.sprintEnd}` : undefined}
     >
