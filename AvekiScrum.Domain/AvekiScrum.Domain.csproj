@@ -3,7 +3,18 @@
   <PropertyGroup>
     <TargetFramework>net8.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
+    <!--
+      These three projects are ported wholesale from WorkOrganizer, which predates nullable
+      reference types. Their DTOs and Azure DevOps entities are populated by JSON deserialisation
+      rather than constructors, so the compiler can't see that they're initialised and reported
+      222 CS86xx warnings - enough noise to hide a real one.
+
+      "annotations" is the documented setting for exactly this case: `?` still means what it says,
+      so AvekiScrum.Api (which keeps full `enable`) still gets accurate nullability from these
+      types and its own new code is still fully checked. Only the warnings *inside* the ported
+      code are silenced. Flip back to `enable` per project when its types get annotated properly.
+    -->
+    <Nullable>annotations</Nullable>
     <RootNamespace>AvekiScrum.Domain</RootNamespace>
     <AssemblyName>AvekiScrum.Domain</AssemblyName>
   </PropertyGroup>
