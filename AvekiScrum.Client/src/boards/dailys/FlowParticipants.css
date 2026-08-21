@@ -100,9 +100,11 @@
   color: var(--color-primary);
 }
 
+/* Two even columns rather than wrapping pills: name lengths vary a lot, and a ragged grid was
+   hard to scan for the one person you're looking for. */
 .flow-participants__list {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-2);
   /* Long rosters scroll inside the panel instead of pushing the toolbar taller. */
   max-height: 320px;
@@ -113,6 +115,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
   padding: 3px var(--space-2) 3px 3px;
   border-radius: 999px;
   border: 1px solid var(--color-border);

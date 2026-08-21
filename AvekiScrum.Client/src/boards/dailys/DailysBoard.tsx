@@ -83,7 +83,11 @@ function writeParticipantChoices(team: DeveloperTeamId, choices: Record<string, 
   }
 }
 
-export function DailysBoard() {
+interface DailysBoardProps {
+  onNavigate?: (board: "dailys" | "review") => void;
+}
+
+export function DailysBoard({ onNavigate }: DailysBoardProps) {
   const { showToast } = useToast();
   const [team, setTeam] = useState<DeveloperTeamId>("Syd");
   const [mode, setMode] = useState<GroupMode>("goals");
@@ -476,6 +480,7 @@ export function DailysBoard() {
   return (
     <BoardShell
       activeBoard="dailys"
+      onNavigate={onNavigate}
       title="Dailys"
       subtitle={data ? `${data.meta.sprint} · ${data.meta.sprintStart} – ${data.meta.sprintEnd}` : undefined}
     >

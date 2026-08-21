@@ -35,6 +35,11 @@
 }
 
 .board-shell__nav-item {
+  /* Now a real button - reset the chrome so it still reads as a nav link. */
+  background: none;
+  border: none;
+  font: inherit;
+  cursor: pointer;
   font-weight: 600;
   color: var(--color-text-muted);
   padding-bottom: 2px;
@@ -44,6 +49,14 @@
 .board-shell__nav-item--active {
   color: var(--color-primary);
   border-bottom-color: var(--color-primary);
+}
+
+.board-shell__nav-item:hover:not(:disabled):not(.board-shell__nav-item--active) {
+  color: var(--color-text);
+}
+
+.board-shell__nav-item--active {
+  cursor: default;
 }
 
 .board-shell__nav-item--disabled {

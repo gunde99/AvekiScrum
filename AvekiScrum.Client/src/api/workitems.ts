@@ -306,3 +306,17 @@ export function fetchParentCandidates(type: string): Promise<ParentCandidate[]> 
   parentCandidateCache.set(type, request);
   return request;
 }
+
+export interface WorkItemSearchHit {
+  id: number;
+  type: string;
+  title: string;
+  state: string;
+}
+
+/** Looks a card up by id (a bare number) or by title text. */
+export async function searchWorkItems(q: string, signal?: AbortSignal): Promise<WorkItemSearchHit[]> {
+  const response = await fetch(`${API_BASE_URL}/api/workitems/search?q=${encodeURIComponent(q)}`, { signal });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return (await response.json()) as WorkItemSearchHit[];
+}

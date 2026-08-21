@@ -1,0 +1,109 @@
+.rv-card {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr) 92px 150px 52px auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  font-size: 0.82rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.rv-card:hover {
+  border-color: var(--color-primary);
+}
+
+.rv-card--selected {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  box-shadow: inset 3px 0 0 var(--color-primary);
+}
+
+.rv-card--busy {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.rv-card__id {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--color-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.rv-card__id:hover {
+  text-decoration: underline;
+}
+
+.rv-card__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-card__state {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 1px var(--space-2);
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.rv-card__dev {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--color-text-muted);
+}
+
+.rv-card__dev > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-card__sp {
+  text-align: right;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.rv-card__remove {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.rv-card__remove:hover:not(:disabled) {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+/* Panel cards are narrower - drop the developer column rather than squeezing every column. */
+.rv-panel .rv-card {
+  grid-template-columns: 62px minmax(0, 1fr) 52px auto;
+}
+
+.rv-panel .rv-card__state,
+.rv-panel .rv-card__dev {
+  display: none;
+}

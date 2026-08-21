@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   addWorkItemRelation,
   removeWorkItemRelation,
+  searchWorkItems,
   type LinkKind,
   type WorkItemDetail,
   type WorkItemRelationRef,
+  type WorkItemSearchHit,
 } from "../../api/workitems";
 import type { PersonOption } from "../../api/people";
 import { NewWorkItemForm } from "./NewWorkItemForm";
@@ -21,8 +23,10 @@ interface WorkItemRelationsTabProps {
   people: PersonOption[];
 }
 
-/** Links an existing card by id. Kept separate from creating a new one - the two are different
- *  intents and sharing one form made both harder to read. */
+/**
+ * Links an existing card, found by typing either its id or part of its title. Kept separate from
+ * creating a new one - the two are different intents and sharing one form made both harder to read.
+ */
 function LinkExistingForm({
   detail,
   linkKind,
@@ -33,27 +37,56 @@ function LinkExistingForm({
   onChanged: (detail: WorkItemDetail) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [id, setId] = useState("");
+  const [query, setQuery] = useState("");
+  const [hits, setHits] = useState<WorkItemSearchHit[]>([]);
+  const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function submit() {
-    const target = Number(id.trim());
-    if (!Number.isInteger(target) || target <= 0) {
-      setError("Ange ett giltigt kort-ID.");
+  // Debounced so typing a title doesn't fire a WIQL query per keystroke; aborted on change so a
+  // slow earlier search can't overwrite the results of a later one.
+  useEffect(() => {
+    const term = query.trim();
+    if (!open || term.length < 2) {
+      setHits([]);
       return;
     }
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      setSearching(true);
+      searchWorkItems(term, controller.signal)
+        .then((found) => setHits(found.filter((h) => h.id !== detail.id)))
+        .catch(() => {
+          if (!controller.signal.aborted) setHits([]);
+        })
+        .finally(() => !controller.signal.aborted && setSearching(false));
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [query, open, detail.id]);
+
+  async function link(targetId: number) {
     setBusy(true);
     setError(null);
     try {
-      onChanged(await addWorkItemRelation(detail.id, target, linkKind));
-      setId("");
+      onChanged(await addWorkItemRelation(detail.id, targetId, linkKind));
+      setQuery("");
+      setHits([]);
       setOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Kunde inte länka kortet.");
     } finally {
       setBusy(false);
     }
+  }
+
+  function close() {
+    setQuery("");
+    setHits([]);
+    setError(null);
+    setOpen(false);
   }
 
   if (!open) {
@@ -64,34 +97,37 @@ function LinkExistingForm({
     );
   }
 
+  const term = query.trim();
   return (
     <div className="wi-rel__link">
-      <input
-        type="number"
-        value={id}
-        autoFocus
-        placeholder="Kort-ID, t.ex. 24210"
-        onChange={(e) => setId(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !busy) void submit();
-        }}
-      />
-      <button type="button" className="wi-btn wi-btn--primary" onClick={submit} disabled={busy || !id.trim()}>
-        {busy ? "Länkar…" : "Länka"}
-      </button>
-      <button
-        type="button"
-        className="wi-btn"
-        onClick={() => {
-          setId("");
-          setError(null);
-          setOpen(false);
-        }}
-        disabled={busy}
-      >
-        Avbryt
-      </button>
+      <div className="wi-rel__link-row">
+        <input
+          type="text"
+          value={query}
+          autoFocus
+          placeholder="Sök på ID eller titel…"
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <button type="button" className="wi-btn" onClick={close} disabled={busy}>
+          Avbryt
+        </button>
+      </div>
       {error && <span className="wi-rel__error">{error}</span>}
+      {term.length >= 2 && (
+        <div className="wi-rel__hits">
+          {searching && <span className="wi-rel__hint">Söker…</span>}
+          {!searching && hits.length === 0 && <span className="wi-rel__hint">Inga träffar på "{term}".</span>}
+          {hits.map((h) => (
+            <button key={h.id} type="button" className="wi-rel__hit" onClick={() => void link(h.id)} disabled={busy}>
+              <span className="wi-rel__hit-id">#{h.id}</span>
+              <span className="wi-rel__hit-type">{h.type}</span>
+              <span className="wi-rel__hit-title">{h.title}</span>
+              <span className="wi-rel__hit-state">{h.state}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {term.length > 0 && term.length < 2 && <span className="wi-rel__hint">Skriv minst två tecken.</span>}
     </div>
   );
 }

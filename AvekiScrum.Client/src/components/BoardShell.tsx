@@ -5,7 +5,7 @@ import "./BoardShell.css";
 const BOARDS = [
   { id: "planering", label: "Planering", enabled: false },
   { id: "dailys", label: "Dailys", enabled: true },
-  { id: "review", label: "Review", enabled: false },
+  { id: "review", label: "Review", enabled: true },
   { id: "retro", label: "Retro", enabled: false },
 ] as const;
 
@@ -13,13 +13,15 @@ interface BoardShellProps {
   activeBoard: (typeof BOARDS)[number]["id"];
   title: string;
   subtitle?: string;
+  /** Switches board. Only the enabled ones are clickable. */
+  onNavigate?: (board: (typeof BOARDS)[number]["id"]) => void;
   children: ReactNode;
 }
 
 // Shared header/nav shell for all four Scrum boards. No AvekiScrum wordmark/logo
 // asset is available yet (see docs/Grafisk profil.pdf) - using a styled text
 // placeholder until the real logotype files are sourced.
-export function BoardShell({ activeBoard, title, subtitle, children }: BoardShellProps) {
+export function BoardShell({ activeBoard, title, subtitle, onNavigate, children }: BoardShellProps) {
   const { theme, toggleTheme } = useTheme();
 
   return (
@@ -28,17 +30,20 @@ export function BoardShell({ activeBoard, title, subtitle, children }: BoardShel
         <div className="board-shell__brand">Aveki<span>Scrum</span></div>
         <nav className="board-shell__nav">
           {BOARDS.map((board) => (
-            <span
+            <button
               key={board.id}
+              type="button"
               className={
                 "board-shell__nav-item" +
                 (board.id === activeBoard ? " board-shell__nav-item--active" : "") +
                 (!board.enabled ? " board-shell__nav-item--disabled" : "")
               }
+              disabled={!board.enabled || board.id === activeBoard}
+              onClick={() => onNavigate?.(board.id)}
               title={board.enabled ? undefined : "Kommer senare"}
             >
               {board.label}
-            </span>
+            </button>
           ))}
         </nav>
         <button

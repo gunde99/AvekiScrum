@@ -1,0 +1,177 @@
+/* Sprint board on the left, the three review panels stacked on the right. */
+.rv-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 1200px) {
+  .rv-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.rv-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.rv-list__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.rv-list__head h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.rv-list__count {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.rv-list__clear {
+  margin-left: auto;
+  font-size: 0.75rem;
+  padding: 2px var(--space-2);
+}
+
+.rv-list__hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.rv-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.rv-group__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rv-group__count {
+  margin-left: auto;
+  font-weight: 400;
+}
+
+.rv-group__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.rv-empty {
+  padding: var(--space-5);
+  text-align: center;
+  color: var(--color-text-muted);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.rv-panels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  /* Follows along while scrolling the (much longer) card list beside it. */
+  position: sticky;
+  top: var(--space-3);
+}
+
+.rv-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.rv-panel--over {
+  border-color: var(--color-primary);
+  border-style: solid;
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
+.rv-panel__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.rv-panel__icon {
+  font-size: 1.6rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.rv-panel__title-block {
+  min-width: 0;
+  flex: 1;
+}
+
+.rv-panel__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.rv-panel__hint {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.rv-panel__count {
+  flex-shrink: 0;
+  min-width: 26px;
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.rv-panel__assign {
+  align-self: flex-start;
+  font-size: 0.75rem;
+  padding: 3px var(--space-3);
+}
+
+.rv-panel__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.rv-panel__empty {
+  margin: 0;
+  padding: var(--space-3);
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}

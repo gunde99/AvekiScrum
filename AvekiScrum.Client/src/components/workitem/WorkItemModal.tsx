@@ -10,6 +10,7 @@ import {
 } from "../../api/workitems";
 import { fetchAllPeople, type PersonOption } from "../../api/people";
 import { Breadcrumb, type BreadcrumbHop } from "./Breadcrumb";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { getWorkItemTypeConfig } from "./workItemTypeConfig";
 import { WorkItemOverviewTab } from "./WorkItemOverviewTab";
 import { WorkItemRelationsTab } from "./WorkItemRelationsTab";
@@ -49,6 +50,10 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
   const [saving, setSaving] = useState(false);
   const [classification, setClassification] = useState<ClassificationOptions | null>(null);
   const [people, setPeople] = useState<PersonOption[]>([]);
+  // Snapshot taken when editing starts, so "unsaved changes" means the form actually differs -
+  // opening the editor and closing it again shouldn't trigger a warning.
+  const [draftBaseline, setDraftBaseline] = useState<string>("");
+  const [confirmClose, setConfirmClose] = useState(false);
 
   const currentId = stack[stack.length - 1].id;
 
@@ -88,15 +93,24 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
       .catch(() => setPeople([]));
   }, []);
 
+  const isDirty = editing && JSON.stringify(draft) !== draftBaseline;
+
+  /** Closing has to go through here so unsaved edits can't be lost by a stray Escape. */
+  function requestClose() {
+    if (isDirty) setConfirmClose(true);
+    else onClose();
+  }
+
   useEffect(() => {
     // Embedded there is nothing to dismiss - Escape must stay available to whatever hosts it.
     if (embedded) return;
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") requestClose();
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose, embedded]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [embedded, isDirty, onClose]);
 
   const config = useMemo(() => getWorkItemTypeConfig(detail?.type ?? ""), [detail?.type]);
 
@@ -110,9 +124,10 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
 
   function startEdit() {
     if (!detail) return;
+    // Built below and stored as the baseline in the same shape the draft is compared in.
     // Every editable field is seeded, so a save carries the card's current values through
     // untouched rather than the PATCH silently omitting whatever the form didn't seed.
-    setDraft({
+    const seed: WorkItemFieldUpdate = {
       title: detail.title,
       state: detail.state,
       assignedTo: detail.assignedTo ?? "",
@@ -133,7 +148,9 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
       valueArea: detail.valueArea ?? "",
       assignedTeam: detail.assignedTeam ?? "",
       stakeholders: detail.stakeholders ?? "",
-    });
+    };
+    setDraft(seed);
+    setDraftBaseline(JSON.stringify(seed));
     setEditing(true);
   }
 
@@ -201,7 +218,7 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
             )}
           </div>
           {!embedded && (
-            <button type="button" className="wi-modal__close" onClick={onClose} aria-label="Stäng">
+            <button type="button" className="wi-modal__close" onClick={requestClose} aria-label="Stäng">
               ✕
             </button>
           )}
@@ -288,8 +305,24 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
   if (embedded) return panel;
 
   return (
-    <div className="wi-modal-overlay" onClick={onClose}>
-      {panel}
-    </div>
+    <>
+      {/* No click-to-dismiss: a card is a form, and losing a half-written description to a
+          mis-aimed click is worse than having to reach for the close button. */}
+      <div className="wi-modal-overlay">{panel}</div>
+      {confirmClose && (
+        <ConfirmDialog
+          title="Osparade ändringar"
+          message="Du har ändringar som inte är sparade. Stänger du kortet nu går de förlorade."
+          confirmLabel="Stäng utan att spara"
+          cancelLabel="Fortsätt redigera"
+          danger
+          onConfirm={() => {
+            setConfirmClose(false);
+            onClose();
+          }}
+          onCancel={() => setConfirmClose(false)}
+        />
+      )}
+    </>
   );
 }

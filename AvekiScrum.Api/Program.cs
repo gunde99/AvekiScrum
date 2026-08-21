@@ -542,6 +542,43 @@ app.MapPost("/api/workitems/{id:int}/comments", async (
 })
 .WithName("AddWorkItemComment");
 
+// Free-text/ID lookup behind the "länka befintligt kort" picker. A pure number is treated as an
+// id (that's how people refer to cards to each other), anything else as a title search.
+app.MapGet("/api/workitems/search", async (
+    string q,
+    IAzureDevOpsService azureDevOpsService,
+    CancellationToken ct) =>
+{
+    var term = (q ?? "").Trim();
+    if (term.Length < 2)
+        return Results.Ok(Array.Empty<object>());
+
+    IReadOnlyList<int> ids;
+    if (int.TryParse(term, out var byId))
+    {
+        // Still run through WIQL rather than fetching blindly, so an id that doesn't exist (or
+        // isn't visible) comes back as "no hits" instead of an error.
+        ids = await azureDevOpsService.RunWiqlIdsAsync(
+            $"SELECT [System.Id] FROM WorkItems WHERE [System.Id] = {byId}", ct);
+    }
+    else
+    {
+        // Apostrophes have to be doubled or they end the WIQL string literal.
+        var safe = term.Replace("'", "''");
+        ids = await azureDevOpsService.RunWiqlIdsAsync(
+            "SELECT [System.Id] FROM WorkItems " +
+            $"WHERE [System.Title] CONTAINS '{safe}' AND [System.State] <> 'Removed' " +
+            "ORDER BY [System.ChangedDate] DESC", ct);
+    }
+
+    if (ids.Count == 0)
+        return Results.Ok(Array.Empty<object>());
+
+    var items = await azureDevOpsService.GetWorkItemsDetailsAsync(ids.Take(50).ToList(), ct);
+    return Results.Ok(items.Select(i => new { id = i.Id, type = i.Type, title = i.Title, state = i.State }).ToList());
+})
+.WithName("SearchWorkItems");
+
 // The cards that may legitimately be the parent of `type`, for the Korthygien parent picker.
 // Closed items are left out: attaching new work under something already finished is almost never
 // what's meant, and it keeps the list short enough to scan.
