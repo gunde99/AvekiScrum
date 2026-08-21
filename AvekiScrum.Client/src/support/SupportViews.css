@@ -244,7 +244,9 @@
 
 .sup-dash__toolbar {
   display: flex;
-  align-items: center;
+  /* Top-aligned rather than centred: the filter panel grows tall when it is open, and the tabs
+     and Refresh should stay where they were rather than drift down with it. */
+  align-items: flex-start;
   gap: var(--space-2);
   flex-wrap: wrap;
 }
@@ -274,30 +276,6 @@
 .sup-tab--active {
   background: var(--color-primary);
   color: #ffffff;
-}
-
-.sup-dash__search {
-  flex: 1;
-  min-width: 220px;
-}
-
-.sup-dash__dates {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.sup-dash__date {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-}
-
-.sup-dash__date input {
-  font-size: 0.82rem;
-  padding: var(--space-1) var(--space-2);
 }
 
 .sup-dash__empty,
@@ -640,9 +618,20 @@
   white-space: nowrap;
 }
 
-.sup-col--area,
+/* The whole Area Path on one line - it's how people recognise the product, and a wrapped path
+   is unreadable. The table scrolls sideways instead. */
+.sup-col--area {
+  white-space: nowrap;
+}
+
+.sup-col--iteration {
+  width: 120px;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
 .sup-col--customer {
-  max-width: 200px;
+  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -701,4 +690,137 @@
 
 .sup-sev--9 {
   opacity: 0.6;
+}
+
+/* --- Filter panel (shares the Dailys board's chrome, wider and with its own groups) ---------- */
+
+.sup-filterpanel {
+  /* Wide enough for three multi-selects on one row - the Area Paths are long. */
+  min-width: min(760px, 100%);
+  flex: 1;
+}
+
+.sup-filterpanel__selects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.sup-filterpanel__dates {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.sup-filterpanel__dates label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.sup-filterpanel__dates input {
+  font-size: 0.82rem;
+  padding: var(--space-1) var(--space-2);
+}
+
+.sup-filterpanel__datehint {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+.sup-filterpanel__clear {
+  align-self: flex-end;
+}
+
+/* Status pills keep each state's own colour, so the same word means the same thing in the filter
+   as it does on the rows. Unselected they're outlined; selected they fill. */
+.sup-pill {
+  border-color: currentColor;
+}
+
+.sup-pill--backlogg {
+  color: var(--aveki-grey-600);
+}
+.sup-pill--planerad {
+  color: var(--color-info);
+}
+.sup-pill--arbete {
+  color: var(--color-primary);
+}
+.sup-pill--testas {
+  color: #8a6d0b;
+}
+.sup-pill--klar {
+  color: var(--color-success);
+}
+
+.sup-pill--active {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.sup-pill--backlogg.sup-pill--active {
+  background: var(--aveki-grey-500);
+  border-color: var(--aveki-grey-500);
+}
+.sup-pill--planerad.sup-pill--active {
+  background: var(--color-info);
+  border-color: var(--color-info);
+}
+.sup-pill--arbete.sup-pill--active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+.sup-pill--testas.sup-pill--active {
+  background: var(--cat-test-bg);
+  border-color: var(--cat-test-bg);
+  color: var(--aveki-grey-900);
+}
+.sup-pill--klar.sup-pill--active {
+  background: var(--color-success);
+  border-color: var(--color-success);
+}
+
+[data-theme="dark"] .sup-pill--backlogg {
+  color: var(--aveki-grey-400);
+}
+[data-theme="dark"] .sup-pill--planerad {
+  color: var(--aveki-blue-tint-4);
+}
+[data-theme="dark"] .sup-pill--testas {
+  color: var(--cat-test-bg);
+}
+
+/* --- Refresh -------------------------------------------------------------------------------- */
+
+.sup-refresh {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sup-refresh:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.sup-refresh:hover svg {
+  transform: rotate(-90deg);
+}
+
+.sup-refresh svg {
+  transition: transform 0.25s ease;
 }

@@ -123,6 +123,15 @@ export function shortSeverity(severity: string | null | undefined): string {
   return dash >= 0 ? withoutEstimate.slice(dash + 3).trim() : withoutEstimate;
 }
 
+/**
+ * The sprint a bug is planned into: the iteration path without the project root, which is all the
+ * part that varies. Empty for anything still in the backlog - the root on its own says nothing.
+ */
+export function shortIteration(iterationPath: string | null | undefined): string {
+  const parts = (iterationPath ?? "").split("\\").filter(Boolean);
+  return parts.length > 1 ? parts.slice(1).join(" / ") : "";
+}
+
 /** The last path segment of an area path - the product, without the project prefix. */
 export function shortAreaPath(areaPath: string | null | undefined): string {
   if (!areaPath) return "–";
@@ -160,6 +169,7 @@ export type SortKey =
   | "customer"
   | "reporter"
   | "assignee"
+  | "iteration"
   | "created"
   | "changed";
 
@@ -200,6 +210,8 @@ export function compareBugs(a: SupportBugRow, b: SupportBugRow, sort: SortState)
       return (a.versions[0] ?? "").localeCompare(b.versions[0] ?? "", "sv") * factor;
     case "area":
       return textOf(a.areaPath).localeCompare(textOf(b.areaPath), "sv") * factor;
+    case "iteration":
+      return textOf(a.iterationPath).localeCompare(textOf(b.iterationPath), "sv") * factor;
     case "customer":
       return textOf(a.customers[0]).localeCompare(textOf(b.customers[0]), "sv") * factor;
     case "reporter":
@@ -221,6 +233,29 @@ export interface SupportFilters {
   statuses: Set<string>;
   versions: Set<string>;
   areas: Set<string>;
+  /** Whoever filed the bug - the Buggrapportör line, or the person who created the card. */
+  consultants: Set<string>;
+  customers: Set<string>;
+}
+
+export const EMPTY_FILTERS: SupportFilters = {
+  search: "",
+  statuses: new Set(),
+  versions: new Set(),
+  areas: new Set(),
+  consultants: new Set(),
+  customers: new Set(),
+};
+
+export function activeFilterCount(filters: SupportFilters): number {
+  return (
+    (filters.search.trim() ? 1 : 0) +
+    filters.statuses.size +
+    filters.versions.size +
+    filters.areas.size +
+    filters.consultants.size +
+    filters.customers.size
+  );
 }
 
 export function matchesFilters(bug: SupportBugRow, filters: SupportFilters): boolean {
@@ -229,6 +264,8 @@ export function matchesFilters(bug: SupportBugRow, filters: SupportFilters): boo
   // "27.1 or unknown".
   if (filters.versions.size > 0 && !bug.versions.some((version) => filters.versions.has(version))) return false;
   if (filters.areas.size > 0 && !filters.areas.has(bug.areaPath ?? "")) return false;
+  if (filters.consultants.size > 0 && !filters.consultants.has(bug.reporter ?? "")) return false;
+  if (filters.customers.size > 0 && !bug.customers.some((customer) => filters.customers.has(customer))) return false;
 
   const query = filters.search.trim().toLowerCase();
   if (!query) return true;

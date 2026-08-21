@@ -47,3 +47,50 @@
   resize: none;
   overflow-y: auto;
 }
+
+/* Thumbnails of the images the text embeds. Without them a pasted screenshot is just a link,
+   and there's no way to tell whether the right thing landed in the right field. */
+.md-editor__thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2) 0 0;
+}
+
+.md-editor__thumb {
+  position: relative;
+  margin: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--color-bg-subtle);
+}
+
+.md-editor__thumb img {
+  display: block;
+  max-width: 190px;
+  max-height: 130px;
+  object-fit: contain;
+}
+
+.md-editor__thumb-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  color: #ffffff;
+  font-size: 0.7rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.md-editor__thumb-remove:hover {
+  background: var(--color-danger);
+}

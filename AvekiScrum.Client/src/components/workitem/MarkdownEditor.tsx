@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type ClipboardEvent } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent } from "react";
 import { uploadAttachment } from "../../api/attachments";
 import "./MarkdownEditor.css";
 
@@ -20,6 +20,7 @@ export function MarkdownEditor({ value, onChange, rows = 14, placeholder, autoGr
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const images = useMemo(() => findImages(value), [value]);
 
   // Reset to auto first so the box can shrink again when text is deleted - scrollHeight only
   // ever reports the larger of content and current height.
@@ -76,6 +77,31 @@ export function MarkdownEditor({ value, onChange, rows = 14, placeholder, autoGr
         onChange={(e) => onChange(e.target.value)}
         onPaste={handlePaste}
       />
+
+      {/* A pasted screenshot leaves nothing but a markdown link in the box, which is no way to
+          check you pasted the right thing. The thumbnails are the images the text refers to,
+          rendered from the same markdown - so they always match what will end up on the card. */}
+      {images.length > 0 && (
+        <div className="md-editor__thumbs">
+          {images.map((image) => (
+            <figure className="md-editor__thumb" key={image.markdown}>
+              <a href={image.url} target="_blank" rel="noreferrer" title="Öppna i full storlek">
+                <img src={image.url} alt={image.alt || "Inklistrad bild"} />
+              </a>
+              <button
+                type="button"
+                className="md-editor__thumb-remove"
+                title="Ta bort bilden"
+                aria-label="Ta bort bilden"
+                onClick={() => onChange(removeImage(value, image.markdown))}
+              >
+                ✕
+              </button>
+            </figure>
+          ))}
+        </div>
+      )}
+
       <div className="md-editor__footer">
         <span>Markdown stöds - klistra in en bild för att bifoga den.</span>
         {uploading && <span className="md-editor__uploading">Laddar upp bild…</span>}
@@ -83,4 +109,26 @@ export function MarkdownEditor({ value, onChange, rows = 14, placeholder, autoGr
       </div>
     </div>
   );
+}
+
+interface EmbeddedImage {
+  /** The exact `![alt](url)` text, so removing one takes out the right occurrence. */
+  markdown: string;
+  alt: string;
+  url: string;
+}
+
+const IMAGE_PATTERN = /!\[([^\]]*)\]\(([^)\s]+)\)/g;
+
+function findImages(text: string): EmbeddedImage[] {
+  const images: EmbeddedImage[] = [];
+  for (const match of text.matchAll(IMAGE_PATTERN)) {
+    images.push({ markdown: match[0], alt: match[1], url: match[2] });
+  }
+  return images;
+}
+
+/** Drops the image's markdown, and the blank line it usually sits on with it. */
+function removeImage(text: string, markdown: string): string {
+  return text.replace(markdown, "").replace(/\n{3,}/g, "\n\n").trimStart();
 }

@@ -210,7 +210,7 @@ export function NewBugForm({ onCreated }: NewBugFormProps) {
           </div>
           <div className="sup-field sup-field--wide">
             <label className="sup-label" htmlFor="sup-area">
-              Område
+              Area Path
             </label>
             <select id="sup-area" className="sup-input" value={areaPath} onChange={(e) => setAreaPath(e.target.value)}>
               {options?.areas.map((option) => (

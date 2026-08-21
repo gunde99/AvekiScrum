@@ -4,22 +4,40 @@ import { WorkItemModal } from "../components/workitem/WorkItemModal";
 import { fetchSupportBugs, type SupportBug, type SupportBugsResponse } from "../api/support";
 import { samePerson } from "../lib/personNames";
 import { loadReporter } from "./reporter";
-import { MultiSelect } from "./MultiSelect";
+import { SupportFilterPanel } from "./SupportFilterPanel";
 import {
+  activeFilterCount,
   compareBugs,
   defaultDateRange,
+  EMPTY_FILTERS,
   formatDate,
   matchesFilters,
   shortAreaPath,
+  shortIteration,
   shortSeverity,
   SUPPORT_STATUSES,
   severityRank,
   type SortKey,
   type SortState,
+  type SupportFilters,
 } from "./supportLogic";
 import "./SupportViews.css";
 
 type ScopeKey = "mine" | "all";
+
+function RefreshIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path
+        d="M13.6 6.4A5.8 5.8 0 1 0 14 9"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path d="M13.9 2.6v3.9h-3.9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 interface Column {
   key: SortKey;
@@ -34,7 +52,8 @@ const COLUMNS: Column[] = [
   { key: "title", label: "Rubrik", className: "sup-col--title" },
   { key: "severity", label: "Allvarlighet", className: "sup-col--sev" },
   { key: "version", label: "Version", className: "sup-col--version" },
-  { key: "area", label: "Område", className: "sup-col--area" },
+  { key: "area", label: "Area Path", className: "sup-col--area" },
+  { key: "iteration", label: "Sprint", className: "sup-col--iteration" },
   { key: "customer", label: "Kund", className: "sup-col--customer" },
   { key: "reporter", label: "Rapportör", className: "sup-col--person" },
   { key: "assignee", label: "Tilldelad", className: "sup-col--person" },
@@ -58,10 +77,7 @@ export function SupportDashboard() {
   // is a bad first impression - they get everyone's cases instead.
   const [scope, setScope] = useState<ScopeKey>(loadReporter() ? "mine" : "all");
   const [range, setRange] = useState(defaultDateRange);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
-  const [versionFilter, setVersionFilter] = useState<Set<string>>(new Set());
-  const [areaFilter, setAreaFilter] = useState<Set<string>>(new Set());
+  const [filters, setFilters] = useState<SupportFilters>(EMPTY_FILTERS);
   const [sort, setSort] = useState<SortState>({ key: "created", direction: "desc" });
   const [openId, setOpenId] = useState<number | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
@@ -101,10 +117,15 @@ export function SupportDashboard() {
     () => [...new Set(bugs.map((bug) => bug.areaPath ?? "").filter(Boolean))].sort(),
     [bugs],
   );
-
-  const filters = useMemo(
-    () => ({ search, statuses: statusFilter, versions: versionFilter, areas: areaFilter }),
-    [search, statusFilter, versionFilter, areaFilter],
+  // "Konsult" is whoever filed the bug: the Buggrapportör line on cards this tool wrote, and the
+  // card's creator on the ones written by hand in Azure.
+  const availableConsultants = useMemo(
+    () => [...new Set(bugs.map((bug) => bug.reporter ?? "").filter(Boolean))].sort((a, b) => a.localeCompare(b, "sv")),
+    [bugs],
+  );
+  const availableCustomers = useMemo(
+    () => [...new Set(bugs.flatMap((bug) => bug.customers))].sort((a, b) => a.localeCompare(b, "sv")),
+    [bugs],
   );
 
   const visible = useMemo(
@@ -122,8 +143,6 @@ export function SupportDashboard() {
     return map;
   }, [scoped, filters]);
 
-  const activeFilterCount =
-    statusFilter.size + versionFilter.size + areaFilter.size + (search.trim() ? 1 : 0);
 
   function toggleSort(key: SortKey) {
     setSort((prev) =>
@@ -156,74 +175,31 @@ export function SupportDashboard() {
           </button>
         </div>
 
-        <input
-          className="sup-input sup-dash__search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Sök på rubrik, id, kund, rapportör eller tagg"
-          aria-label="Sök"
+        <SupportFilterPanel
+          filters={filters}
+          onChange={setFilters}
+          versions={availableVersions}
+          areas={availableAreas}
+          consultants={availableConsultants}
+          customers={availableCustomers}
+          range={range}
+          onRangeChange={setRange}
         />
 
-        <MultiSelect
-          label="Version"
-          options={availableVersions}
-          selected={versionFilter}
-          onChange={setVersionFilter}
-        />
-        <MultiSelect
-          label="Område"
-          options={availableAreas}
-          selected={areaFilter}
-          onChange={setAreaFilter}
-          format={shortAreaPath}
-        />
-
-        <div className="sup-dash__dates">
-          <label className="sup-dash__date">
-            <span>Skapade från</span>
-            <input
-              className="sup-input"
-              type="date"
-              value={range.from}
-              max={range.to}
-              onChange={(e) => setRange((prev) => ({ ...prev, from: e.target.value }))}
-            />
-          </label>
-          <label className="sup-dash__date">
-            <span>till</span>
-            <input
-              className="sup-input"
-              type="date"
-              value={range.to}
-              min={range.from}
-              onChange={(e) => setRange((prev) => ({ ...prev, to: e.target.value }))}
-            />
-          </label>
-        </div>
-
-        {activeFilterCount > 0 && (
-          <button
-            type="button"
-            className="wi-btn"
-            onClick={() => {
-              setSearch("");
-              setStatusFilter(new Set());
-              setVersionFilter(new Set());
-              setAreaFilter(new Set());
-            }}
-          >
-            Rensa filter ({activeFilterCount})
-          </button>
-        )}
-
-        <button type="button" className="wi-btn" onClick={() => setReloadToken((t) => t + 1)}>
-          Uppdatera
+        <button
+          type="button"
+          className="sup-refresh"
+          onClick={() => setReloadToken((t) => t + 1)}
+          title="Hämta om listan från Azure DevOps"
+        >
+          <RefreshIcon />
+          <span>Refresh</span>
         </button>
       </div>
 
       <div className="sup-statusbar">
         {SUPPORT_STATUSES.map((status) => {
-          const active = statusFilter.has(status.key);
+          const active = filters.statuses.has(status.key);
           return (
             <button
               key={status.key}
@@ -234,11 +210,11 @@ export function SupportDashboard() {
                 (active ? " sup-statuscard--active" : "")
               }
               onClick={() =>
-                setStatusFilter((prev) => {
-                  const next = new Set(prev);
+                setFilters((prev) => {
+                  const next = new Set(prev.statuses);
                   if (next.has(status.key)) next.delete(status.key);
                   else next.add(status.key);
-                  return next;
+                  return { ...prev, statuses: next };
                 })
               }
               title={status.hint}
@@ -306,6 +282,7 @@ export function SupportDashboard() {
       {!loading && visible.length > 0 && (
         <p className="sup-dash__count">
           {visible.length} av {scoped.length} ärenden
+          {activeFilterCount(filters) > 0 && ` · ${activeFilterCount(filters)} filter aktiva`}
         </p>
       )}
 
@@ -340,6 +317,10 @@ function BugRow({ bug, onOpen }: { bug: SupportBug; onOpen: (id: number) => void
       <td className="sup-col--version">{bug.versions.join(", ") || "–"}</td>
       <td className="sup-col--area" title={bug.areaPath ?? ""}>
         {shortAreaPath(bug.areaPath)}
+      </td>
+      <td className="sup-col--iteration" title={bug.iterationPath ?? ""}>
+        {/* Empty for anything still in the backlog: the project root on its own says nothing. */}
+        {shortIteration(bug.iterationPath) || "–"}
       </td>
       <td className="sup-col--customer" title={bug.customers.join("\n")}>
         {bug.customers[0] ?? "–"}

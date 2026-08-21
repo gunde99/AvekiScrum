@@ -45,7 +45,10 @@ tomma fält – ett kort utan rubrik ser ut som att frågan glömdes bort, inte 
 "inget".
 
 Varje fält är en `MarkdownEditor`, så en skärmdump kan klistras in direkt från urklipp (Ctrl+V) var
-som helst i texten – precis som i Azure. Bilden laddas upp som en bilaga och länkas in.
+som helst i texten – precis som i Azure. Bilden laddas upp som en bilaga och länkas in, och visas
+som en miniatyr under rutan: markdown-länken i sig säger ingenting om man klistrat in rätt sak.
+Miniatyren renderas ur samma text som skickas, så den kan inte visa något annat än det som hamnar
+på kortet. Krysset tar bort både bilden och dess markdown.
 
 Minimikravet för att kunna skicka är rubrik, ditt namn, och antingen en beskrivning eller steg.
 
@@ -112,9 +115,17 @@ gamla roten (`Utveckling\v27.1\sp2`), och en namnjämförelse hade kallat varend
 ## Listan
 
 Sorterbar på alla kolumner (klick på rubriken växlar riktning): id, status, rubrik, allvarlighet,
-version, område, kund, rapportör, tilldelad, skapad, ändrad. Utöver fritextsökningen finns filter
-på status (statuskorten fungerar som filterknappar), version, en kombination av områden, och ett
-datumintervall.
+version, Area Path, sprint, kund, rapportör, tilldelad, skapad, ändrad. Area Path skrivs alltid på
+en rad – en radbruten sökväg går inte att läsa – och tabellen scrollar i sidled i stället.
+Sprint-kolumnen är tom för allt som ligger kvar i backloggen; projektroten på egen hand säger inget.
+
+Filtren ligger bakom en Filter-knapp med en panel, precis som på Dailys-boarden: fritext,
+statuspiller (i samma färger som statusarna har i listan), version, samt Area Path, Konsult och
+Kund som flerval. Statuskorten högst upp fungerar också som filterknappar och håller sig i synk med
+pillren. Knappen visar en siffra när något är valt.
+
+"Konsult" är den som rapporterat in buggen – Buggrapportör-raden på våra egna kort, kortets skapare
+på de handskrivna. Samma värde som Rapportör-kolumnen, så filtret och kolumnen alltid stämmer.
 
 **Datumintervallet är ett serverparameter**, inte ett klientfilter: det finns flera hundra ärenden,
 och att hämta alla för att sedan dölja de flesta är både långsamt och missvisande om vad listan
