@@ -152,6 +152,37 @@ else
         "is recorded as the token owner. Intended for local development only.");
 }
 
+// Unhandled exceptions come back as JSON with the reason in it, not a bare 500.
+//
+// On a server where finding the log is its own project, "HTTP 500" in the browser is a dead end -
+// the message and exception type almost always name the problem. This is an intranet tool behind
+// sign-in, so the trade against leaking internals is an easy one; the stack trace still only goes
+// to the log.
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (Exception ex)
+    {
+        var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("AvekiScrum.Unhandled");
+        logger.LogError(ex, "Unhandled exception for {Method} {Path}", context.Request.Method, context.Request.Path);
+
+        if (context.Response.HasStarted) throw;
+        context.Response.Clear();
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        await context.Response.WriteAsJsonAsync(new
+        {
+            error = ex.Message,
+            type = ex.GetType().Name,
+            // MSAL nests the real reason one level down often enough to be worth surfacing.
+            inner = ex.InnerException?.Message,
+            path = context.Request.Path.Value,
+        });
+    }
+});
+
 // A plain, unauthenticated answer to "is the app running at all". The first thing to check when
 // the browser shows nothing: this answers even when sign-in is misconfigured.
 app.MapGet("/api/health", (IConfiguration configuration) => Results.Ok(new
@@ -163,6 +194,57 @@ app.MapGet("/api/health", (IConfiguration configuration) => Results.Ok(new
 }))
 .AllowAnonymous()
 .WithName("GetHealth");
+
+// The deep check: does the signed-in user's token actually get us into Azure DevOps?
+//
+// This is the step between "you are signed in" and "the boards work", and the one that fails
+// quietly. Rather than a 500 somewhere inside a board, this does the two things that can go wrong
+// - the on-behalf-of exchange, and the first call to Azure DevOps - and reports each in words.
+app.MapGet("/api/health/azure", async (
+    IAzureDevOpsCredentialProvider credentials,
+    IAzureDevOpsService azureDevOpsService,
+    CancellationToken ct) =>
+{
+    string tokenStep;
+    try
+    {
+        var header = await credentials.GetAuthHeaderAsync(ct);
+        tokenStep = $"ok ({header.Scheme}, {header.Parameter.Length} tecken)";
+    }
+    catch (Exception ex)
+    {
+        return Results.Ok(new
+        {
+            token = "MISSLYCKADES",
+            reason = ex.Message,
+            type = ex.GetType().Name,
+            inner = ex.InnerException?.Message,
+            hint = "Växlingen on-behalf-of mot Azure DevOps gick inte. Kontrollera att API-appen har " +
+                   "de delegerade vso.*-behörigheterna och att admin consent är givet.",
+        });
+    }
+
+    try
+    {
+        // Cheapest real call there is: reading the area paths touches the same auth path as
+        // everything else without depending on a team, a sprint or a board.
+        var areas = await azureDevOpsService.GetClassificationPathsAsync(areas: true, ct);
+        return Results.Ok(new { token = tokenStep, azureDevOps = "ok", areaPaths = areas.Count });
+    }
+    catch (Exception ex)
+    {
+        return Results.Ok(new
+        {
+            token = tokenStep,
+            azureDevOps = "MISSLYCKADES",
+            reason = ex.Message,
+            type = ex.GetType().Name,
+            hint = "Token hämtades men Azure DevOps avvisade den. Vanligast: användaren saknar " +
+                   "behörighet i organisationen, eller något vso.*-scope saknas på API-appen.",
+        });
+    }
+})
+.WithName("GetAzureHealth");
 
 if (app.Environment.IsDevelopment())
 {

@@ -1,4 +1,4 @@
-import { apiFetch } from "../lib/apiFetch";
+import { apiFetch, describeFailure } from "../lib/apiFetch";
 export interface WorkItemRelationRef {
   id: number;
   type: string;
@@ -110,7 +110,7 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?
 export async function fetchWorkItemDetail(id: number, signal?: AbortSignal): Promise<WorkItemDetail> {
   const response = await apiFetch(`${API_BASE_URL}/api/workitems/${id}`, { signal });
   if (!response.ok) {
-    throw new Error(`Failed to load work item ${id}: HTTP ${response.status}`);
+    throw new Error(await describeFailure(response, `Kunde inte hämta kort ${id}`));
   }
   return (await response.json()) as WorkItemDetail;
 }
@@ -122,7 +122,7 @@ export async function updateWorkItemFields(id: number, update: WorkItemFieldUpda
     body: JSON.stringify(update),
   });
   if (!response.ok) {
-    throw new Error(`Failed to update work item ${id}: HTTP ${response.status}`);
+    throw new Error(await describeFailure(response, `Kunde inte spara kort ${id}`));
   }
   return (await response.json()) as WorkItemDetail;
 }

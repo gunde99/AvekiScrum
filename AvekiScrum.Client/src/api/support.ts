@@ -1,4 +1,4 @@
-import { apiFetch } from "../lib/apiFetch";
+import { apiFetch, describeFailure } from "../lib/apiFetch";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:5273";
 
 export interface SupportOptions {
@@ -69,7 +69,7 @@ export interface SupportBugsResponse {
 
 export async function fetchSupportOptions(signal?: AbortSignal): Promise<SupportOptions> {
   const response = await apiFetch(`${API_BASE_URL}/api/support/options`, { signal });
-  if (!response.ok) throw new Error(`Kunde inte hämta formulärets val: HTTP ${response.status}`);
+  if (!response.ok) throw new Error(await describeFailure(response, "Kunde inte hämta formulärets val"));
   return (await response.json()) as SupportOptions;
 }
 
@@ -99,6 +99,6 @@ export async function fetchSupportBugs(
   if (range.from) params.set("from", range.from);
   if (range.to) params.set("to", range.to);
   const response = await apiFetch(`${API_BASE_URL}/api/support/bugs?${params}`, { signal });
-  if (!response.ok) throw new Error(`Kunde inte hämta ärenden: HTTP ${response.status}`);
+  if (!response.ok) throw new Error(await describeFailure(response, "Kunde inte hämta ärenden"));
   return (await response.json()) as SupportBugsResponse;
 }

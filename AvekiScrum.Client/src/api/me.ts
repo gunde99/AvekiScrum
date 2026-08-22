@@ -1,4 +1,4 @@
-import { apiFetch } from "../lib/apiFetch";
+import { apiFetch, describeFailure } from "../lib/apiFetch";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:5273";
 
@@ -18,6 +18,6 @@ export interface SignedInUser {
  */
 export async function fetchSignedInUser(signal?: AbortSignal): Promise<SignedInUser> {
   const response = await apiFetch(`${API_BASE_URL}/api/me`, { signal });
-  if (!response.ok) throw new Error(`Kunde inte hämta inloggad användare: HTTP ${response.status}`);
+  if (!response.ok) throw new Error(await describeFailure(response, "Kunde inte hämta inloggad användare"));
   return (await response.json()) as SignedInUser;
 }

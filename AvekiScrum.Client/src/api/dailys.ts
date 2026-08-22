@@ -1,4 +1,4 @@
-import { apiFetch } from "../lib/apiFetch";
+import { apiFetch, describeFailure } from "../lib/apiFetch";
 export type DeveloperTeamId = "Nord" | "Syd";
 
 export interface DailyTaskDto {
@@ -109,7 +109,7 @@ async function fetchWithRetry(url: string, signal: AbortSignal | undefined, atte
 export async function fetchDailys(team: DeveloperTeamId, signal?: AbortSignal): Promise<DailysResponse> {
   const response = await fetchWithRetry(`${API_BASE_URL}/api/dailys?team=${team}`, signal);
   if (!response.ok) {
-    throw new Error(`Failed to load dailys for team ${team}: HTTP ${response.status}`);
+    throw new Error(await describeFailure(response, `Kunde inte hämta dailys för team ${team}`));
   }
   return (await response.json()) as DailysResponse;
 }

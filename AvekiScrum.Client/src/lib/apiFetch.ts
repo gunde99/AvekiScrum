@@ -40,3 +40,28 @@ export async function toAttachmentBlobUrl(url: string): Promise<string> {
 export function isAttachmentUrl(url: string, apiBaseUrl: string): boolean {
   return url.startsWith(`${apiBaseUrl}/api/attachments/`);
 }
+
+/**
+ * The reason a request failed, as a sentence rather than a status code.
+ *
+ * The Api answers a failure with JSON carrying the exception message; "HTTP 500" on its own sent
+ * us hunting through IIS logs for something the response already knew. Falls back to the status
+ * when the body holds nothing useful.
+ */
+export async function describeFailure(response: Response, fallback: string): Promise<string> {
+  try {
+    const text = await response.text();
+    if (!text) return `${fallback}: HTTP ${response.status}`;
+
+    try {
+      const body = JSON.parse(text) as { error?: string; inner?: string; type?: string };
+      const parts = [body.error, body.inner].filter(Boolean);
+      if (parts.length > 0) return `${fallback}: ${parts.join(" – ")}`;
+    } catch {
+      // Not JSON - the plain-text endpoints answer like this.
+    }
+    return `${fallback}: ${text.slice(0, 300)}`;
+  } catch {
+    return `${fallback}: HTTP ${response.status}`;
+  }
+}

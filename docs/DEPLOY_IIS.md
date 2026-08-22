@@ -68,6 +68,9 @@ I den här ordningen – varje steg utesluter en felkälla:
 0. **`https://scrum.aveki.se/api/health`** ska svara med JSON. Den kräver ingen inloggning och
    svarar även när allt annat är fel, så den skiljer "appen kör inte" från "inloggningen krånglar".
    Titta särskilt på `authMode` och `hasClientSecret` i svaret.
+0b. **`https://scrum.aveki.se/api/health/azure`** (kräver inloggning) gör de två steg som kan
+   fallera mellan "du är inloggad" och "boarden fungerar": växlingen on-behalf-of och första
+   anropet till Azure DevOps. Den svarar med vad som gick fel i ord, så du slipper leta i loggen.
 1. **`https://scrum.aveki.se/`** i Edge på en domänansluten maskin. Inloggningen ska ske utan att
    något visas. Uppe till höger ska ditt namn och din bild stå.
 2. **`/api/me`** i samma flik ska svara `{"signedIn":true,...}` med ditt namn, och `matchedEmail`
@@ -90,8 +93,18 @@ I den här ordningen – varje steg utesluter en felkälla:
 | Inloggning fungerar men Azure DevOps svarar 401/403 | Användaren saknar behörighet i Azure DevOps, eller något `vso.*`-scope saknas på API-appen |
 | Bilder i kort visas inte | Bilagor hämtas med token och läggs som blob-URL:er; kolla att `/api/attachments/...` svarar 200 i nätverksfliken |
 
-Loggar hamnar i Event Viewer under *Application* om appen kraschar vid start; annars i
-stdout-loggen om du slår på `stdoutLogEnabled` i `web.config` tillfälligt.
+Serverfel svarar numera med orsaken i JSON-svaret, så det syns i webbläsaren och i klientens
+felmeddelanden – du behöver sällan gå till loggen alls.
+
+Behöver du ändå loggen: appstart-krascher hamnar i Event Viewer under *Application*. För
+stdout-loggen räcker det inte att sätta `stdoutLogEnabled="true"` i `web.config` – **mappen
+`logs` måste finnas och app poolens identitet ha skrivrätt på den**, annars skapas ingenting och
+inget säger till. Skapa den för hand:
+
+```powershell
+New-Item -ItemType Directory C:\Applications\AvekiScrum\SPA\logs
+icacls C:\Applications\AvekiScrum\SPA\logs /grant "IIS AppPool\<app-poolens-namn>:(OI)(CI)M"
+```
 
 ## Vägen tillbaka
 
