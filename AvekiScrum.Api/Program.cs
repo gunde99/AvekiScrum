@@ -178,6 +178,7 @@ app.Use(async (context, next) =>
             type = ex.GetType().Name,
             // MSAL nests the real reason one level down often enough to be worth surfacing.
             inner = ex.InnerException?.Message,
+            hint = AuthErrorHints.For($"{ex.Message} {ex.InnerException?.Message}", builder.Configuration),
             path = context.Request.Path.Value,
         });
     }
@@ -203,6 +204,7 @@ app.MapGet("/api/health", (IConfiguration configuration) => Results.Ok(new
 app.MapGet("/api/health/azure", async (
     IAzureDevOpsCredentialProvider credentials,
     IAzureDevOpsService azureDevOpsService,
+    IConfiguration configuration,
     CancellationToken ct) =>
 {
     string tokenStep;
@@ -219,8 +221,9 @@ app.MapGet("/api/health/azure", async (
             reason = ex.Message,
             type = ex.GetType().Name,
             inner = ex.InnerException?.Message,
-            hint = "Växlingen on-behalf-of mot Azure DevOps gick inte. Kontrollera att API-appen har " +
-                   "de delegerade vso.*-behörigheterna och att admin consent är givet.",
+            hint = AuthErrorHints.For($"{ex.Message} {ex.InnerException?.Message}", configuration)
+                   ?? "Växlingen on-behalf-of mot Azure DevOps gick inte. Kontrollera att API-appen har " +
+                      "de delegerade vso.*-behörigheterna och att admin consent är givet.",
         });
     }
 

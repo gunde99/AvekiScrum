@@ -94,3 +94,44 @@ internal static class SignedInUserReader
         return new SignedInUser(displayName, email, objectId, matched, groups);
     }
 }
+
+/// <summary>
+/// Turns the Entra error codes we actually hit into the one action that fixes them.
+///
+/// AADSTS codes say what happened but never what to do about it, and the difference between "the
+/// SPA lacks consent" and "the Api lacks consent" is one number nobody remembers. Written in
+/// Swedish because these end up in front of whoever is setting the server up, not in a log.
+/// </summary>
+internal static class AuthErrorHints
+{
+    public static string? For(string? message, IConfiguration configuration)
+    {
+        if (string.IsNullOrWhiteSpace(message)) return null;
+
+        var tenant = configuration["Auth:TenantId"];
+        var apiClientId = configuration["Auth:ClientId"];
+
+        if (message.Contains("AADSTS65001", StringComparison.Ordinal))
+        {
+            return "Admin consent saknas för API-appen mot Azure DevOps. Gå till Entra → App " +
+                   "registrations → AvekiScrum API → API permissions och klicka 'Grant admin consent'. " +
+                   "Varje vso.*-rad ska sedan visa grön bock. Genväg: " +
+                   $"https://login.microsoftonline.com/{tenant}/adminconsent?client_id={apiClientId}";
+        }
+
+        if (message.Contains("AADSTS7000215", StringComparison.Ordinal))
+        {
+            return "Klienthemligheten stämmer inte eller har gått ut. Sätt Auth__ClientSecret på " +
+                   "maskinnivå och starta om W3SVC - app poolen läser miljövariabler vid start.";
+        }
+
+        if (message.Contains("AADSTS50013", StringComparison.Ordinal)
+            || message.Contains("AADSTS500011", StringComparison.Ordinal))
+        {
+            return "Azure DevOps kände inte igen resursen som efterfrågades. Kontrollera att " +
+                   "vso.*-behörigheterna ligger på API-appen och inte på SPA:n.";
+        }
+
+        return null;
+    }
+}

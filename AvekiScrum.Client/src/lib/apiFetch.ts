@@ -54,8 +54,10 @@ export async function describeFailure(response: Response, fallback: string): Pro
     if (!text) return `${fallback}: HTTP ${response.status}`;
 
     try {
-      const body = JSON.parse(text) as { error?: string; inner?: string; type?: string };
-      const parts = [body.error, body.inner].filter(Boolean);
+      const body = JSON.parse(text) as { error?: string; inner?: string; type?: string; hint?: string };
+      // The hint comes first when there is one: it says what to do, which the raw AADSTS message
+      // never does.
+      const parts = [body.hint, body.error, body.inner].filter(Boolean);
       if (parts.length > 0) return `${fallback}: ${parts.join(" – ")}`;
     } catch {
       // Not JSON - the plain-text endpoints answer like this.

@@ -72,8 +72,18 @@ Kryssa i, och inget mer:
 Undvik `user_impersonation`. Det ger full åtkomst till hela Azure DevOps REST-API:t och är precis
 den breda behörighet vi lämnar bakom oss tillsammans med PAT:en.
 
-Klicka sedan **Grant admin consent for Aveki**. Utan det får varje användare en
-samtyckesdialog första gången – och för vissa scopes går det inte alls utan admin.
+Klicka sedan **Grant admin consent for Aveki**, och kontrollera att *varje* `vso.*`-rad får grön
+bock i statuskolumnen. Utan det nekas växlingen on-behalf-of med `AADSTS65001` – felet nämner
+API-appens id, inte SPA:ns, vilket är ledtråden till vilken av de två apparna som saknar consent.
+
+Har du lagt till behörigheter *efter* att du gav consent måste du klicka igen; consent gäller det
+som fanns när du klickade.
+
+Genväg som ger tenant-wide consent direkt för API-appen:
+
+```
+https://login.microsoftonline.com/<tenant-id>/adminconsent?client_id=<api-client-id>
+```
 
 ### 1.4 Klienthemlighet
 

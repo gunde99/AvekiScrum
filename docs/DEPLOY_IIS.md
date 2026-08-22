@@ -91,7 +91,7 @@ I den här ordningen – varje steg utesluter en felkälla:
 | Sidan visar filträd eller 403.14 | Siten pekar mot `wwwroot` i stället för publish-roten |
 | 401 på alla `/api`-anrop | `requestedAccessTokenVersion` är inte `2` i API-appens manifest, eller `Auth:Audience` stämmer inte med Application ID URI |
 | Inloggningen loopar | Redirect-URI:n i SPA-registreringen matchar inte adressen exakt (glöm inte avslutande `/`) |
-| `AADSTS65001` (consent) | Admin consent saknas på någon av apparna, eller `knownClientApplications` är inte satt |
+| `AADSTS65001` (consent) | Admin consent saknas – **appens id i felmeddelandet säger vilken**. Är det API-appens id är det dess `vso.*`-behörigheter som inte fått consent. Verktyget skriver numera ut vad som ska klickas, inklusive genvägs-URL |
 | `AADSTS7000215` (invalid client secret) | Hemligheten har gått ut, eller miljövariabeln syns inte för app poolen – starta om W3SVC |
 | Inloggning fungerar men Azure DevOps svarar 401/403 | Användaren saknar behörighet i Azure DevOps, eller något `vso.*`-scope saknas på API-appen |
 | Bilder i kort visas inte | Bilagor hämtas med token och läggs som blob-URL:er; kolla att `/api/attachments/...` svarar 200 i nätverksfliken |
