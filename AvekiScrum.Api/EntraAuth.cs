@@ -113,10 +113,13 @@ internal static class AuthErrorHints
 
         if (message.Contains("AADSTS65001", StringComparison.Ordinal))
         {
-            return "Admin consent saknas för API-appen mot Azure DevOps. Gå till Entra → App " +
-                   "registrations → AvekiScrum API → API permissions och klicka 'Grant admin consent'. " +
-                   "Varje vso.*-rad ska sedan visa grön bock. Genväg: " +
-                   $"https://login.microsoftonline.com/{tenant}/adminconsent?client_id={apiClientId}";
+            return "Admin consent saknas för API-appen mot Azure DevOps. Entra → App registrations → " +
+                   "AvekiScrum API → API permissions → 'Bevilja administratörsgodkännande'. Det är " +
+                   "Status-kolumnen som visar consent - kolumnen 'Administratörsmedgivande krävs' " +
+                   "säger bara om en vanlig användare skulle få godkänna, inte vad som är godkänt. " +
+                   "Är knappen utgråad saknar du rollen; be någon med Global Administrator, " +
+                   "Privileged Role Administrator eller Cloud Application Administrator. Genväg för " +
+                   $"den som har rollen: https://login.microsoftonline.com/{tenant}/adminconsent?client_id={apiClientId}";
         }
 
         if (message.Contains("AADSTS7000215", StringComparison.Ordinal))

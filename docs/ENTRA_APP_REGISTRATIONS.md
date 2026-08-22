@@ -72,9 +72,23 @@ Kryssa i, och inget mer:
 Undvik `user_impersonation`. Det ger full åtkomst till hela Azure DevOps REST-API:t och är precis
 den breda behörighet vi lämnar bakom oss tillsammans med PAT:en.
 
-Klicka sedan **Grant admin consent for Aveki**, och kontrollera att *varje* `vso.*`-rad får grön
-bock i statuskolumnen. Utan det nekas växlingen on-behalf-of med `AADSTS65001` – felet nämner
-API-appens id, inte SPA:ns, vilket är ledtråden till vilken av de två apparna som saknar consent.
+Klicka sedan **Grant admin consent for Aveki**, och kontrollera **Status**-kolumnen: varje
+`vso.*`-rad ska visa "Beviljad för Aveki" med grön bock. Utan det nekas växlingen on-behalf-of med
+`AADSTS65001` – felet nämner API-appens id, inte SPA:ns, vilket är ledtråden till vilken av de två
+apparna som saknar consent.
+
+> Två kolumner som lätt förväxlas: **"Administratörsmedgivande krävs"** säger bara om en vanlig
+> användare *skulle få* godkänna behörigheten själv. Det är **Status** som visar vad som faktiskt
+> är godkänt. Tom Status betyder att ingenting är godkänt, oavsett vad den första kolumnen säger.
+
+Är knappen utgråad saknar du rollen som krävs – **Global Administrator**, **Privileged Role
+Administrator** eller **Cloud Application Administrator**. Be någon av dem klicka, eller skicka
+genvägs-URL:en nedan.
+
+Och nej, användarna kan inte godkänna själva i det här upplägget, även om behörigheterna tillåter
+det: SPA:n är förhandsgodkänd (steg 1.6), vilket gör att de aldrig får någon samtyckesdialog. Det
+är avsiktligt – man vill inte att trettio personer var för sig ska ta ställning till en fråga som
+hör hemma hos en administratör – men det betyder att admin consent är enda vägen.
 
 Har du lagt till behörigheter *efter* att du gav consent måste du klicka igen; consent gäller det
 som fanns när du klickade.
