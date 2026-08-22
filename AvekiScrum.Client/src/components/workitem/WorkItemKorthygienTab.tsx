@@ -9,7 +9,7 @@ import {
 import type { PersonOption } from "../../api/people";
 import { fullPersonName, samePerson } from "../../lib/personNames";
 import { getWorkItemTypeConfig } from "./workItemTypeConfig";
-import { MarkdownEditor } from "./MarkdownEditor";
+import { RichTextEditor } from "./RichTextEditor";
 import { TagEditor } from "./TagEditor";
 import { Section } from "./Section";
 import "./WorkItemKorthygienTab.css";
@@ -46,7 +46,8 @@ export function draftFromDetail(detail: WorkItemDetail): KorthygienDraft {
 }
 
 export function hasText(html: string | null | undefined): boolean {
-  return !!html && html.replace(/<[^>]*>/g, "").trim().length > 0;
+  // An image on its own is content too - a description that is one screenshot says plenty.
+  return !!html && (html.replace(/<[^>]*>/g, "").trim().length > 0 || /<img/i.test(html));
 }
 
 /** Live "is this tab fully ok" check - driven by the current draft, not just the last save, so
@@ -212,17 +213,17 @@ export function WorkItemKorthygienTab({
       >
         <div className="kh-rows">
           <Row label="Beskrivning" ok={hasText(draft.description)}>
-            <MarkdownEditor
-              rows={6}
+            <RichTextEditor
+              minRows={6}
               value={draft.description}
               onChange={(value) => onDraftChange({ description: value })}
-              placeholder="Markdown stöds."
+              placeholder="Beskriv kortet. Klistra in en bild för att bifoga den."
             />
           </Row>
 
           {config.showAcceptanceCriteria && (
             <Row label="Acceptanskriterier" ok={hasText(draft.acceptanceCriteria)} warnOnly>
-              <MarkdownEditor rows={4} value={draft.acceptanceCriteria} onChange={(value) => onDraftChange({ acceptanceCriteria: value })} />
+              <RichTextEditor minRows={4} value={draft.acceptanceCriteria} onChange={(value) => onDraftChange({ acceptanceCriteria: value })} />
             </Row>
           )}
 

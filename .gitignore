@@ -22,6 +22,7 @@ appsettings.*.Local.json
 # ...utom produktionsbyggets variabler. De innehåller client-id, tenant-id och scope, som ändå
 # syns i varje inloggningsanrop - och checkade in slipper den som bygger sätta dem för hand.
 !AvekiScrum.Client/.env.production
+!AvekiScrum.Client/.env.development
 
 # Node / frontend (once AvekiScrum.Client exists)
 node_modules/

@@ -3,6 +3,8 @@ import { uploadAttachment } from "../../api/attachments";
 import { toAttachmentBlobUrl } from "../../lib/apiFetch";
 import "./MarkdownEditor.css";
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:5273";
+
 interface MarkdownEditorProps {
   value: string;
   onChange: (value: string) => void;
@@ -137,7 +139,7 @@ function AttachmentThumb({ url, alt }: { url: string; alt: string }) {
   useEffect(() => {
     let cancelled = false;
     let created: string | null = null;
-    void toAttachmentBlobUrl(url).then((resolved) => {
+    void toAttachmentBlobUrl(url, API_BASE_URL).then((resolved) => {
       if (cancelled) {
         if (resolved !== url) URL.revokeObjectURL(resolved);
         return;

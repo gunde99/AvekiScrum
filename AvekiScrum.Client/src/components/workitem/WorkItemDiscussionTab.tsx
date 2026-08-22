@@ -3,7 +3,8 @@ import { PersonAvatar } from "../PersonAvatar";
 import { addWorkItemComment, type WorkItemDetail } from "../../api/workitems";
 import { fullPersonName } from "../../lib/personNames";
 import { RichText } from "../RichText";
-import { MarkdownEditor } from "./MarkdownEditor";
+import { RichTextEditor } from "./RichTextEditor";
+import { hasContent } from "../../support/supportLogic";
 import "./WorkItemDiscussionTab.css";
 
 interface WorkItemDiscussionTabProps {
@@ -44,18 +45,16 @@ export function WorkItemDiscussionTab({ detail, onPosted }: WorkItemDiscussionTa
   return (
     <div className="wi-discussion">
       <div className="wi-discussion__composer">
-        {/* One line at rest, growing as the comment does - a four-row box sat half empty above
-            every discussion. */}
-        <MarkdownEditor
-          rows={1}
-          autoGrow
+        {/* Small at rest - a tall box sat half empty above every discussion. */}
+        <RichTextEditor
+          minRows={2}
           value={text}
           onChange={setText}
-          placeholder="Skriv en kommentar. Markdown stöds, och du kan klistra in en bild."
+          placeholder="Skriv en kommentar. Klistra in en bild för att bifoga den."
         />
         {error && <p className="wi-discussion__error">{error}</p>}
         <div className="wi-discussion__composer-actions">
-          <button type="button" className="wi-btn wi-btn--primary" onClick={post} disabled={posting || !text.trim()}>
+          <button type="button" className="wi-btn wi-btn--primary" onClick={post} disabled={posting || !hasContent(text)}>
             {posting ? "Skickar…" : "Kommentera"}
           </button>
         </div>

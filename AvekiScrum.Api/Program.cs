@@ -978,8 +978,10 @@ app.MapPost("/api/attachments", async (
     await request.Body.CopyToAsync(buffer, ct);
     var contentType = string.IsNullOrWhiteSpace(request.ContentType) ? "application/octet-stream" : request.ContentType;
 
-    var (id, proxyUrl) = await azureDevOpsService.UploadWorkItemAttachmentAsync(buffer.ToArray(), fileName, contentType, ct);
-    return Results.Ok(new { id, url = proxyUrl });
+    var (id, proxyUrl, azureUrl) = await azureDevOpsService.UploadWorkItemAttachmentAsync(
+        buffer.ToArray(), fileName, contentType, ct);
+    // azureUrl is what gets written into the card, proxyUrl is what the browser can actually load.
+    return Results.Ok(new { id, url = proxyUrl, azureUrl });
 })
 .WithName("UploadAttachment");
 

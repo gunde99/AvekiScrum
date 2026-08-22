@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Threading;
@@ -47,7 +47,7 @@ namespace AvekiScrum.Application.Abstractions
         Task UpdateWorkItemFieldsAsync(int workItemId, IReadOnlyDictionary<string, object?> fields, CancellationToken ct = default);
         Task<WorkItemDetailDto?> GetWorkItemDetailAsync(int workItemId, CancellationToken ct = default);
         Task<(byte[] Bytes, string ContentType)> GetWorkItemAttachmentAsync(Guid attachmentId, string? fileName, CancellationToken ct = default);
-        Task<(Guid Id, string ProxyUrl)> UploadWorkItemAttachmentAsync(byte[] bytes, string fileName, string contentType, CancellationToken ct = default);
+        Task<(Guid Id, string ProxyUrl, string AzureUrl)> UploadWorkItemAttachmentAsync(byte[] bytes, string fileName, string contentType, CancellationToken ct = default);
         Task<IReadOnlyList<PlanningSprintGoal>> GetSprintGoalsAsync(DeveloperTeam team, CancellationToken ct = default);
         Task<int> CreateTaskAsync(int parentId, string title, string? activity, string? assignedTo, string? state, string? areaPath, string? iterationPath, CancellationToken ct = default);
         Task<int> CreateRelatedUserStoryAsync(int relatedToId, string title, string? assignedTo, string? areaPath, string? iterationPath, CancellationToken ct = default);

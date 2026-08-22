@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { MarkdownEditor } from "../components/workitem/MarkdownEditor";
+import { RichTextEditor } from "../components/workitem/RichTextEditor";
 import { LoadingOverlay } from "../components/LoadingOverlay";
 import { useToast } from "../components/Toast";
 import { fetchAllPeople, type PersonOption } from "../api/people";
@@ -256,10 +256,10 @@ export function NewBugForm({ onCreated }: NewBugFormProps) {
           <div className="sup-repro" key={field.key}>
             <label className="sup-label">{field.heading}</label>
             {field.hint && <p className="sup-repro__hint">{field.hint}</p>}
-            <MarkdownEditor
+            <RichTextEditor
               value={parts[field.key]}
               onChange={(value) => setParts((prev) => ({ ...prev, [field.key]: value }))}
-              rows={field.rows}
+              minRows={field.rows}
               placeholder={field.placeholder}
             />
           </div>

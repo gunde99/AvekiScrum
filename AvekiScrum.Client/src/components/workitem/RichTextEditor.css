@@ -1,0 +1,69 @@
+.rte {
+  display: flex;
+  flex-direction: column;
+}
+
+.rte__editor {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+  color: var(--color-text);
+  padding: var(--space-3);
+  font-family: var(--font-main);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  overflow-y: auto;
+  max-height: 460px;
+  outline: none;
+}
+
+.rte__editor:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+/* contentEditable has no placeholder of its own. :empty is true only when nothing at all has been
+   typed, which is exactly when a placeholder should show. */
+.rte__editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+/* Images inline in the text, the way Azure shows them. Capped so a full-screen screenshot doesn't
+   push everything else out of view while you are still writing. */
+.rte__editor img {
+  display: block;
+  max-width: 100%;
+  max-height: 340px;
+  margin: var(--space-2) 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.rte__editor p {
+  margin: 0 0 var(--space-2);
+}
+
+.rte__editor b,
+.rte__editor strong {
+  font-weight: 700;
+}
+
+.rte__footer {
+  display: flex;
+  gap: var(--space-3);
+  padding-top: var(--space-1);
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.rte__uploading {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.rte__error {
+  color: var(--color-danger);
+  font-weight: 600;
+}

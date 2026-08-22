@@ -33,7 +33,7 @@ export function RichText({ content, className, fallbackHtml }: RichTextProps) {
     for (const img of Array.from(container.querySelectorAll("img"))) {
       const src = img.getAttribute("src");
       if (!src || !isAttachmentUrl(src, API_BASE_URL)) continue;
-      void toAttachmentBlobUrl(src).then((blobUrl) => {
+      void toAttachmentBlobUrl(src, API_BASE_URL).then((blobUrl) => {
         if (cancelled || blobUrl === src) return;
         created.push(blobUrl);
         img.setAttribute("src", blobUrl);

@@ -691,11 +691,25 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             Guid attachmentId, string? fileName, CancellationToken ct = default)
             => _boards.GetAttachmentAsync(attachmentId, fileName, ct);
 
-        public async Task<(Guid Id, string ProxyUrl)> UploadWorkItemAttachmentAsync(
+        /// <returns>
+        /// Both URLs, because they serve different masters. AzureUrl is what goes into the work
+        /// item's html - it is the only address Azure DevOps itself can render when someone opens
+        /// the card there. ProxyUrl is how *our* client fetches the bytes, since the browser has no
+        /// credentials for Azure DevOps.
+        /// </returns>
+        public async Task<(Guid Id, string ProxyUrl, string AzureUrl)> UploadWorkItemAttachmentAsync(
             byte[] bytes, string fileName, string contentType, CancellationToken ct = default)
         {
             var reference = await _boards.UploadAttachmentAsync(bytes, fileName, contentType, ct);
-            return (reference.Id, $"/api/attachments/{reference.Id:D}?fileName={Uri.EscapeDataString(fileName)}");
+            var azureUrl = string.IsNullOrWhiteSpace(reference.Url)
+                ? $"https://dev.azure.com/{AzureUrlHelper.BaseUrl}_apis/wit/attachments/{reference.Id:D}"
+                : reference.Url;
+            // Azure's own url carries no fileName, and its viewer uses that for the download name.
+            if (!azureUrl.Contains("fileName=", StringComparison.OrdinalIgnoreCase))
+            {
+                azureUrl += (azureUrl.Contains('?') ? "&" : "?") + $"fileName={Uri.EscapeDataString(fileName)}";
+            }
+            return (reference.Id, $"/api/attachments/{reference.Id:D}?fileName={Uri.EscapeDataString(fileName)}", azureUrl);
         }
 
         public async Task<IReadOnlyList<PlanningSprintGoal>> GetSprintGoalsAsync(DeveloperTeam team, CancellationToken ct = default)

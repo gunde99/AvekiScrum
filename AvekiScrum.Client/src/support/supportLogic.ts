@@ -69,21 +69,35 @@ export const EMPTY_REPRO_PARTS: ReproStepsParts = {
 };
 
 /**
- * The parts joined into the text that goes into the card's Repro Steps. Headings are always
- * written, even for parts left empty, so the card reads the same as the ones the team writes by
- * hand - a missing heading looks like the reporter forgot the question rather than answered it
- * with "inget".
+ * The parts joined into what goes into the card's Repro Steps.
+ *
+ * Html, not markdown: Azure DevOps stores this field as html and renders it as such, so markdown
+ * written into it shows up on the card as literal `**bold**` and `![](url)` - which is exactly what
+ * our first cards did.
+ *
+ * Headings are always written, even for parts left empty, so the card reads the same as the ones
+ * the team writes by hand; a missing heading looks like the reporter forgot the question rather
+ * than answered it with "inget".
  */
 export function composeReproSteps(parts: ReproStepsParts): string {
   return REPRO_FIELDS.map((field) => {
     const value = parts[field.key].trim();
-    return `**${field.heading}:**\n\n${value}`;
-  }).join("\n\n");
+    return `<div><b>${escapeHtml(field.heading)}:</b></div>${value ? `<div>${value}</div>` : "<div><br></div>"}`;
+  }).join("<div><br></div>");
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** True when a field from the rich-text editor holds anything but empty markup. */
+export function hasContent(html: string): boolean {
+  return html.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim().length > 0 || /<img\b/i.test(html);
 }
 
 /** True when there is enough in the form to be worth someone's time to read. */
 export function hasEnoughDetail(parts: ReproStepsParts): boolean {
-  return parts.summary.trim().length > 0 || parts.steps.trim().length > 0;
+  return hasContent(parts.summary) || hasContent(parts.steps);
 }
 
 /** One stakeholder line as it will read on the card - used for the live preview in the form. */

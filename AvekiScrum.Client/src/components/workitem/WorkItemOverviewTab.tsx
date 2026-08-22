@@ -3,7 +3,7 @@ import { FIELD, fieldOptionsFor, type ClassificationOptions, type WorkItemDetail
 import type { PersonOption } from "../../api/people";
 import { fullPersonName } from "../../lib/personNames";
 import { RichText } from "../RichText";
-import { MarkdownEditor } from "./MarkdownEditor";
+import { RichTextEditor } from "./RichTextEditor";
 import { TagEditor } from "./TagEditor";
 import { Section } from "./Section";
 import { ACTIVITIES, ASSIGNED_TEAMS, commonStates, getWorkItemTypeConfig, SEVERITIES, SOURCES, VALUE_AREAS } from "./workItemTypeConfig";
@@ -310,11 +310,11 @@ export function WorkItemOverviewTab({ detail, editing, draft, onDraftChange, cla
 
       <Section title={config.descriptionLabel}>
         {editing ? (
-          <MarkdownEditor
-            rows={14}
+          <RichTextEditor
+            minRows={14}
             value={draft.description ?? ""}
             onChange={(value) => onDraftChange({ description: value })}
-            placeholder="Markdown stöds. Klistra in en bild för att bifoga den."
+            placeholder="Beskriv kortet. Klistra in en bild för att bifoga den."
           />
         ) : (
           <RichText className="wi-rich-text" content={detail.descriptionHtml} fallbackHtml="<em>Ingen beskrivning</em>" />
@@ -324,7 +324,7 @@ export function WorkItemOverviewTab({ detail, editing, draft, onDraftChange, cla
       {config.showAcceptanceCriteria && (
         <Section title="Acceptanskriterier">
           {editing ? (
-            <MarkdownEditor rows={8} value={draft.acceptanceCriteria ?? ""} onChange={(value) => onDraftChange({ acceptanceCriteria: value })} />
+            <RichTextEditor minRows={8} value={draft.acceptanceCriteria ?? ""} onChange={(value) => onDraftChange({ acceptanceCriteria: value })} />
           ) : (
             <RichText
               className="wi-rich-text"
@@ -340,8 +340,8 @@ export function WorkItemOverviewTab({ detail, editing, draft, onDraftChange, cla
           rather than a one-line picker that rendered the markup as literal text. */}
       <Section title="Stakeholder">
         {editing ? (
-          <MarkdownEditor
-            rows={5}
+          <RichTextEditor
+            minRows={5}
             value={draft.stakeholders ?? ""}
             onChange={(value) => onDraftChange({ stakeholders: value })}
             placeholder="Vem har efterfrågat det här, och för vems räkning?"

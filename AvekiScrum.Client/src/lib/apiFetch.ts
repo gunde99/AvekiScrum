@@ -17,6 +17,23 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
 }
 
 /**
+ * Azure DevOps' own attachment url, as it appears inside work item html. That is what gets stored
+ * on the card - it's the only address Azure itself can render - but the browser has no credentials
+ * for it, so anything we display goes through our proxy instead.
+ */
+const AZURE_ATTACHMENT_PATTERN =
+  /^https:\/\/dev\.azure\.com\/[^/\s]+\/[^/\s]+\/_apis\/wit\/attachments\/([0-9a-fA-F-]{36})(\?[^)"'\s]*)?$/;
+
+/** The url our client can actually fetch, given either form. */
+export function toProxyUrl(url: string, apiBaseUrl: string): string {
+  const match = AZURE_ATTACHMENT_PATTERN.exec(url);
+  if (!match) return url;
+  const fileName = new URLSearchParams(match[2] ?? "").get("fileName");
+  const suffix = fileName ? `?fileName=${encodeURIComponent(fileName)}` : "";
+  return `${apiBaseUrl}/api/attachments/${match[1]}${suffix}`;
+}
+
+/**
  * An attachment as a blob URL.
  *
  * Azure DevOps attachments are proxied by our Api, which now requires a token - and an `<img>`
@@ -24,11 +41,14 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
  * Returns the original URL untouched when auth is off, or when the fetch fails, so a broken image
  * is the worst case rather than a crash.
  */
-export async function toAttachmentBlobUrl(url: string): Promise<string> {
+export async function toAttachmentBlobUrl(url: string, apiBaseUrl?: string): Promise<string> {
   try {
+    const fetchUrl = apiBaseUrl ? toProxyUrl(url, apiBaseUrl) : url;
+    // Without sign-in the browser can load our proxy directly, so there is nothing to do unless the
+    // url is Azure's - which it can never load itself.
     const token = await getApiToken();
-    if (!token) return url;
-    const response = await apiFetch(url);
+    if (!token && fetchUrl === url) return url;
+    const response = await apiFetch(fetchUrl);
     if (!response.ok) return url;
     return URL.createObjectURL(await response.blob());
   } catch {
@@ -36,9 +56,9 @@ export async function toAttachmentBlobUrl(url: string): Promise<string> {
   }
 }
 
-/** True for URLs served by our attachment proxy - the ones that need a token. */
+/** True for an attachment url in either form - ours or Azure's. */
 export function isAttachmentUrl(url: string, apiBaseUrl: string): boolean {
-  return url.startsWith(`${apiBaseUrl}/api/attachments/`);
+  return url.startsWith(`${apiBaseUrl}/api/attachments/`) || AZURE_ATTACHMENT_PATTERN.test(url);
 }
 
 /**
