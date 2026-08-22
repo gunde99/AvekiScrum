@@ -109,8 +109,20 @@ New-Item -ItemType Directory C:\Applications\AvekiScrum\SPA\logs
 icacls C:\Applications\AvekiScrum\SPA\logs /grant "IIS AppPool\<app-poolens-namn>:(OI)(CI)M"
 ```
 
-## Vägen tillbaka
+## Auth:Mode
 
-Sätt `Auth:Mode` till `"Pat"` i `appsettings.Production.json` och starta om app poolen. Då
-används den delade PAT:en igen och API:t släpper in anonyma anrop – bara som nödutgång, inte som
-ett läge att bli kvar i.
+Tre lägen, för att inloggning och delegerad åtkomst är två skilda saker – den andra kräver en
+administratörs consent, och det kan ta dagar att få. Att vänta på det ska inte betyda att vänta på
+att kunna använda verktyget.
+
+| Läge | Inloggning | Azure DevOps anropas som | När |
+|---|---|---|---|
+| `Entra` | Krävs | Den inloggade användaren | Målbilden. Kräver admin consent på API-appen |
+| `EntraWithPat` | Krävs | Delad PAT | Medan consenten väntar. Allt utom rätt namn i Azures ändringshistorik |
+| `Pat` | Ingen | Delad PAT | Lokal utveckling. API:t är öppet för anonyma anrop |
+
+Byt genom att ändra `Auth:Mode` i `appsettings.Production.json` och starta om app poolen. Inget
+annat behöver röras – `/api/health` och diagnostiken i appen visar vilket läge som gäller.
+
+Saknas consent, se [BEGARAN_ADMIN_CONSENT.md](BEGARAN_ADMIN_CONSENT.md) för en färdig begäran att
+skicka till en administratör.

@@ -44,13 +44,21 @@ builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Azure
 builder.Services.AddAvekiScrumInfrastructure(azureSettings);
 builder.Services.AddScoped<DailyDashboardDataBuilder>();
 
-// Auth:Mode picks who Azure DevOps thinks is calling.
-//   "Entra" - the signed-in user, via on-behalf-of. Cards record the real person, the Api is
-//             closed to anonymous callers, and everyone sees what their own permissions allow.
-//   "Pat"   - the original shared token. Kept for local development, and as a way back if the
-//             delegated path ever has to be switched off in a hurry.
-// Registered after AddAvekiScrumInfrastructure so the Entra provider replaces the PAT default.
-var entraMode = string.Equals(builder.Configuration["Auth:Mode"], "Entra", StringComparison.OrdinalIgnoreCase);
+// Auth:Mode decides two separate things: whether users must sign in, and who Azure DevOps thinks
+// is calling. They're separate because the second one needs an administrator's consent, and that
+// can take days to arrange - waiting for it shouldn't mean waiting to use the tool.
+//
+//   "Entra"        - sign-in required, Azure DevOps called as the signed-in user via on-behalf-of.
+//                    Cards record the real person. The destination.
+//   "EntraWithPat" - sign-in required, but Azure DevOps still called with the shared PAT. Everything
+//                    the sign-in gives (a closed Api, the right name on the Buggrapportör line, no
+//                    typing your own name) except the attribution in Azure's own history, which
+//                    needs the delegated consent. Meant for the wait, not for good.
+//   "Pat"          - no sign-in at all. Local development.
+var authMode = builder.Configuration["Auth:Mode"] ?? "Pat";
+var requireSignIn = authMode.StartsWith("Entra", StringComparison.OrdinalIgnoreCase);
+var delegatedAzureDevOps = string.Equals(authMode, "Entra", StringComparison.OrdinalIgnoreCase);
+var entraMode = requireSignIn;
 if (entraMode)
 {
     // Microsoft.Identity.Web reads the secret from Auth:ClientSecret. The deploy notes originally
@@ -102,7 +110,11 @@ if (entraMode)
         options.FallbackPolicy = options.DefaultPolicy;
     });
 
-    builder.Services.AddScoped<IAzureDevOpsCredentialProvider, EntraCredentialProvider>();
+    if (delegatedAzureDevOps)
+    {
+        builder.Services.AddScoped<IAzureDevOpsCredentialProvider, EntraCredentialProvider>();
+    }
+    // In EntraWithPat the PAT provider registered by AddAvekiScrumInfrastructure stays in place.
 }
 
 builder.Services.AddEndpointsApiExplorer();
@@ -134,14 +146,24 @@ if (entraMode)
             "environment variables at start.");
     }
     app.Logger.LogInformation(
-        "Auth mode: Entra. Tenant {Tenant}, client {ClientId}. Azure DevOps is called as the " +
-        "signed-in user.",
-        builder.Configuration["Auth:TenantId"], builder.Configuration["Auth:ClientId"]);
+        "Auth mode: {Mode}. Tenant {Tenant}, client {ClientId}. Azure DevOps is called {As}.",
+        authMode,
+        builder.Configuration["Auth:TenantId"],
+        builder.Configuration["Auth:ClientId"],
+        delegatedAzureDevOps ? "as the signed-in user" : "with the shared PAT");
+
+    if (!delegatedAzureDevOps)
+    {
+        app.Logger.LogWarning(
+            "Auth:Mode is \"EntraWithPat\": users sign in, but changes in Azure DevOps are still " +
+            "recorded as the PAT owner. Switch to \"Entra\" once an administrator has granted " +
+            "consent for the Api's Azure DevOps permissions.");
+    }
 }
 else
 {
-    var pat = builder.Configuration["AzureDevOps:PAT"];
-    if (string.IsNullOrWhiteSpace(pat))
+    var patValue = builder.Configuration["AzureDevOps:PAT"];
+    if (string.IsNullOrWhiteSpace(patValue))
     {
         app.Logger.LogWarning(
             "AzureDevOps:PAT is not set. Set the AzureDevOps__PAT environment variable " +
@@ -190,6 +212,9 @@ app.MapGet("/api/health", (IConfiguration configuration) => Results.Ok(new
 {
     status = "ok",
     authMode = configuration["Auth:Mode"],
+    // Says outright which of the two things sign-in buys you are actually on.
+    signInRequired = requireSignIn,
+    azureDevOpsAs = delegatedAzureDevOps ? "inloggad användare" : "delad PAT",
     hasClientSecret = !string.IsNullOrWhiteSpace(configuration["Auth:ClientSecret"]),
     environment = app.Environment.EnvironmentName,
 }))
