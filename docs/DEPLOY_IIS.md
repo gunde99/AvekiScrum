@@ -38,6 +38,11 @@ Förutsätter att app-registreringarna är gjorda enligt [ENTRA_APP_REGISTRATION
 
 ## Publicera
 
+**Klienten måste byggas om varje gång något ändrats i `AvekiScrum.Client`.** `dotnet publish` tar
+med `wwwroot` som den ser ut just då – har du inte kört `npm run build` och kopierat in resultatet
+kör webbläsaren fortfarande den gamla bundlen, oavsett hur många gånger du publicerar. Bara
+rena API-ändringar kan hoppa över steg 1 och 2.
+
 Från utvecklingsmaskinen:
 
 ```powershell
@@ -68,9 +73,13 @@ I den här ordningen – varje steg utesluter en felkälla:
 0. **`https://scrum.aveki.se/api/health`** ska svara med JSON. Den kräver ingen inloggning och
    svarar även när allt annat är fel, så den skiljer "appen kör inte" från "inloggningen krånglar".
    Titta särskilt på `authMode` och `hasClientSecret` i svaret.
-0b. **`https://scrum.aveki.se/api/health/azure`** (kräver inloggning) gör de två steg som kan
-   fallera mellan "du är inloggad" och "boarden fungerar": växlingen on-behalf-of och första
-   anropet till Azure DevOps. Den svarar med vad som gick fel i ord, så du slipper leta i loggen.
+0b. **Diagnostik i appen** – länken längst ned på startsidan, och i den röda bannern när
+   inloggningen strular. Den kör kontrollerna i ordning: inloggning, servern, och att din token
+   räcker hela vägen in i Azure DevOps, med vad som gick fel i ord.
+
+   > Endpointen bakom den sista kontrollen (`/api/health/azure`) går **inte** att öppna direkt i
+   > adressfältet – den behöver din token, och adressfältet skickar ingen. Det ger 401. Kör den
+   > via diagnostiken i appen.
 1. **`https://scrum.aveki.se/`** i Edge på en domänansluten maskin. Inloggningen ska ske utan att
    något visas. Uppe till höger ska ditt namn och din bild stå.
 2. **`/api/me`** i samma flik ska svara `{"signedIn":true,...}` med ditt namn, och `matchedEmail`

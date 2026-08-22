@@ -253,3 +253,8 @@
 [data-theme="dark"] .landing-card__photo img {
   filter: brightness(0.82);
 }
+
+.landing__foot {
+  margin-top: var(--space-5);
+  text-align: center;
+}

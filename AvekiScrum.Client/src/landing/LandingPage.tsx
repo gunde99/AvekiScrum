@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { useTheme } from "../theme/ThemeContext";
+import { Diagnostics } from "../components/Diagnostics";
 import "./LandingPage.css";
 
 export type AppKey = "scrum" | "support";
@@ -52,6 +54,7 @@ const ENTRANCES: Entrance[] = [
  */
 export function LandingPage({ onPick }: LandingPageProps) {
   const { theme, toggleTheme } = useTheme();
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   return (
     <div className="landing">
@@ -106,6 +109,16 @@ export function LandingPage({ onPick }: LandingPageProps) {
           </button>
         ))}
       </div>
+
+      {/* Discreet on purpose: nobody needs it until something is wrong, and then it needs to be
+          somewhere obvious. */}
+      <footer className="landing__foot">
+        <button type="button" className="diag-open" onClick={() => setShowDiagnostics(true)}>
+          Diagnostik
+        </button>
+      </footer>
+
+      {showDiagnostics && <Diagnostics onClose={() => setShowDiagnostics(false)} />}
     </div>
   );
 }

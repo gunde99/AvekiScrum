@@ -1,0 +1,109 @@
+.diag {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 300;
+  width: min(560px, calc(100vw - var(--space-5) * 2));
+  max-height: min(70vh, 720px);
+  overflow-y: auto;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-top: 4px solid var(--color-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.diag__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.diag__head h2 {
+  margin: 0;
+  flex: 1;
+  font-family: var(--font-accent);
+  font-size: 1.05rem;
+  color: var(--color-text);
+}
+
+.diag__head button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.diag__hint {
+  margin: 0;
+  font-size: 0.83rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.diag__run {
+  align-self: flex-start;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-primary);
+  background: var(--color-primary);
+  color: #ffffff;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.diag__run:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.diag__check {
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-subtle);
+}
+
+.diag__check--ok {
+  border-left-color: var(--color-success);
+}
+
+.diag__check--fail {
+  border-left-color: var(--color-danger);
+}
+
+.diag__check-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.88rem;
+  color: var(--color-text);
+}
+
+.diag__check pre {
+  margin: var(--space-2) 0 0;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-text-muted);
+}
+
+.diag-open {
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
