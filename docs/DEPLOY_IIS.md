@@ -13,12 +13,23 @@ Förutsätter att app-registreringarna är gjorda enligt [ENTRA_APP_REGISTRATION
 2. **Site i IIS** på `scrum.aveki.se` med https-bindning och certifikat.
    - Applikationspool: **No Managed Code**, *Load User Profile* = `True`
      (MSAL:s tokencache och certifikathanteringen vill åt användarprofilen).
+   - **Fysisk sökväg: publish-roten**, alltså mappen där `web.config` och `AvekiScrum.Api.dll`
+     ligger – till exempel `C:\Applications\AvekiScrum\SPA`.
+
+   > Peka **inte** siten mot `wwwroot`. Det är ASP.NET Core Module i `web.config` som startar
+   > appen, och appen serverar sedan `wwwroot` själv. Med siten på `wwwroot` skulle `index.html`
+   > visas men ingenting köra – och varje `/api`-anrop ge 404. Ingen extra IIS-application behövs
+   > heller; en site räcker.
 3. **Miljövariabler**, satta på maskinnivå så att app poolen ser dem:
 
 ```powershell
-[Environment]::SetEnvironmentVariable("Auth__ApiClientSecret", "<hemligheten>", "Machine")
+[Environment]::SetEnvironmentVariable("Auth__ClientSecret", "<hemligheten>", "Machine")
 [Environment]::SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Production", "Machine")
 ```
+
+   Variabeln heter `Auth__ClientSecret` – det är namnet Microsoft.Identity.Web läser.
+   `Auth__ApiClientSecret` accepteras också, eftersom en tidigare version av det här dokumentet
+   sa så, men använd det första i nya installationer.
 
    Starta om `W3SVC` efteråt – app poolen läser miljövariabler vid start.
 
@@ -54,6 +65,9 @@ mot ScrumLab, så skarp drift går mot `Utveckling`.
 
 I den här ordningen – varje steg utesluter en felkälla:
 
+0. **`https://scrum.aveki.se/api/health`** ska svara med JSON. Den kräver ingen inloggning och
+   svarar även när allt annat är fel, så den skiljer "appen kör inte" från "inloggningen krånglar".
+   Titta särskilt på `authMode` och `hasClientSecret` i svaret.
 1. **`https://scrum.aveki.se/`** i Edge på en domänansluten maskin. Inloggningen ska ske utan att
    något visas. Uppe till höger ska ditt namn och din bild stå.
 2. **`/api/me`** i samma flik ska svara `{"signedIn":true,...}` med ditt namn, och `matchedEmail`
@@ -66,6 +80,9 @@ I den här ordningen – varje steg utesluter en felkälla:
 
 | Symptom | Trolig orsak |
 |---|---|
+| **Vit sida** | Appen startade men klienten kraschade – den visar numera ett felkort i stället, så en helt vit sida betyder oftast en gammal build i `wwwroot`. Publicera om. Svarar inte `/api/health` alls är det appen som inte kör: kolla Hosting Bundle, app poolens läge och Event Viewer. |
+| `HTTP 500.19` eller `500.30` vid start | .NET 8 Hosting Bundle saknas, eller app poolen är inte **No Managed Code** |
+| Sidan visar filträd eller 403.14 | Siten pekar mot `wwwroot` i stället för publish-roten |
 | 401 på alla `/api`-anrop | `requestedAccessTokenVersion` är inte `2` i API-appens manifest, eller `Auth:Audience` stämmer inte med Application ID URI |
 | Inloggningen loopar | Redirect-URI:n i SPA-registreringen matchar inte adressen exakt (glöm inte avslutande `/`) |
 | `AADSTS65001` (consent) | Admin consent saknas på någon av apparna, eller `knownClientApplications` är inte satt |

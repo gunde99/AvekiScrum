@@ -6,6 +6,7 @@ import { ToastProvider } from './components/Toast'
 import { authEnabled } from './auth/authConfig'
 import { initializeAuth, signIn } from './auth/msal'
 import { loadIdentity } from './auth/identity'
+import { StartupError } from './components/StartupError'
 import App from './App.tsx'
 
 /**
@@ -16,25 +17,38 @@ import App from './App.tsx'
  * showing anything; only a machine without a usable session ever sees the Entra page.
  */
 async function bootstrap() {
-  if (authEnabled) {
-    const account = await initializeAuth()
-    if (!account) {
-      await signIn()
-      return // loginRedirect navigates away; nothing after this runs
+  const root = createRoot(document.getElementById('root')!)
+
+  try {
+    if (authEnabled) {
+      const account = await initializeAuth()
+      if (!account) {
+        await signIn()
+        return // loginRedirect navigates away; nothing after this runs
+      }
     }
+
+    await loadIdentity()
+
+    root.render(
+      <StrictMode>
+        <ThemeProvider>
+          <ToastProvider>
+            <App />
+          </ToastProvider>
+        </ThemeProvider>
+      </StrictMode>,
+    )
+  } catch (error) {
+    // Without this the page just stays blank, which says nothing about what went wrong - and
+    // sign-in has a lot of ways to go wrong that are entirely fixable once named.
+    console.error('AvekiScrum kunde inte starta', error)
+    root.render(
+      <StrictMode>
+        <StartupError error={error} />
+      </StrictMode>,
+    )
   }
-
-  await loadIdentity()
-
-  createRoot(document.getElementById('root')!).render(
-    <StrictMode>
-      <ThemeProvider>
-        <ToastProvider>
-          <App />
-        </ToastProvider>
-      </ThemeProvider>
-    </StrictMode>,
-  )
 }
 
 void bootstrap()

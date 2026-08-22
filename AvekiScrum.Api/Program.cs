@@ -53,6 +53,15 @@ builder.Services.AddScoped<DailyDashboardDataBuilder>();
 var entraMode = string.Equals(builder.Configuration["Auth:Mode"], "Entra", StringComparison.OrdinalIgnoreCase);
 if (entraMode)
 {
+    // Microsoft.Identity.Web reads the secret from Auth:ClientSecret. The deploy notes originally
+    // said Auth__ApiClientSecret, which is a name nothing looks at - accepted here as an alias so
+    // an already-configured server doesn't have to be touched.
+    var aliasSecret = builder.Configuration["Auth:ApiClientSecret"];
+    if (!string.IsNullOrWhiteSpace(aliasSecret) && string.IsNullOrWhiteSpace(builder.Configuration["Auth:ClientSecret"]))
+    {
+        builder.Configuration["Auth:ClientSecret"] = aliasSecret;
+    }
+
     builder.Services
         .AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)
         .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("Auth"))
@@ -90,13 +99,48 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-var pat = builder.Configuration["AzureDevOps:PAT"];
-if (string.IsNullOrWhiteSpace(pat))
+if (entraMode)
 {
-    app.Logger.LogWarning(
-        "AzureDevOps:PAT is not set. Set the AzureDevOps__PAT environment variable " +
-        "(same one WorkOrganizer uses) before calling any /api endpoint.");
+    // Fail loudly at startup rather than with a 500 on the first token exchange. A missing secret
+    // is the single most likely thing to be wrong on a fresh server, and the error it causes
+    // otherwise ("AADSTS7000215") names neither the setting nor the app.
+    if (string.IsNullOrWhiteSpace(builder.Configuration["Auth:ClientSecret"]))
+    {
+        app.Logger.LogError(
+            "Auth:Mode is \"Entra\" but no client secret is configured. Set the Auth__ClientSecret " +
+            "environment variable at Machine level and restart W3SVC - the app pool reads " +
+            "environment variables at start.");
+    }
+    app.Logger.LogInformation(
+        "Auth mode: Entra. Tenant {Tenant}, client {ClientId}. Azure DevOps is called as the " +
+        "signed-in user.",
+        builder.Configuration["Auth:TenantId"], builder.Configuration["Auth:ClientId"]);
 }
+else
+{
+    var pat = builder.Configuration["AzureDevOps:PAT"];
+    if (string.IsNullOrWhiteSpace(pat))
+    {
+        app.Logger.LogWarning(
+            "AzureDevOps:PAT is not set. Set the AzureDevOps__PAT environment variable " +
+            "(same one WorkOrganizer uses) before calling any /api endpoint.");
+    }
+    app.Logger.LogWarning(
+        "Auth mode: Pat. The Api is open to anonymous callers and every change in Azure DevOps " +
+        "is recorded as the token owner. Intended for local development only.");
+}
+
+// A plain, unauthenticated answer to "is the app running at all". The first thing to check when
+// the browser shows nothing: this answers even when sign-in is misconfigured.
+app.MapGet("/api/health", (IConfiguration configuration) => Results.Ok(new
+{
+    status = "ok",
+    authMode = configuration["Auth:Mode"],
+    hasClientSecret = !string.IsNullOrWhiteSpace(configuration["Auth:ClientSecret"]),
+    environment = app.Environment.EnvironmentName,
+}))
+.AllowAnonymous()
+.WithName("GetHealth");
 
 if (app.Environment.IsDevelopment())
 {

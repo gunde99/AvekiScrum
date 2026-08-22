@@ -87,7 +87,7 @@ Kopiera **Value** direkt (den visas bara en gång) och lägg den som miljövaria
 i appsettings.json:
 
 ```powershell
-[Environment]::SetEnvironmentVariable("Auth__ApiClientSecret", "<hemligheten>", "Machine")
+[Environment]::SetEnvironmentVariable("Auth__ClientSecret", "<hemligheten>", "Machine")
 ```
 
 > Vill ni slippa förnyelsen kan ni använda ett certifikat i stället under samma flik. Det är
@@ -218,7 +218,7 @@ Konfigurationen blir sedan:
 }
 ```
 
-med `Auth__ApiClientSecret` som miljövariabel, och i klienten:
+med `Auth__ClientSecret` som miljövariabel (namnet Microsoft.Identity.Web läser), och i klienten:
 
 ```
 VITE_ENTRA_TENANT_ID=<tenant-guid>
