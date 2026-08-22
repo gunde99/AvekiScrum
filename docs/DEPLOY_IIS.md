@@ -38,30 +38,24 @@ Förutsätter att app-registreringarna är gjorda enligt [ENTRA_APP_REGISTRATION
 
 ## Publicera
 
-**Klienten måste byggas om varje gång något ändrats i `AvekiScrum.Client`.** `dotnet publish` tar
-med `wwwroot` som den ser ut just då – har du inte kört `npm run build` och kopierat in resultatet
-kör webbläsaren fortfarande den gamla bundlen, oavsett hur många gånger du publicerar. Bara
-rena API-ändringar kan hoppa över steg 1 och 2.
-
-Från utvecklingsmaskinen:
+Kör `publish.ps1` i repo-roten. Den gör hela kedjan i rätt ordning och avbryter om något gick fel.
 
 ```powershell
-# 1. Bygg klienten. .env.production ger client-id, tenant och scope - inget att sätta för hand.
-cd AvekiScrum.Client
-npm ci
-npm run build          # → AvekiScrum.Client/dist
-
-# 2. Kopiera in den i API:ts wwwroot
-Remove-Item ..\AvekiScrum.Api\wwwroot -Recurse -Force -ErrorAction SilentlyContinue
-Copy-Item dist ..\AvekiScrum.Api\wwwroot -Recurse
-
-# 3. Publicera API:t
-cd ..
-dotnet publish AvekiScrum.Api\AvekiScrum.Api.csproj -c Release -o .\publish
+.\publish.ps1                                                    # bygger allt till .\publish
+.\publish.ps1 -SkipClient                                        # bara API:t
+.\publish.ps1 -DeployTo C:\Applications\AvekiScrum\SPA -AppPool AvekiScrum   # hela vägen ut, körd på servern
 ```
 
-Kopiera `publish`-mappen till serverns site-rot. Stoppa app poolen först – annars är
-`AvekiScrum.Api.dll` låst.
+Utan `-DeployTo` stannar resultatet i `.\publish`; kopiera det till sitens mapp och **stoppa app
+poolen först**, annars är `AvekiScrum.Api.dll` låst. Med `-AppPool` sköter skriptet det åt dig.
+
+Ordningen i skriptet är själva poängen: `dotnet publish` tar med `wwwroot` precis som den ser ut
+just då, så en klientändring som inte byggts om följer helt enkelt inte med – och webbläsaren kör
+vidare på den gamla bundlen hur många gånger man än publicerar. Skriptet kontrollerar därför att
+`publish\wwwroot\index.html` verkligen finns innan det säger sig vara klart, och skriver ut vilken
+bundle som kom med.
+
+`-SkipClient` finns för rena API-ändringar och vägrar köra om `wwwroot` är tom.
 
 `appsettings.Production.json` slår på `Auth:Mode = "Entra"` och stänger av sandlåde-överstyrningen
 mot ScrumLab, så skarp drift går mot `Utveckling`.
