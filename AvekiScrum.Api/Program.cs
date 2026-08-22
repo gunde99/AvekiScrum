@@ -64,10 +64,32 @@ if (entraMode)
 
     builder.Services
         .AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)
-        .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("Auth"))
+        .AddMicrosoftIdentityWebApi(
+            jwtOptions =>
+            {
+                // A 401 from token validation says nothing in the browser - the reason lives in an
+                // exception the middleware swallows. Logged here, so the app log names the actual
+                // mismatch (audience, issuer, expiry) instead of leaving it to guesswork.
+                jwtOptions.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+                {
+                    OnAuthenticationFailed = context =>
+                    {
+                        context.HttpContext.RequestServices
+                            .GetRequiredService<ILoggerFactory>()
+                            .CreateLogger("AvekiScrum.Auth")
+                            .LogError(context.Exception,
+                                "Token validation failed for {Path}. Expected issuer {Issuer}, audience {ClientId}.",
+                                context.Request.Path,
+                                $"https://login.microsoftonline.com/{builder.Configuration["Auth:TenantId"]}/v2.0",
+                                builder.Configuration["Auth:ClientId"]);
+                        return Task.CompletedTask;
+                    },
+                };
+            },
+            identityOptions => builder.Configuration.GetSection("Auth").Bind(identityOptions))
         // No initial scopes here - the Azure DevOps scopes are asked for per call in
         // EntraCredentialProvider, which keeps the list in one place next to the code that uses it.
-        .EnableTokenAcquisitionToCallDownstreamApi()
+        .EnableTokenAcquisitionToCallDownstreamApi(_ => { })
         // In-memory is right for a single IIS server: a restart costs everyone one silent token
         // refresh, which they won't notice. Swap for a distributed cache if this is ever load
         // balanced.

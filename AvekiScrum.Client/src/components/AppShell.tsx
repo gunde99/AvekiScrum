@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useTheme } from "../theme/ThemeContext";
-import { getIdentity } from "../auth/identity";
+import { authEnabled } from "../auth/authConfig";
+import { getIdentity, getIdentityError } from "../auth/identity";
 import { PersonAvatar } from "./PersonAvatar";
 import "./BoardShell.css";
 
@@ -43,6 +44,9 @@ export function AppShell({
 }: AppShellProps) {
   const { theme, toggleTheme } = useTheme();
   const identity = getIdentity();
+  // Signed in at Entra but rejected by our own Api: every view will show its own failure, and
+  // none of them will say why. One banner naming the real problem beats six error messages.
+  const identityProblem = authEnabled && identity && !identity.signedIn ? getIdentityError() : null;
 
   return (
     <div className="board-shell">
@@ -103,6 +107,13 @@ export function AppShell({
         </button>
       </header>
       <main className="board-shell__content">
+        {identityProblem && (
+          <div className="board-shell__auth-warning" role="alert">
+            <strong>Servern känner inte igen din inloggning.</strong> Du är inloggad i webbläsaren,
+            men API:t avvisar din token, så ingenting kan hämtas från Azure DevOps. Detaljer i
+            serverloggen under <code>AvekiScrum.Auth</code>. ({identityProblem})
+          </div>
+        )}
         <div className="board-shell__page-header">
           <h1>{title}</h1>
           {subtitle && <p className="board-shell__subtitle">{subtitle}</p>}
