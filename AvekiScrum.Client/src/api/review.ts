@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/apiFetch";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:5273";
 
 export interface ReviewReportCard {
@@ -56,7 +57,7 @@ export async function publishReviewReport(
   request: ReviewReportRequest,
   signal?: AbortSignal,
 ): Promise<ReviewPublishResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/review/publish`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/review/publish`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),

@@ -10,7 +10,7 @@ import {
   type SupportStakeholder,
 } from "../api/support";
 import { StakeholderEditor } from "./StakeholderEditor";
-import { loadReporter, saveReporter } from "./reporter";
+import { loadReporter, reporterIsFromSignIn, saveReporter } from "./reporter";
 import {
   composeReproSteps,
   EMPTY_REPRO_PARTS,
@@ -50,6 +50,9 @@ export function NewBugForm({ onCreated }: NewBugFormProps) {
   const [areaPath, setAreaPath] = useState("");
   const [externalLink, setExternalLink] = useState("");
   const [stakeholders, setStakeholders] = useState<SupportStakeholder[]>([]);
+  // When someone is signed in the name isn't theirs to change - it's the same identity Azure will
+  // record as the card's creator, and the two must not be able to disagree.
+  const signedIn = reporterIsFromSignIn();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -95,7 +98,7 @@ export function NewBugForm({ onCreated }: NewBugFormProps) {
         areaPath,
         externalLink,
       });
-      saveReporter(reporter);
+      if (!signedIn) saveReporter(reporter);
       setCreated(result);
       showToast(`Ärende #${result.id} skapat.`, "success");
       onCreated?.(result.id);
@@ -153,15 +156,18 @@ export function NewBugForm({ onCreated }: NewBugFormProps) {
       <section className="sup-card">
         <h2 className="sup-card__title">Vem rapporterar?</h2>
         <p className="sup-card__hint">
-          Ditt namn följer med på kortet så teamet vet vem de ska fråga. Vi kommer ihåg det till nästa gång.
+          {signedIn
+            ? "Hämtat från din inloggning. Kortet skapas i ditt namn i Azure DevOps."
+            : "Ditt namn följer med på kortet så teamet vet vem de ska fråga. Vi kommer ihåg det till nästa gång."}
         </p>
         <input
           className="sup-input sup-input--wide"
           value={reporter}
           onChange={(e) => setReporter(e.target.value)}
           placeholder="Ditt namn"
-          list="sup-people-reporter"
+          list={signedIn ? undefined : "sup-people-reporter"}
           aria-label="Ditt namn"
+          readOnly={signedIn}
         />
         <datalist id="sup-people-reporter">
           {people.map((person) => (

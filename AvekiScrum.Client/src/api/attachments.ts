@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/apiFetch";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:5273";
 
 export interface UploadedAttachment {
@@ -7,7 +8,7 @@ export interface UploadedAttachment {
 }
 
 export async function uploadAttachment(blob: Blob, fileName: string): Promise<UploadedAttachment> {
-  const response = await fetch(`${API_BASE_URL}/api/attachments?fileName=${encodeURIComponent(fileName)}`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/attachments?fileName=${encodeURIComponent(fileName)}`, {
     method: "POST",
     headers: { "Content-Type": blob.type || "application/octet-stream" },
     body: blob,

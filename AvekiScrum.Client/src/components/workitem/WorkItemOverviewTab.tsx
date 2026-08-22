@@ -2,7 +2,7 @@ import { PersonAvatar } from "../PersonAvatar";
 import { FIELD, fieldOptionsFor, type ClassificationOptions, type WorkItemDetail, type WorkItemFieldUpdate } from "../../api/workitems";
 import type { PersonOption } from "../../api/people";
 import { fullPersonName } from "../../lib/personNames";
-import { renderWorkItemContent } from "../../lib/renderMarkdown";
+import { RichText } from "../RichText";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { TagEditor } from "./TagEditor";
 import { Section } from "./Section";
@@ -317,10 +317,7 @@ export function WorkItemOverviewTab({ detail, editing, draft, onDraftChange, cla
             placeholder="Markdown stöds. Klistra in en bild för att bifoga den."
           />
         ) : (
-          <div
-            className="wi-rich-text"
-            dangerouslySetInnerHTML={{ __html: renderWorkItemContent(detail.descriptionHtml) || "<em>Ingen beskrivning</em>" }}
-          />
+          <RichText className="wi-rich-text" content={detail.descriptionHtml} fallbackHtml="<em>Ingen beskrivning</em>" />
         )}
       </Section>
 
@@ -329,11 +326,10 @@ export function WorkItemOverviewTab({ detail, editing, draft, onDraftChange, cla
           {editing ? (
             <MarkdownEditor rows={8} value={draft.acceptanceCriteria ?? ""} onChange={(value) => onDraftChange({ acceptanceCriteria: value })} />
           ) : (
-            <div
+            <RichText
               className="wi-rich-text"
-              dangerouslySetInnerHTML={{
-                __html: renderWorkItemContent(detail.acceptanceCriteriaHtml) || "<em>Inga acceptanskriterier</em>",
-              }}
+              content={detail.acceptanceCriteriaHtml}
+              fallbackHtml="<em>Inga acceptanskriterier</em>"
             />
           )}
         </Section>
@@ -351,9 +347,10 @@ export function WorkItemOverviewTab({ detail, editing, draft, onDraftChange, cla
             placeholder="Vem har efterfrågat det här, och för vems räkning?"
           />
         ) : (
-          <div
+          <RichText
             className="wi-rich-text"
-            dangerouslySetInnerHTML={{ __html: renderWorkItemContent(detail.stakeholders ?? "") || "<em>Ingen stakeholder angiven</em>" }}
+            content={detail.stakeholders}
+            fallbackHtml="<em>Ingen stakeholder angiven</em>"
           />
         )}
       </Section>

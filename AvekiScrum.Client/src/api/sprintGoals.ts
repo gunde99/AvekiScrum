@@ -1,4 +1,5 @@
 import type { DeveloperTeamId } from "./dailys";
+import { apiFetch } from "../lib/apiFetch";
 
 export interface SprintGoalDeliverable {
   id: string;
@@ -37,7 +38,7 @@ export interface SprintGoal {
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:5273";
 
 export async function fetchSprintGoals(team: DeveloperTeamId, signal?: AbortSignal): Promise<SprintGoal[]> {
-  const response = await fetch(`${API_BASE_URL}/api/sprint-goals?team=${team}`, { signal });
+  const response = await apiFetch(`${API_BASE_URL}/api/sprint-goals?team=${team}`, { signal });
   if (!response.ok) {
     throw new Error(`Failed to load sprint goals for team ${team}: HTTP ${response.status}`);
   }

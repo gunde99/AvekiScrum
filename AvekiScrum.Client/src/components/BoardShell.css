@@ -132,3 +132,25 @@
   margin: 0;
   color: var(--color-text-muted);
 }
+
+.board-shell__user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.board-shell__user-name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 900px) {
+  .board-shell__user-name {
+    display: none;
+  }
+}

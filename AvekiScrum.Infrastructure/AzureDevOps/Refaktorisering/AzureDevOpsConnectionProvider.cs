@@ -5,7 +5,9 @@ using Microsoft.TeamFoundation.WorkItemTracking.WebApi;
 using Microsoft.VisualStudio.Services.Common;
 using Microsoft.VisualStudio.Services.WebApi;
 using System;
+using AvekiScrum.Application.Abstractions;
 using AvekiScrum.Application.Configuration;
+using Microsoft.VisualStudio.Services.OAuth;
 
 namespace AvekiScrum.Infrastructure.AzureDevOps
 {
@@ -24,10 +26,21 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
         public VssConnection Connection { get; }
         public string Project { get; }
 
-        public AzureDevOpsConnectionProvider(IOptions<AzureSettings> options)
+        /// <remarks>
+        /// Scoped, not singleton: with delegated auth the connection carries the signed-in user's
+        /// token, so it can't be shared across requests. The credential is resolved synchronously
+        /// here because VssConnection wants it up front - in Entra mode that's a cache hit on the
+        /// token acquired for this request.
+        /// </remarks>
+        public AzureDevOpsConnectionProvider(
+            IOptions<AzureSettings> options,
+            IAzureDevOpsCredentialProvider credentials)
         {
             var settings = options.Value;
-            var creds = new VssBasicCredential(string.Empty, settings.PAT);
+            var header = credentials.GetAuthHeaderAsync().AsTask().GetAwaiter().GetResult();
+            VssCredentials creds = header.Scheme == "Bearer"
+                ? new VssOAuthAccessTokenCredential(header.Parameter)
+                : new VssBasicCredential(string.Empty, settings.PAT);
             var baseUrl = $"{settings.BaseUrl}/{settings.Organization}";
             Connection = new VssConnection(new Uri(baseUrl), creds);
             Project = settings.Project;

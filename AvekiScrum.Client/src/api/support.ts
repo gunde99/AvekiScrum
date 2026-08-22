@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/apiFetch";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:5273";
 
 export interface SupportOptions {
@@ -67,13 +68,13 @@ export interface SupportBugsResponse {
 }
 
 export async function fetchSupportOptions(signal?: AbortSignal): Promise<SupportOptions> {
-  const response = await fetch(`${API_BASE_URL}/api/support/options`, { signal });
+  const response = await apiFetch(`${API_BASE_URL}/api/support/options`, { signal });
   if (!response.ok) throw new Error(`Kunde inte hämta formulärets val: HTTP ${response.status}`);
   return (await response.json()) as SupportOptions;
 }
 
 export async function createSupportBug(request: CreateSupportBugRequest): Promise<{ id: number; url: string }> {
-  const response = await fetch(`${API_BASE_URL}/api/support/bugs`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/support/bugs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
@@ -97,7 +98,7 @@ export async function fetchSupportBugs(
   const params = new URLSearchParams();
   if (range.from) params.set("from", range.from);
   if (range.to) params.set("to", range.to);
-  const response = await fetch(`${API_BASE_URL}/api/support/bugs?${params}`, { signal });
+  const response = await apiFetch(`${API_BASE_URL}/api/support/bugs?${params}`, { signal });
   if (!response.ok) throw new Error(`Kunde inte hämta ärenden: HTTP ${response.status}`);
   return (await response.json()) as SupportBugsResponse;
 }

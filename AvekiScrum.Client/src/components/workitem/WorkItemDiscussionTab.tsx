@@ -2,7 +2,7 @@ import { useState } from "react";
 import { PersonAvatar } from "../PersonAvatar";
 import { addWorkItemComment, type WorkItemDetail } from "../../api/workitems";
 import { fullPersonName } from "../../lib/personNames";
-import { renderWorkItemContent } from "../../lib/renderMarkdown";
+import { RichText } from "../RichText";
 import { MarkdownEditor } from "./MarkdownEditor";
 import "./WorkItemDiscussionTab.css";
 
@@ -71,7 +71,7 @@ export function WorkItemDiscussionTab({ detail, onPosted }: WorkItemDiscussionTa
               <span className="wi-comment__author">{fullPersonName(c.author)}</span>
               {c.createdDate && <span className="wi-comment__date">{new Date(c.createdDate).toLocaleString("sv-SE")}</span>}
             </div>
-            <div className="wi-rich-text" dangerouslySetInnerHTML={{ __html: renderWorkItemContent(c.textHtml) }} />
+            <RichText className="wi-rich-text" content={c.textHtml} />
           </div>
         ))
       )}

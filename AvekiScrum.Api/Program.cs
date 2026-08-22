@@ -10,6 +10,7 @@ using AvekiScrum.Infrastructure.Configuration;
 using AvekiScrum.Api;
 using AvekiScrum.Shared.Enums;
 using Microsoft.Extensions.Options;
+using Microsoft.Identity.Web;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -43,6 +44,36 @@ builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Azure
 builder.Services.AddAvekiScrumInfrastructure(azureSettings);
 builder.Services.AddScoped<DailyDashboardDataBuilder>();
 
+// Auth:Mode picks who Azure DevOps thinks is calling.
+//   "Entra" - the signed-in user, via on-behalf-of. Cards record the real person, the Api is
+//             closed to anonymous callers, and everyone sees what their own permissions allow.
+//   "Pat"   - the original shared token. Kept for local development, and as a way back if the
+//             delegated path ever has to be switched off in a hurry.
+// Registered after AddAvekiScrumInfrastructure so the Entra provider replaces the PAT default.
+var entraMode = string.Equals(builder.Configuration["Auth:Mode"], "Entra", StringComparison.OrdinalIgnoreCase);
+if (entraMode)
+{
+    builder.Services
+        .AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)
+        .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("Auth"))
+        // No initial scopes here - the Azure DevOps scopes are asked for per call in
+        // EntraCredentialProvider, which keeps the list in one place next to the code that uses it.
+        .EnableTokenAcquisitionToCallDownstreamApi()
+        // In-memory is right for a single IIS server: a restart costs everyone one silent token
+        // refresh, which they won't notice. Swap for a distributed cache if this is ever load
+        // balanced.
+        .AddInMemoryTokenCaches();
+
+    builder.Services.AddAuthorization(options =>
+    {
+        // Every endpoint requires a signed-in user unless it opts out. Safer than remembering to
+        // add RequireAuthorization to each new endpoint.
+        options.FallbackPolicy = options.DefaultPolicy;
+    });
+
+    builder.Services.AddScoped<IAzureDevOpsCredentialProvider, EntraCredentialProvider>();
+}
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -74,6 +105,41 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
+
+// The built React client is copied into wwwroot when publishing, so IIS serves both halves from
+// one site. Same origin means no CORS in production and no second host name to certificate.
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
+if (entraMode)
+{
+    app.UseAuthentication();
+    app.UseAuthorization();
+}
+
+// Who the caller is, and which colleague in TeamRoleConfig they line up with. The client asks
+// once at startup and uses the answer as the reporter identity - no more typing your own name.
+app.MapGet("/api/me", (HttpContext http, IOptions<TeamRoleConfig> teamRoles, IConfiguration configuration) =>
+{
+    if (!string.Equals(configuration["Auth:Mode"], "Entra", StringComparison.OrdinalIgnoreCase))
+    {
+        // PAT mode has no signed-in user. Saying so plainly lets the client fall back to asking
+        // for a name rather than guessing that auth is broken.
+        return Results.Ok(new { signedIn = false });
+    }
+
+    var user = SignedInUserReader.Read(http.User, teamRoles.Value.TeamRoleMapping);
+    return Results.Ok(new
+    {
+        signedIn = true,
+        displayName = user.DisplayName,
+        email = user.Email,
+        objectId = user.ObjectId,
+        matchedEmail = user.MatchedEmail,
+        roleGroups = user.RoleGroups,
+    });
+})
+.WithName("GetSignedInUser");
 
 app.MapGet("/api/dailys", async (
     string team,
@@ -931,6 +997,11 @@ app.MapGet("/api/support/bugs", async (
     return Results.Ok(new { bugs, truncated, total = ids.Count });
 })
 .WithName("GetSupportBugs");
+
+// Anything that isn't an api route is the single-page app. AllowAnonymous because index.html is
+// what *bootstraps* the sign-in - requiring a token to fetch the page that acquires the token
+// would leave the user staring at a 401.
+app.MapFallbackToFile("index.html").AllowAnonymous();
 
 app.Run();
 

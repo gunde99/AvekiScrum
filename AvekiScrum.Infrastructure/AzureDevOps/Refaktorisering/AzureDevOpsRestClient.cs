@@ -59,9 +59,9 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             // Bas mot organisation, resten sköts av AzureUrlHelper
             _httpClient.BaseAddress = new Uri($"{settings.BaseUrl}");
 
-            var pat = Convert.ToBase64String(Encoding.ASCII.GetBytes($":{settings.PAT}"));
-            _httpClient.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Basic", pat);
+            // No Authorization header here: AzureDevOpsAuthHandler sets it per request, because
+            // with delegated auth the credential belongs to the signed-in user rather than to the
+            // client instance.
 
             _httpClient.DefaultRequestHeaders.Accept.Clear();
             _httpClient.DefaultRequestHeaders.Accept.Add(

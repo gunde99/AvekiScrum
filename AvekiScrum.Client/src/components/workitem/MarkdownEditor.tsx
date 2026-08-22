@@ -1,5 +1,6 @@
-import { useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent } from "react";
 import { uploadAttachment } from "../../api/attachments";
+import { toAttachmentBlobUrl } from "../../lib/apiFetch";
 import "./MarkdownEditor.css";
 
 interface MarkdownEditorProps {
@@ -85,9 +86,7 @@ export function MarkdownEditor({ value, onChange, rows = 14, placeholder, autoGr
         <div className="md-editor__thumbs">
           {images.map((image) => (
             <figure className="md-editor__thumb" key={image.markdown}>
-              <a href={image.url} target="_blank" rel="noreferrer" title="Öppna i full storlek">
-                <img src={image.url} alt={image.alt || "Inklistrad bild"} />
-              </a>
+              <AttachmentThumb url={image.url} alt={image.alt} />
               <button
                 type="button"
                 className="md-editor__thumb-remove"
@@ -126,6 +125,37 @@ function findImages(text: string): EmbeddedImage[] {
     images.push({ markdown: match[0], alt: match[1], url: match[2] });
   }
   return images;
+}
+
+/**
+ * The image itself. Attachments go through our Api, which wants a token that an `<img>` can't
+ * send, so the bytes are fetched and handed over as a blob URL instead.
+ */
+function AttachmentThumb({ url, alt }: { url: string; alt: string }) {
+  const [src, setSrc] = useState(url);
+
+  useEffect(() => {
+    let cancelled = false;
+    let created: string | null = null;
+    void toAttachmentBlobUrl(url).then((resolved) => {
+      if (cancelled) {
+        if (resolved !== url) URL.revokeObjectURL(resolved);
+        return;
+      }
+      if (resolved !== url) created = resolved;
+      setSrc(resolved);
+    });
+    return () => {
+      cancelled = true;
+      if (created) URL.revokeObjectURL(created);
+    };
+  }, [url]);
+
+  return (
+    <a href={src} target="_blank" rel="noreferrer" title="Öppna i full storlek">
+      <img src={src} alt={alt || "Inklistrad bild"} />
+    </a>
+  );
 }
 
 /** Drops the image's markdown, and the blank line it usually sits on with it. */

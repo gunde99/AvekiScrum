@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/apiFetch";
 export interface WorkItemRelationRef {
   id: number;
   type: string;
@@ -107,7 +108,7 @@ export interface WorkItemFieldUpdate {
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:5273";
 
 export async function fetchWorkItemDetail(id: number, signal?: AbortSignal): Promise<WorkItemDetail> {
-  const response = await fetch(`${API_BASE_URL}/api/workitems/${id}`, { signal });
+  const response = await apiFetch(`${API_BASE_URL}/api/workitems/${id}`, { signal });
   if (!response.ok) {
     throw new Error(`Failed to load work item ${id}: HTTP ${response.status}`);
   }
@@ -115,7 +116,7 @@ export async function fetchWorkItemDetail(id: number, signal?: AbortSignal): Pro
 }
 
 export async function updateWorkItemFields(id: number, update: WorkItemFieldUpdate): Promise<WorkItemDetail> {
-  const response = await fetch(`${API_BASE_URL}/api/workitems/${id}`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/workitems/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(update),
@@ -137,7 +138,7 @@ export async function createWorkItemTasks(
   parentId: number,
   tasks: NewTaskRequest[],
 ): Promise<{ created: number; ids: number[] }> {
-  const response = await fetch(`${API_BASE_URL}/api/workitems/${parentId}/tasks`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/workitems/${parentId}/tasks`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ tasks }),
@@ -151,7 +152,7 @@ export async function createWorkItemTasks(
 /** Creates the "hjälptext" satellite: a related (not child) User Story with its own
  *  Documentation-activity Task, per the new DoR pattern for breaking help-text out of the story. */
 export async function createHelptextStory(parentId: number): Promise<{ storyId: number; taskId: number }> {
-  const response = await fetch(`${API_BASE_URL}/api/workitems/${parentId}/helptext-story`, { method: "POST" });
+  const response = await apiFetch(`${API_BASE_URL}/api/workitems/${parentId}/helptext-story`, { method: "POST" });
   if (!response.ok) {
     throw new Error(`Failed to create hjälptext story for work item ${parentId}: HTTP ${response.status}`);
   }
@@ -175,7 +176,7 @@ export interface CreateLinkedWorkItemRequest {
 
 /** Creates a work item linked to `id`. Area and iteration default to the source card's. */
 export async function createLinkedWorkItem(id: number, request: CreateLinkedWorkItemRequest): Promise<{ id: number }> {
-  const response = await fetch(`${API_BASE_URL}/api/workitems/${id}/children`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/workitems/${id}/children`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
@@ -187,7 +188,7 @@ export async function createLinkedWorkItem(id: number, request: CreateLinkedWork
 }
 
 export async function addWorkItemComment(id: number, text: string): Promise<WorkItemDetail> {
-  const response = await fetch(`${API_BASE_URL}/api/workitems/${id}/comments`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/workitems/${id}/comments`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text }),
@@ -246,7 +247,7 @@ export function fetchClassification(): Promise<ClassificationOptions> {
 }
 
 async function relationCall(url: string, method: "POST" | "DELETE", body?: unknown): Promise<WorkItemDetail> {
-  const response = await fetch(url, {
+  const response = await apiFetch(url, {
     method,
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
@@ -274,7 +275,7 @@ export function removeWorkItemRelation(id: number, targetId: number, linkKind: L
 
 /** Deletes a work item (and any children) into Azure's recycle bin - recoverable, not destroyed. */
 export async function deleteWorkItem(id: number): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/workitems/${id}`, { method: "DELETE" });
+  const response = await apiFetch(`${API_BASE_URL}/api/workitems/${id}`, { method: "DELETE" });
   if (!response.ok) {
     throw new Error(`Kunde inte ta bort #${id}: HTTP ${response.status}`);
   }
@@ -316,7 +317,7 @@ export interface WorkItemSearchHit {
 
 /** Looks a card up by id (a bare number) or by title text. */
 export async function searchWorkItems(q: string, signal?: AbortSignal): Promise<WorkItemSearchHit[]> {
-  const response = await fetch(`${API_BASE_URL}/api/workitems/search?q=${encodeURIComponent(q)}`, { signal });
+  const response = await apiFetch(`${API_BASE_URL}/api/workitems/search?q=${encodeURIComponent(q)}`, { signal });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return (await response.json()) as WorkItemSearchHit[];
 }

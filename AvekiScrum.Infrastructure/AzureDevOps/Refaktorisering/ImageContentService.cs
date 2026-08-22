@@ -27,10 +27,7 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
 
             var settings = options.Value;
 
-            // Samma PAT-auth som i AzureDevOpsRestClient
-            var pat = Convert.ToBase64String(Encoding.ASCII.GetBytes($":{settings.PAT}"));
-            _http.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Basic", pat);
+            // Auth sätts per request av AzureDevOpsAuthHandler.
 
             // Vi förväntar oss bilder
             _http.DefaultRequestHeaders.Accept.Clear();

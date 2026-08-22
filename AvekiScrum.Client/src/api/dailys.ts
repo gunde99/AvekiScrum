@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/apiFetch";
 export type DeveloperTeamId = "Nord" | "Syd";
 
 export interface DailyTaskDto {
@@ -96,7 +97,7 @@ const API_BASE_URL =
 async function fetchWithRetry(url: string, signal: AbortSignal | undefined, attempts = 20, delayMs = 1500): Promise<Response> {
   for (let attempt = 1; ; attempt++) {
     try {
-      return await fetch(url, { signal });
+      return await apiFetch(url, { signal });
     } catch (err) {
       const isAbort = err instanceof DOMException && err.name === "AbortError";
       if (isAbort || attempt >= attempts) throw err;

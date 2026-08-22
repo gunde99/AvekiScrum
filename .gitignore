@@ -19,6 +19,9 @@ appsettings.*.Local.json
 *.secrets.json
 .env
 .env.*
+# ...utom produktionsbyggets variabler. De innehåller client-id, tenant-id och scope, som ändå
+# syns i varje inloggningsanrop - och checkade in slipper den som bygger sätta dem för hand.
+!AvekiScrum.Client/.env.production
 
 # Node / frontend (once AvekiScrum.Client exists)
 node_modules/
@@ -28,3 +31,10 @@ dist/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Den byggda klienten kopieras hit vid publicering - byggartefakt, inte källkod.
+AvekiScrum.Api/wwwroot/
+publish/
+
+# Personliga anteckningar - har innehållit klienthemligheter och ska inte checkas in.
+docs/anteckningar.txt

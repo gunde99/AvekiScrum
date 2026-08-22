@@ -1,4 +1,4 @@
-using AvekiScrum.Application.Abstractions;
+﻿using AvekiScrum.Application.Abstractions;
 using AvekiScrum.Application.Abstractions.Services;
 using AvekiScrum.Application.Configuration;
 using AvekiScrum.Infrastructure.AzureDevOps;
@@ -12,10 +12,18 @@ namespace AvekiScrum.Infrastructure.Configuration
         {
             AzureUrlHelper.Initialize(azureSettings.Organization, azureSettings.Project);
 
-            services.AddHttpClient<IAzureDevOpsRestClient, AzureDevOpsRestClient>();
-            services.AddHttpClient<IImageContentService, ImageContentService>();
-            services.AddHttpClient<IPersonImageProvider, PersonImageProvider>();
-            services.AddSingleton<IAzureDevOpsConnectionProvider, AzureDevOpsConnectionProvider>();
+            // The handler puts the credential on every outgoing request. It has to be transient:
+            // it depends on the scoped credential provider, and a longer-lived handler would
+            // capture one user's token and hand it to the next request.
+            services.AddTransient<AzureDevOpsAuthHandler>();
+            services.AddHttpClient<IAzureDevOpsRestClient, AzureDevOpsRestClient>()
+                .AddHttpMessageHandler<AzureDevOpsAuthHandler>();
+            services.AddHttpClient<IImageContentService, ImageContentService>()
+                .AddHttpMessageHandler<AzureDevOpsAuthHandler>();
+            services.AddHttpClient<IPersonImageProvider, PersonImageProvider>()
+                .AddHttpMessageHandler<AzureDevOpsAuthHandler>();
+            // Scoped rather than singleton now that the connection can carry a per-user token.
+            services.AddScoped<IAzureDevOpsConnectionProvider, AzureDevOpsConnectionProvider>();
             services.AddScoped<IAzureDevOpsGitClient, AzureDevOpsGitClient>();
             services.AddScoped<IAzureDevOpsBoardsClient, AzureDevOpsBoardsClient>();
             services.AddScoped<IAzureDevOpsWikiClient, AzureDevOpsWikiClient>();
@@ -23,6 +31,10 @@ namespace AvekiScrum.Infrastructure.Configuration
             services.AddScoped<IAzureDevOpsTestPlansClient, AzureDevOpsTestPlansClient>();
             services.AddScoped<IAzureDevOpsService, AzureDevOpsService>();
             services.AddSingleton<ITeamRoleProvider, TeamRoleProvider>();
+
+            // Default credential. AvekiScrum.Api replaces this with the delegated one when
+            // Auth:Mode is "Entra".
+            services.AddScoped<IAzureDevOpsCredentialProvider, PatCredentialProvider>();
 
             return services;
         }

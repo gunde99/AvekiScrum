@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { useTheme } from "../theme/ThemeContext";
+import { getIdentity } from "../auth/identity";
+import { PersonAvatar } from "./PersonAvatar";
 import "./BoardShell.css";
 
 export interface AppShellNavItem {
@@ -40,6 +42,7 @@ export function AppShell({
   children,
 }: AppShellProps) {
   const { theme, toggleTheme } = useTheme();
+  const identity = getIdentity();
 
   return (
     <div className="board-shell">
@@ -80,6 +83,14 @@ export function AppShell({
           <button type="button" className="board-shell__home" onClick={onHome} title="Till startsidan">
             ⌂ Start
           </button>
+        )}
+        {/* Who the cards will be written as. Worth showing precisely because nobody had to log in
+            to get here - without it there's no way to tell whose name ends up in Azure. */}
+        {identity?.signedIn && (
+          <span className="board-shell__user" title={identity.email ?? undefined}>
+            <PersonAvatar name={identity.displayName} size={26} />
+            <span className="board-shell__user-name">{identity.displayName}</span>
+          </span>
         )}
         <button
           type="button"

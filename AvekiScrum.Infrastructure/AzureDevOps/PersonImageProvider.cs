@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System;
@@ -44,10 +44,7 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             _azureSettings = azureSettings.Value;
             _logger = logger;
 
-            var token = Convert.ToBase64String(
-                Encoding.ASCII.GetBytes($":{_azureSettings.PAT}"));
-            _httpClient.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Basic", token);
+            // Auth sätts per request av AzureDevOpsAuthHandler.
 
             var configuredRoot =
                 configuration["DashboardBranding:ImageRoot"]?.Trim()
