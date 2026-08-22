@@ -78,7 +78,8 @@ export function SupportDashboard() {
   const [scope, setScope] = useState<ScopeKey>(loadReporter() ? "mine" : "all");
   const [range, setRange] = useState(defaultDateRange);
   const [filters, setFilters] = useState<SupportFilters>(EMPTY_FILTERS);
-  const [sort, setSort] = useState<SortState>({ key: "created", direction: "desc" });
+  // Most recently touched first: what support wants to see is what moved, not what was filed.
+  const [sort, setSort] = useState<SortState>({ key: "changed", direction: "desc" });
   const [openId, setOpenId] = useState<number | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
@@ -267,7 +268,6 @@ export function SupportDashboard() {
                     </button>
                   </th>
                 ))}
-                <th className="sup-col--link">Lime</th>
               </tr>
             </thead>
             <tbody>
@@ -303,7 +303,27 @@ export function SupportDashboard() {
 function BugRow({ bug, onOpen }: { bug: SupportBug; onOpen: (id: number) => void }) {
   return (
     <tr className="sup-tr" onClick={() => onOpen(bug.id)} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && onOpen(bug.id)}>
-      <td className="sup-col--id">#{bug.id}</td>
+      <td className="sup-col--id">
+        <span>#{bug.id}</span>
+        {bug.externalLink && isClickable(bug.externalLink) ? (
+          <a
+            className="sup-tr__lime"
+            href={bug.externalLink}
+            target="_blank"
+            rel="noreferrer"
+            title={`Öppna i Lime: ${bug.externalLink}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            ↗
+          </a>
+        ) : (
+          bug.externalLink && (
+            <span className="sup-tr__lime sup-tr__lime--plain" title={bug.externalLink}>
+              •
+            </span>
+          )
+        )}
+      </td>
       <td className="sup-col--status">
         <span className={`sup-status sup-status--${bug.statusKey}`}>{bug.statusLabel}</span>
       </td>
@@ -330,21 +350,6 @@ function BugRow({ bug, onOpen }: { bug: SupportBug; onOpen: (id: number) => void
       <td className="sup-col--person">{bug.assignedTo ?? "–"}</td>
       <td className="sup-col--date">{formatDate(bug.createdDate)}</td>
       <td className="sup-col--date">{formatDate(bug.changedDate)}</td>
-      <td className="sup-col--link">
-        {bug.externalLink && isClickable(bug.externalLink) ? (
-          <a
-            href={bug.externalLink}
-            target="_blank"
-            rel="noreferrer"
-            title={bug.externalLink}
-            onClick={(e) => e.stopPropagation()}
-          >
-            ↗
-          </a>
-        ) : (
-          <span title={bug.externalLink ?? ""}>{bug.externalLink ? "•" : ""}</span>
-        )}
-      </td>
     </tr>
   );
 }
