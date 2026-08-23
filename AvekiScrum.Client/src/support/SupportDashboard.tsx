@@ -230,10 +230,13 @@ export function SupportDashboard() {
 
       {error && <p className="sup-error">Fel: {error}</p>}
 
+      {/* The cut is by creation date, newest first - so the way to reach the rest is to move the
+          window back in time, not to make it narrower. The old wording said "korta ner
+          intervallet", which is the one thing that doesn't help. */}
       {response?.truncated && (
         <p className="sup-dash__notice">
-          Datumintervallet matchar {response.total} ärenden – de {bugs.length} senaste visas. Korta ner
-          intervallet för att se resten.
+          Datumintervallet matchar {response.total} ärenden – de {bugs.length} senast skapade visas. Flytta
+          <strong> till</strong>-datumet bakåt för att komma åt de äldre.
         </p>
       )}
 

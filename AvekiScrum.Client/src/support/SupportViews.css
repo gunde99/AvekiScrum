@@ -829,13 +829,16 @@
   border-color: var(--color-success);
 }
 
-[data-theme="dark"] .sup-pill--backlogg {
+/* Dark mode lifts the outlined pills' colours - but only while they *are* outlined. Without the
+   :not() these match the selected state just as specifically as the rules above and, coming later,
+   win: "Löst – testas" ended up with yellow text on its own yellow fill and read as an empty pill. */
+[data-theme="dark"] .sup-pill--backlogg:not(.sup-pill--active) {
   color: var(--aveki-grey-400);
 }
-[data-theme="dark"] .sup-pill--planerad {
+[data-theme="dark"] .sup-pill--planerad:not(.sup-pill--active) {
   color: var(--aveki-blue-tint-4);
 }
-[data-theme="dark"] .sup-pill--testas {
+[data-theme="dark"] .sup-pill--testas:not(.sup-pill--active) {
   color: var(--cat-test-bg);
 }
 

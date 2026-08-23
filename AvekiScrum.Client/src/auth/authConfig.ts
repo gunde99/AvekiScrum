@@ -31,11 +31,15 @@ export const msalConfig: Configuration = {
     /**
      * Ask Windows for the token instead of the browser when possible. On a domain-joined machine
      * in Edge this makes sign-in completely invisible, and the token is bound to the device rather
-     * than stored in browser storage. Requires https and, in Chrome/Edge, the Windows Accounts
-     * extension - MSAL falls back to the ordinary web flow on its own when that isn't there, so
-     * turning it on costs nothing.
+     * than stored in browser storage.
+     *
+     * Only over https, which in practice means only in production. The broker requires it anyway,
+     * so on `http://localhost` the handshake can't succeed - all it does is make the browser ask
+     * "Få åtkomst till andra appar och tjänster på den här enheten?" on every session, for a
+     * capability that then isn't used. The ordinary web flow with ssoSilent is what runs locally,
+     * and it signs you in just as quietly.
      */
-    allowPlatformBroker: true,
+    allowPlatformBroker: window.location.protocol === "https:",
     loggerOptions: {
       logLevel: LogLevel.Error,
       loggerCallback: (level, message, containsPii) => {
