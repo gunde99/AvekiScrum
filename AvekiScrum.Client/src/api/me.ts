@@ -10,6 +10,10 @@ export interface SignedInUser {
   /** The address in TeamRoleConfig this person matched, when they're in it. */
   matchedEmail?: string | null;
   roleGroups?: string[];
+  /** The Azure DevOps project this Api is talking to. Answered signed in or not. */
+  project?: string;
+  /** True when Testing:ProjectOverride is set, i.e. this is the sandbox rather than the real thing. */
+  sandbox?: boolean;
 }
 
 /**

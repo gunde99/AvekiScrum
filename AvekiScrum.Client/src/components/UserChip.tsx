@@ -16,12 +16,35 @@ import "./UserChip.css";
  */
 export function UserChip() {
   const identity = getIdentity();
-  if (!authEnabled || !identity?.signedIn) return null;
 
   return (
-    <span className="user-chip" title={identity.email ?? undefined}>
-      <PersonAvatar name={identity.displayName} size={26} />
-      <span className="user-chip__name">{identity.displayName}</span>
+    <>
+      <SandboxBadge />
+      {authEnabled && identity?.signedIn && (
+        <span className="user-chip" title={identity.email ?? undefined}>
+          <PersonAvatar name={identity.displayName} size={26} />
+          <span className="user-chip__name">{identity.displayName}</span>
+        </span>
+      )}
+    </>
+  );
+}
+
+/**
+ * Says out loud when the Api is pointed at the sandbox project.
+ *
+ * Configuration is read once at startup, so an Api still running from before an appsettings edit
+ * happily serves the old project - and the boards look identical either way, because ScrumLab is a
+ * copy of the real one. Mistaking one for the other costs either a real card edited by accident or
+ * an afternoon wondering why a change didn't show up.
+ */
+function SandboxBadge() {
+  const identity = getIdentity();
+  if (!identity?.sandbox) return null;
+
+  return (
+    <span className="sandbox-badge" title="Testing:ProjectOverride är satt i appsettings.json. Starta om API:t efter att du ändrat den.">
+      Sandlåda: {identity.project}
     </span>
   );
 }

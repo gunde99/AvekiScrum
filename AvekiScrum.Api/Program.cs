@@ -26,6 +26,8 @@ var builder = WebApplication.CreateBuilder(args);
 // consumer - the static AzureUrlHelper.Initialize call below and any IOptions<AzureSettings> -
 // agrees on the same effective project.
 var projectOverride = builder.Configuration["Testing:ProjectOverride"];
+// Kept before the override is applied, so the startup log can name what clearing it would give you.
+var configuredProject = builder.Configuration["AzureDevOps:Project"];
 if (!string.IsNullOrWhiteSpace(projectOverride))
 {
     builder.Configuration["AzureDevOps:Project"] = projectOverride;
@@ -56,6 +58,15 @@ builder.Services.AddScoped<DailyDashboardDataBuilder>();
 //                    needs the delegated consent. Meant for the wait, not for good.
 //   "Pat"          - no sign-in at all. Local development.
 var authMode = builder.Configuration["Auth:Mode"] ?? "Pat";
+// Refused rather than guessed at. A value that matches nothing used to fall through to "Pat",
+// which is the one mode that leaves the Api open to anonymous callers - so a typo, or a stray
+// translation of the word, silently turned sign-in off. This has happened once already.
+if (!new[] { "Entra", "EntraWithPat", "Pat" }.Contains(authMode, StringComparer.OrdinalIgnoreCase))
+{
+    throw new InvalidOperationException(
+        $"Auth:Mode är \"{authMode}\", vilket inte är ett giltigt läge. Använd \"Entra\", " +
+        "\"EntraWithPat\" eller \"Pat\" - se docs/DEPLOY_IIS.md.");
+}
 var requireSignIn = authMode.StartsWith("Entra", StringComparison.OrdinalIgnoreCase);
 var delegatedAzureDevOps = string.Equals(authMode, "Entra", StringComparison.OrdinalIgnoreCase);
 var entraMode = requireSignIn;
@@ -132,6 +143,22 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// First line in the console window, because it is the one that decides what everything else means.
+// appsettings is read at startup only, so an Api left running from before an edit keeps serving the
+// old project - and the sandbox is a copy of the real one, so the boards give nothing away.
+if (string.IsNullOrWhiteSpace(projectOverride))
+{
+    app.Logger.LogInformation("Azure DevOps-projekt: {Project} (skarpt).", configuredProject);
+}
+else
+{
+    app.Logger.LogWarning(
+        "Azure DevOps-projekt: {Project} - SANDLÅDA via Testing:ProjectOverride. Töm den och starta " +
+        "om för att köra mot {Real}.",
+        projectOverride,
+        configuredProject);
+}
 
 if (entraMode)
 {
@@ -211,6 +238,11 @@ app.Use(async (context, next) =>
 app.MapGet("/api/health", (IConfiguration configuration) => Results.Ok(new
 {
     status = "ok",
+    // Which Azure DevOps project this instance is actually talking to. Configuration is read once
+    // at startup, so an Api left running from before an appsettings edit keeps serving the old
+    // project - and nothing on screen said so. Now it does.
+    project = configuration["AzureDevOps:Project"],
+    sandbox = !string.IsNullOrWhiteSpace(projectOverride),
     authMode = configuration["Auth:Mode"],
     // Says outright which of the two things sign-in buys you are actually on.
     signInRequired = requireSignIn,
@@ -295,8 +327,14 @@ if (entraMode)
 
 // Who the caller is, and which colleague in TeamRoleConfig they line up with. The client asks
 // once at startup and uses the answer as the reporter identity - no more typing your own name.
-app.MapGet("/api/me", (HttpContext http, IOptions<TeamRoleConfig> teamRoles) =>
+app.MapGet("/api/me", (HttpContext http, IOptions<TeamRoleConfig> teamRoles, IConfiguration configuration) =>
 {
+    // Answered whether or not anyone is signed in: "which project am I looking at" is a question
+    // about the server, not about the caller, and getting it wrong is expensive in both directions
+    // - editing a real card thinking it's the sandbox, or the reverse.
+    var project = configuration["AzureDevOps:Project"];
+    var sandbox = !string.IsNullOrWhiteSpace(projectOverride);
+
     // Asked of the request, not of the configured mode. Both Entra modes sign the user in - only
     // the *Azure DevOps* half differs between them - and keying this off Auth:Mode == "Entra" is
     // what left EntraWithPat users looking anonymous to their own app, name and photo included.
@@ -304,7 +342,7 @@ app.MapGet("/api/me", (HttpContext http, IOptions<TeamRoleConfig> teamRoles) =>
     {
         // PAT mode has no signed-in user. Saying so plainly lets the client fall back to asking
         // for a name rather than guessing that auth is broken.
-        return Results.Ok(new { signedIn = false });
+        return Results.Ok(new { signedIn = false, project, sandbox });
     }
 
     var user = SignedInUserReader.Read(http.User, teamRoles.Value.TeamRoleMapping);
@@ -318,6 +356,8 @@ app.MapGet("/api/me", (HttpContext http, IOptions<TeamRoleConfig> teamRoles) =>
         roleGroups = user.RoleGroups,
         // Which half of the organisation they support, for the defaults that differ between them.
         team = SupportBugs.TeamFor(user.RoleGroups),
+        project,
+        sandbox,
     });
 })
 .WithName("GetSignedInUser");

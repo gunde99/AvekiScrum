@@ -62,8 +62,40 @@ Ta bort `$env:Auth__Mode` (eller starta en ny terminal) och kommentera bort `VIT
 `AvekiScrum.Client/.env.development`. Klienten stänger av inloggningen av sig själv när client-id
 saknas.
 
-## Sandlådan
+## Byta mellan sandlådan och skarpa projektet
 
-`appsettings.json` pekar mot **ScrumLab** via `Testing:ProjectOverride`, inte mot `Utveckling`.
-Testkort du skapar lokalt hamnar alltså i sandlådan. `appsettings.Production.json` nollställer
-överstyrningen, så drift går mot det riktiga projektet.
+`AzureDevOps:Project` i `appsettings.json` är det skarpa projektet (`Utveckling`).
+`Testing:ProjectOverride` lägger sig över det när den är ifylld:
+
+| `Testing:ProjectOverride` | Kör mot |
+|---|---|
+| `"ScrumLab"` | Sandlådan. Testkort du skapar hamnar där |
+| `""` | `Utveckling` – riktiga kort, riktiga ändringar |
+
+**Proceduren är två steg, och det andra är det som glöms:**
+
+1. Ändra `Testing:ProjectOverride` i `AvekiScrum.Api/appsettings.json`.
+2. **Starta om API:t.** Configen läses en gång vid start – en instans som redan kör fortsätter
+   servera det projekt som gällde när den startade.
+
+Steg 2 är lätt att missa eftersom sandlådan är en kopia av det skarpa projektet: samma area paths,
+samma sprintnamn, samma utseende. Därför säger appen det själv numera:
+
+- **Gul "Sandlåda: ScrumLab"-etikett uppe till höger** när överstyrningen är på. Ingen etikett
+  betyder skarpt projekt.
+- **Första raden i API-fönstret** namnger projektet vid start.
+- **`/api/health`** svarar med `project` och `sandbox`.
+
+Startar du via `start-local.bat` vägrar den numera köra om något redan lyssnar på 5273, i stället
+för att låta en gammal instans svara vidare i det tysta. Den skriver ut vilken process det är och
+hur du stoppar den.
+
+`appsettings.Production.json` nollställer överstyrningen, så drift alltid går mot det riktiga
+projektet oavsett vad som står lokalt.
+
+## Auth:Mode
+
+Tre giltiga värden: `"Entra"`, `"EntraWithPat"`, `"Pat"`. Namnen matchas exakt, och något annat
+avbryter starten med ett felmeddelande – tidigare föll ett okänt värde tillbaka till `"Pat"`, som är
+det enda läge där API:t är öppet för anonyma anrop. En felstavning stängde alltså av inloggningen
+utan att någon märkte det.
