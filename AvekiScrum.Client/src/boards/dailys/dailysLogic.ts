@@ -24,8 +24,26 @@ export type StoryStatusBucket = "done" | "active" | "new";
 export function storyStatusBucket(s: DailyStoryDto): StoryStatusBucket {
   const state = (s.azureStatus || "").trim().toLowerCase();
   if (state === "closed" || state === "done") return "done";
-  if (state === "new" || state === "proposed" || state === "") return "new";
+  if (state === "new" || state === "proposed" || state === "") {
+    // A card left on New whose tasks are under way is not "ej startad" - it is a card whose own
+    // state nobody moved, which is the normal way of working here: the tasks get dragged, the
+    // story stays put. Reading it literally is what put a fully developed card with a closed task
+    // in the "1 ej startade" column next to its own "Färdigutvecklad / 100%".
+    return hasStartedWork(s) ? "active" : "new";
+  }
   return "active"; // Active, Resolved, and any custom in-between state
+}
+
+/** True when anything under the card has moved: a task past New, or a pull request. */
+function hasStartedWork(s: DailyStoryDto): boolean {
+  const tasks = s.tasks || [];
+  return (
+    (s.pullRequests || []).length > 0 ||
+    tasks.some((t) => {
+      const status = (t.status || "").trim().toLowerCase();
+      return status !== "" && status !== "new" && status !== "proposed";
+    })
+  );
 }
 
 export function isStoryDone(s: DailyStoryDto): boolean {

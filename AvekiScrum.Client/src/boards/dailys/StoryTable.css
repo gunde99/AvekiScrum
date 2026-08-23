@@ -191,21 +191,21 @@
   flex: 1;
   height: 5px;
   border-radius: 3px;
-  background: var(--color-border);
+  background: var(--progress-track);
   overflow: hidden;
 }
 
 .prog-fill-sm {
   height: 100%;
-  background: var(--color-text-muted);
+  background: var(--progress-idle);
 }
 
 .prog-fill-sm--active {
-  background: var(--color-info);
+  background: var(--progress-active);
 }
 
 .prog-fill-sm--done {
-  background: var(--color-success);
+  background: var(--progress-done);
 }
 
 .prog-pct-sm {

@@ -69,6 +69,15 @@
   --color-text: var(--aveki-grey-900);
   --color-text-muted: #746f62;
 
+  /* Progress bars and the donut's unfilled arc.
+     Their own tokens rather than --color-border reused, because a bar has to win two contrasts at
+     once: the track against the card behind it, and the fill against the track. A border colour is
+     chosen for the first alone, and in dark mode that left the whole bar a shade of the background. */
+  --progress-track: var(--aveki-grey-200);
+  --progress-idle: var(--aveki-grey-500);
+  --progress-active: var(--color-info);
+  --progress-done: var(--color-success);
+
   --font-main: "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
   --font-accent: var(--font-main);
 
@@ -103,6 +112,13 @@
   --color-text: #f3efe6;
   --color-text-muted: #a89f8d;
 
+  /* Lifted well clear of the border colour: a 5px bar has no room to be subtle. The blue is a
+     tint rather than --color-info, which at #0f4170 is nearly as dark as the page it sits on. */
+  --progress-track: #5c554a;
+  --progress-idle: var(--aveki-grey-500);
+  --progress-active: #7fa8cf;
+  --progress-done: var(--color-success);
+
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.45);
 
@@ -121,6 +137,9 @@
     --color-border: #38332c;
     --color-text: #f3efe6;
     --color-text-muted: #a89f8d;
+
+    --progress-track: #5c554a;
+    --progress-active: #7fa8cf;
 
     color-scheme: dark;
   }

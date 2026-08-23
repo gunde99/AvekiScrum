@@ -11,6 +11,7 @@ import {
   collectReviewTargets,
   fullPersonName,
   isTestTask,
+  isStoryDone,
   pct,
   personKey,
   REVIEW_TAG,
@@ -823,6 +824,13 @@ interface TestTaskRow extends DailyTaskDto {
   storyId: number;
   storyTitle: string;
   parentReady: boolean;
+  /** The story this test belongs to is finished. Nothing left to chase once the test is too. */
+  parentClosed: boolean;
+}
+
+/** A test that has been carried out - closed, or carrying a verdict tag. */
+function isTestFinished(t: TestTaskRow): boolean {
+  return (t.status || "").trim().toLowerCase() === "closed" || testResultFromTags(t.tags) === "ok";
 }
 
 function TestTaskList({
@@ -844,8 +852,23 @@ function TestTaskList({
     <ul className="daily-flow__list daily-flow__list--tall">
       {tasks.map((t) => {
         const result = testResultFromTags(t.tags);
-        const statusLabel = result === "notok" ? "Test ej OK" : t.status === "Active" ? "Pågår" : t.status || "Ny";
-        const statusCls = result === "notok" ? "notok" : (t.status || "").toLowerCase();
+        // A finished test says so as a verdict, not as an Azure state: "Closed" on a row under
+        // "Klara test" is the least informative thing the badge could show, and it hides the
+        // difference between a test that passed and one that was merely closed.
+        const statusLabel =
+          result === "notok"
+            ? "Test ej OK"
+            : result === "ok"
+              ? "Test OK"
+              : isTestFinished(t)
+                ? "Stängd"
+                : t.status === "Active"
+                  ? "Pågår"
+                  : t.status || "Ny";
+        // Closed without a verdict gets its own muted badge rather than borrowing the green one -
+        // it means "nobody wrote down whether it passed", which is not the same as Test OK.
+        const statusCls =
+          result === "notok" ? "notok" : result === "ok" ? "ok" : isTestFinished(t) ? "noverdict" : (t.status || "").toLowerCase();
         return (
           <li key={t.id}>
             <div className="df-row df-row--test">
@@ -943,21 +966,34 @@ function TestLeadTurn({
   const all: TestTaskRow[] = allStories.flatMap((s) =>
     (s.tasks ?? [])
       .filter(isTestTask)
-      .map((t) => ({ ...t, storyId: s.id, storyTitle: s.title, parentReady: TEST_READY_PARENT_STATES.has(s.azureStatus) })),
+      .map((t) => ({
+        ...t,
+        storyId: s.id,
+        storyTitle: s.title,
+        parentReady: TEST_READY_PARENT_STATES.has(s.azureStatus),
+        parentClosed: isStoryDone(s),
+      })),
   );
 
-  // Approved tests are finished work - they'd only pad the test lead's list with noise, so they
-  // drop out entirely rather than sitting in a "done" bucket.
-  const visible = all.filter((t) => testResultFromTags(t.tags) !== "ok");
-  const awaitingFix = visible.filter((t) => testResultFromTags(t.tags) === "notok");
-  const rest = visible.filter((t) => testResultFromTags(t.tags) !== "notok");
+  // A test that is done and whose story is closed is finished business - it would only pad the
+  // list. Everything else the test lead still has a reason to look at.
+  const visible = all.filter((t) => !(isTestFinished(t) && t.parentClosed));
+
+  const finished = visible.filter(isTestFinished);
+  const open = visible.filter((t) => !isTestFinished(t));
+  const awaitingFix = open.filter((t) => testResultFromTags(t.tags) === "notok");
+  const rest = open.filter((t) => testResultFromTags(t.tags) !== "notok");
   const inProgress = rest.filter((t) => t.status === "Active");
   const notStarted = rest.filter((t) => t.status !== "Active");
   const ready = notStarted.filter((t) => t.parentReady);
   const notReady = notStarted.filter((t) => !t.parentReady);
-  const unassignedCount = visible.filter((t) => !t.assignedTo).length;
+  const unassignedCount = open.filter((t) => !t.assignedTo).length;
 
+  // "Klara test" first: these are the ones with an action attached - the testing is done, so the
+  // story is waiting to be closed. Closed tests used to fall into "Redo att testa" simply because
+  // they weren't Active, which read as work still to do.
   const sections: { label: string; tasks: TestTaskRow[] }[] = [
+    { label: "Klara test – huvudkortet inte stängt", tasks: finished },
     { label: "Inväntar fix", tasks: awaitingFix },
     { label: "Under test", tasks: inProgress },
     { label: "Redo att testa", tasks: ready },
@@ -973,7 +1009,9 @@ function TestLeadTurn({
         <span className="df-stat">
           <strong>{unassignedCount}</strong> utan ägare
         </span>
-        {all.length !== visible.length && <span className="df-hint">{all.length - visible.length} godkända dolda</span>}
+        {all.length !== visible.length && (
+          <span className="df-hint">{all.length - visible.length} klara på stängda kort dolda</span>
+        )}
       </div>
       <CheckInGauge label="Hur känns testläget just nu? (1-5)" value={value} onChange={onChange} />
       {visible.length === 0 ? (

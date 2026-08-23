@@ -90,7 +90,13 @@ export function GroupCard({
         </div>
         <div
           className="group-prog-wrap"
-          title={progressFromCards ? `${done} av ${statStories.length} kort klara (inga story points satta)` : `${doneSP} av ${totalSP} SP klara`}
+          title={
+            progressFromCards
+              ? `${done} av ${statStories.length} kort klara (inga story points satta)`
+              : // Says outright what makes a point count, because the answer is often "the work is
+                // finished but the card is still open" and the bar alone looks like a contradiction.
+                `${doneSP} av ${totalSP} SP klara – story points räknas när kortet är stängt`
+          }
         >
           <div className="group-prog-track">
             <div

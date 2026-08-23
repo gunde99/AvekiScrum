@@ -273,6 +273,14 @@
   color: #fff;
 }
 
+/* Closed, but nobody tagged a verdict. Outlined rather than filled: it is finished, yet it says
+   less than the two badges above it do. */
+.daily-flow__list-status--noverdict {
+  background: transparent;
+  border: 1px solid var(--color-success);
+  color: var(--color-success);
+}
+
 .daily-flow__list--tall {
   max-height: 480px;
 }
@@ -460,7 +468,7 @@
    leaving the ring visible as a thin outline. The legend swatches get their colour from the
    background rules further down instead. */
 .df-slice--new {
-  stroke: var(--color-border);
+  stroke: var(--progress-track);
 }
 
 .df-slice--active {
@@ -505,7 +513,7 @@
 }
 
 .df-legend-swatch.df-slice--new {
-  background: var(--color-border);
+  background: var(--progress-track);
 }
 
 .df-legend-swatch.df-slice--active {
@@ -561,7 +569,7 @@
   position: relative;
   height: 16px;
   border-radius: 999px;
-  background: var(--color-border);
+  background: var(--progress-track);
   overflow: hidden;
 }
 
@@ -574,12 +582,12 @@
 }
 
 .df-progress-bar--started {
-  background: var(--color-info);
+  background: var(--progress-active);
 }
 
 /* Closed is a subset of started, so it sits on top of the same left edge. */
 .df-progress-bar--closed {
-  background: var(--color-success);
+  background: var(--progress-done);
 }
 
 .df-progress-legend {
@@ -623,8 +631,15 @@
 .df-goal-detail {
   flex: 1;
   min-width: 320px;
-  max-height: 300px;
+  /* Was a flat 300px, which cut the sub-goals off mid-sentence on every goal that has more than
+     two of them - and with the scrollbar only appearing on hover, the text looked truncated rather
+     than scrollable. Takes what the viewport can spare instead, and keeps the scrollbar visible so
+     it is obvious there is more below. */
+  max-height: min(56vh, 620px);
   overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--progress-track) transparent;
   padding-left: var(--space-4);
   border-left: 1px solid var(--color-border);
   display: flex;

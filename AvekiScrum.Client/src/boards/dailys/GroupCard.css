@@ -152,21 +152,21 @@
   flex: 1;
   height: 6px;
   border-radius: 3px;
-  background: var(--color-border);
+  background: var(--progress-track);
   overflow: hidden;
 }
 
 .group-prog-fill {
   height: 100%;
-  background: var(--color-text-muted);
+  background: var(--progress-idle);
 }
 
 .group-prog-fill--active {
-  background: var(--color-info);
+  background: var(--progress-active);
 }
 
 .group-prog-fill--done {
-  background: var(--color-success);
+  background: var(--progress-done);
 }
 
 .group-prog-pct {
