@@ -48,6 +48,7 @@ export function NewBugForm({ onCreated }: NewBugFormProps) {
   const [source, setSource] = useState("");
   const [systemInfo, setSystemInfo] = useState("");
   const [areaPath, setAreaPath] = useState("");
+  const [iterationPath, setIterationPath] = useState("");
   const [externalLink, setExternalLink] = useState("");
   const [stakeholders, setStakeholders] = useState<SupportStakeholder[]>([]);
   // When someone is signed in the name isn't theirs to change - it's the same identity Azure will
@@ -63,6 +64,7 @@ export function NewBugForm({ onCreated }: NewBugFormProps) {
         setSeverity(supportOptions.defaultSeverity);
         setSource(supportOptions.defaultSource);
         setAreaPath(supportOptions.defaultAreaPath);
+        setIterationPath(supportOptions.defaultIterationPath);
         setSystemInfo(supportOptions.systemInfoTemplate);
         setLoading(false);
       })
@@ -96,6 +98,7 @@ export function NewBugForm({ onCreated }: NewBugFormProps) {
         // whose case this is.
         stakeholders: [reporterLine, ...stakeholders],
         areaPath,
+        iterationPath,
         externalLink,
       });
       if (!signedIn) saveReporter(reporter);
@@ -120,6 +123,7 @@ export function NewBugForm({ onCreated }: NewBugFormProps) {
       setSource(options.defaultSource);
       setSystemInfo(options.systemInfoTemplate);
       setAreaPath(options.defaultAreaPath);
+      setIterationPath(options.defaultIterationPath);
     }
   }
 
@@ -214,17 +218,41 @@ export function NewBugForm({ onCreated }: NewBugFormProps) {
               ))}
             </select>
           </div>
-          <div className="sup-field sup-field--wide">
-            <label className="sup-label" htmlFor="sup-area">
-              Area Path
-            </label>
-            <select id="sup-area" className="sup-input" value={areaPath} onChange={(e) => setAreaPath(e.target.value)}>
-              {options?.areas.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+          {/* Area path and iteration side by side: they answer the same question - where does this
+              belong - and are the two the reporter is least likely to need to touch. */}
+          <div className="sup-subgrid">
+            <div className="sup-field">
+              <label className="sup-label" htmlFor="sup-area">
+                Area Path
+              </label>
+              <select id="sup-area" className="sup-input" value={areaPath} onChange={(e) => setAreaPath(e.target.value)}>
+                {options?.areas.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+              {options?.team && (
+                <p className="sup-repro__hint">Förvald för Team {options.team}. Byt om ärendet hör till något annat.</p>
+              )}
+            </div>
+            <div className="sup-field">
+              <label className="sup-label" htmlFor="sup-iteration">
+                Iteration
+              </label>
+              <select
+                id="sup-iteration"
+                className="sup-input"
+                value={iterationPath}
+                onChange={(e) => setIterationPath(e.target.value)}
+              >
+                {options?.iterations.map((option) => (
+                  <option key={option.path} value={option.path}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="sup-field sup-field--wide">
@@ -279,7 +307,9 @@ export function NewBugForm({ onCreated }: NewBugFormProps) {
       </section>
 
       <section className="sup-card">
-        <h2 className="sup-card__title">Berörda</h2>
+        <h2 className="sup-card__title">
+          Berörda <span className="sup-card__title-note">(Stakeholders)</span>
+        </h2>
         <p className="sup-card__hint">
           Lägg till en i taget – kunder, interna och support. De skrivs alltid på samma sätt på kortet.
         </p>

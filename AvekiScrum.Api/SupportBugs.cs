@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using AvekiScrum.Application.Models.DTOs.Scrum;
 
 namespace AvekiScrum.Api;
 
@@ -23,7 +24,13 @@ internal sealed record CreateSupportBugRequest(
     /// <summary>Link to the Lime case. What marks a bug as support's, alongside the tag.</summary>
     string? ExternalLink,
     /// <summary>Extra tags on top of the support tag - optional, rarely used.</summary>
-    List<string>? Tags);
+    List<string>? Tags,
+    /// <summary>Where it should land. Empty means the backlog, which is where most bugs belong.</summary>
+    string? IterationPath = null);
+
+/// <summary>One choice in the form's iteration picker.</summary>
+/// <param name="Kind">"backlog", "current" or "future" - what the client colours and orders by.</param>
+internal sealed record SupportIterationOption(string Path, string Label, string Kind);
 
 /// <summary>
 /// Shared rules for the support bug flow: which bugs belong to support, how their stakeholders are
@@ -110,6 +117,119 @@ internal static class SupportBugs
             if (match.Success) versions.Add(match.Groups[1].Value);
         }
         return versions.ToList();
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Which half of support the signed-in person belongs to
+    // ---------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// "Nord" or "Syd" for whoever is signed in, read off the role groups they matched in
+    /// TeamRoleConfig - every team-scoped group name ends with the team ("StakeholdersTeamSyd").
+    ///
+    /// Support staff sit in the Stakeholders groups, which is exactly what makes this work without
+    /// a second roster to maintain. Null for anyone who isn't in the config at all; the form then
+    /// falls back to the configured default rather than guessing.
+    /// </summary>
+    public static string? TeamFor(IEnumerable<string>? roleGroups)
+    {
+        // First match wins. A couple of people (the QA lead) are listed under both teams, and for
+        // those the choice is arbitrary either way - the picker still lets them change it.
+        foreach (var group in roleGroups ?? Enumerable.Empty<string>())
+        {
+            if (group.EndsWith("TeamNord", StringComparison.OrdinalIgnoreCase)) return "Nord";
+            if (group.EndsWith("TeamSyd", StringComparison.OrdinalIgnoreCase)) return "Syd";
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The area path a new bug should start on: the one configured for the reporter's team, if that
+    /// path actually exists in this project.
+    ///
+    /// The existence check is what keeps the sandbox working - ScrumLab has none of the real
+    /// products, and a preselected path Azure doesn't know would make every save fail with a 400.
+    /// </summary>
+    public static string ResolveDefaultAreaPath(
+        string? team,
+        IConfiguration configuration,
+        string project,
+        IReadOnlyList<string> areas)
+    {
+        var configured = string.IsNullOrWhiteSpace(team) ? null : configuration[$"Support:TeamAreaPaths:{team}"];
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            // Written in appsettings as the product name alone ("myCarta"); the project prefix is
+            // implied, as it is everywhere else an area path is spelled out.
+            var full = configured.Contains('\\') ? configured : $"{project}\\{configured}";
+            if (areas.Any(area => string.Equals(area, full, StringComparison.OrdinalIgnoreCase)))
+                return full;
+        }
+
+        var fallback = configuration["Support:DefaultAreaPath"];
+        return string.IsNullOrWhiteSpace(fallback) ? project : fallback;
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Where a new bug can be filed
+    // ---------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// The iteration choices the form offers: the backlog, the sprint running right now, and the
+    /// sprints still to come in the current release.
+    ///
+    /// Past sprints are left out deliberately - a bug reported today can't have happened in a
+    /// sprint that already closed, and the full iteration tree is a hundred entries deep.
+    /// </summary>
+    /// <param name="backlogPath">Where an unplanned bug goes - the project root, normally.</param>
+    /// <param name="currentPathOverride">Testing:IterationPathOverride, when a sandbox project's
+    /// sprint dates don't line up with today.</param>
+    public static List<SupportIterationOption> BuildIterationOptions(
+        IReadOnlyList<IterationNodeDto> nodes,
+        string backlogPath,
+        string? currentPathOverride,
+        DateTime today)
+    {
+        var options = new List<SupportIterationOption>
+        {
+            new(backlogPath, "Produktbacklogg", "backlog"),
+        };
+
+        // Only leaves are sprints; the levels above them are release folders ("v27.1").
+        var sprints = nodes.Where(node => !node.HasChildren).ToList();
+
+        var current =
+            (!string.IsNullOrWhiteSpace(currentPathOverride)
+                ? sprints.FirstOrDefault(s => string.Equals(s.Path, currentPathOverride, StringComparison.OrdinalIgnoreCase))
+                : null)
+            ?? sprints.FirstOrDefault(s => s.StartDate?.Date <= today && today <= s.FinishDate?.Date);
+
+        if (current is not null)
+            options.Add(new SupportIterationOption(current.Path, $"Aktuell sprint – {current.Name}", "current"));
+
+        // "The current release" is the folder the running sprint sits in, rather than a version
+        // from config: the two disagree the moment a release slips, and the sprint is the one that
+        // knows what the team is actually working towards.
+        var releaseFolder = ParentPath(current?.Path);
+
+        foreach (var sprint in sprints
+            .Where(s => s.StartDate?.Date > today)
+            .Where(s => releaseFolder is null
+                        || string.Equals(ParentPath(s.Path), releaseFolder, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(s => s.StartDate))
+        {
+            if (options.Any(o => string.Equals(o.Path, sprint.Path, StringComparison.OrdinalIgnoreCase))) continue;
+            options.Add(new SupportIterationOption(sprint.Path, sprint.Name, "future"));
+        }
+
+        return options;
+    }
+
+    private static string? ParentPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        var lastSeparator = path.LastIndexOf('\\');
+        return lastSeparator <= 0 ? null : path[..lastSeparator];
     }
 
     // ---------------------------------------------------------------------------------------

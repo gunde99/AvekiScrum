@@ -704,6 +704,50 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
         }
 
         /// <summary>
+        /// The same iteration tree, but with the dates Azure keeps on each node - which is what
+        /// tells a sprint apart from the folder above it, and today's sprint apart from next one's.
+        ///
+        /// Read from the project's classification nodes rather than the team-settings endpoint on
+        /// purpose: that one needs a team with exactly the expected name to exist, and a sandbox
+        /// project has none. Nodes without dates are folders (or an unscheduled sprint) and come
+        /// back with nulls rather than being dropped - the caller decides what to do with them.
+        /// </summary>
+        public async Task<IReadOnlyList<IterationNodeDto>> GetIterationNodesAsync(CancellationToken ct = default)
+        {
+            var json = await _rest.GetStringAsync(AzureUrlHelper.GetClassificationNodesUrl("iterations"), ct);
+            using var document = JsonDocument.Parse(json);
+            var nodes = new List<IterationNodeDto>();
+            Walk(document.RootElement, null);
+            return nodes;
+
+            void Walk(JsonElement node, string? parentPath)
+            {
+                if (!node.TryGetProperty("name", out var nameElement)) return;
+                var name = nameElement.GetString();
+                if (string.IsNullOrWhiteSpace(name)) return;
+
+                var path = parentPath is null ? name : $"{parentPath}\\{name}";
+                var hasChildren = node.TryGetProperty("children", out var children)
+                                  && children.ValueKind == JsonValueKind.Array
+                                  && children.GetArrayLength() > 0;
+                nodes.Add(new IterationNodeDto(path, name, DateOf(node, "startDate"), DateOf(node, "finishDate"), hasChildren));
+
+                if (!hasChildren) return;
+                foreach (var child in children.EnumerateArray())
+                    Walk(child, path);
+            }
+
+            static DateTime? DateOf(JsonElement node, string attribute)
+            {
+                if (!node.TryGetProperty("attributes", out var attributes) || attributes.ValueKind != JsonValueKind.Object)
+                    return null;
+                if (!attributes.TryGetProperty(attribute, out var value) || value.ValueKind != JsonValueKind.String)
+                    return null;
+                return value.TryGetDateTime(out var parsed) ? parsed : null;
+            }
+        }
+
+        /// <summary>
         /// The picklists one work item type actually offers, keyed by field reference name. Read
         /// from the process template rather than hardcoded: the values are not what a reasonable
         /// guess would produce (Severity is "2 - High (&lt; 16 h )", Source is "Internal" not

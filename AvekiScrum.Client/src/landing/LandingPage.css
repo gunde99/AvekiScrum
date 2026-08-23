@@ -29,8 +29,12 @@
   margin-left: 2px;
 }
 
-.landing__theme-toggle {
+/* Takes the free space so the chip sits to the right, next to the theme toggle. */
+.landing__identity {
   margin-left: auto;
+}
+
+.landing__theme-toggle {
   width: 36px;
   height: 36px;
   border-radius: 50%;

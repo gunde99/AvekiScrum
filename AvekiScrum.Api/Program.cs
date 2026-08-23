@@ -295,9 +295,12 @@ if (entraMode)
 
 // Who the caller is, and which colleague in TeamRoleConfig they line up with. The client asks
 // once at startup and uses the answer as the reporter identity - no more typing your own name.
-app.MapGet("/api/me", (HttpContext http, IOptions<TeamRoleConfig> teamRoles, IConfiguration configuration) =>
+app.MapGet("/api/me", (HttpContext http, IOptions<TeamRoleConfig> teamRoles) =>
 {
-    if (!string.Equals(configuration["Auth:Mode"], "Entra", StringComparison.OrdinalIgnoreCase))
+    // Asked of the request, not of the configured mode. Both Entra modes sign the user in - only
+    // the *Azure DevOps* half differs between them - and keying this off Auth:Mode == "Entra" is
+    // what left EntraWithPat users looking anonymous to their own app, name and photo included.
+    if (http.User?.Identity?.IsAuthenticated != true)
     {
         // PAT mode has no signed-in user. Saying so plainly lets the client fall back to asking
         // for a name rather than guessing that auth is broken.
@@ -313,6 +316,8 @@ app.MapGet("/api/me", (HttpContext http, IOptions<TeamRoleConfig> teamRoles, ICo
         objectId = user.ObjectId,
         matchedEmail = user.MatchedEmail,
         roleGroups = user.RoleGroups,
+        // Which half of the organisation they support, for the defaults that differ between them.
+        team = SupportBugs.TeamFor(user.RoleGroups),
     });
 })
 .WithName("GetSignedInUser");
@@ -993,8 +998,10 @@ app.MapPost("/api/attachments", async (
 // Everything the new-bug form needs in one call: the real picklists from the process template,
 // the area paths to file under, and the System Info skeleton.
 app.MapGet("/api/support/options", async (
+    HttpContext http,
     IAzureDevOpsService azureDevOpsService,
     IConfiguration configuration,
+    IOptions<TeamRoleConfig> teamRoles,
     CancellationToken ct) =>
 {
     var areas = await azureDevOpsService.GetClassificationPathsAsync(areas: true, ct);
@@ -1015,16 +1022,43 @@ app.MapGet("/api/support/options", async (
     var project = configuration["AzureDevOps:Project"] ?? "";
     // Note the IsNullOrWhiteSpace rather than ??: an unset key in appsettings.json is an empty
     // string, not null, so ?? would hand the client "" and leave the picker blank.
-    var configuredArea = configuration["Support:DefaultAreaPath"];
     var configuredTemplate = configuration["Support:SystemInfoTemplate"];
+
+    // Nord and Syd support different products, so the area path a bug should start on depends on
+    // who is filing it. Read from the sign-in rather than asked for - the whole point is that
+    // someone who opens this twice a year doesn't have to know which area path is theirs.
+    var team = SupportBugs.TeamFor(SignedInUserReader.Read(http.User, teamRoles.Value.TeamRoleMapping).RoleGroups);
+
+    var backlogIteration = configuration["Support:BacklogIterationPath"];
+    if (string.IsNullOrWhiteSpace(backlogIteration)) backlogIteration = project;
+
+    List<SupportIterationOption> iterations;
+    try
+    {
+        var nodes = await azureDevOpsService.GetIterationNodesAsync(ct);
+        iterations = SupportBugs.BuildIterationOptions(
+            nodes, backlogIteration, configuration["Testing:IterationPathOverride"], DateTime.UtcNow.Date);
+    }
+    catch
+    {
+        // The backlog is where nearly every bug goes anyway; losing the sprint list shouldn't cost
+        // anyone the ability to file one.
+        iterations = new List<SupportIterationOption> { new(backlogIteration, "Produktbacklogg", "backlog") };
+    }
+
     return Results.Ok(new
     {
         areas,
         severities,
         sources,
+        iterations,
         stakeholderCategories = SupportBugs.StakeholderCategories,
         systemInfoTemplate = string.IsNullOrWhiteSpace(configuredTemplate) ? SupportBugs.DefaultSystemInfoTemplate : configuredTemplate,
-        defaultAreaPath = string.IsNullOrWhiteSpace(configuredArea) ? project : configuredArea,
+        team,
+        defaultAreaPath = SupportBugs.ResolveDefaultAreaPath(team, configuration, project, areas),
+        // The backlog, always: a newly reported bug hasn't been prioritised yet, and saying so is
+        // more honest than dropping it into whatever sprint happens to be running.
+        defaultIterationPath = backlogIteration,
         defaultSeverity = Fallback(configuration["Support:DefaultSeverity"], "3 - Medium"),
         defaultSource = Fallback(configuration["Support:DefaultSource"], "Customer"),
     });
@@ -1064,7 +1098,9 @@ app.MapPost("/api/support/bugs", async (
         ["System.AreaPath"] = string.IsNullOrWhiteSpace(request.AreaPath)
             ? (string.IsNullOrWhiteSpace(configuration["Support:DefaultAreaPath"]) ? project : configuration["Support:DefaultAreaPath"])
             : request.AreaPath,
-        ["System.IterationPath"] = backlogIteration,
+        // The form defaults to the backlog and rarely offers anything else, but a support person
+        // who already knows the sprint it belongs in shouldn't have to ask someone to move it.
+        ["System.IterationPath"] = string.IsNullOrWhiteSpace(request.IterationPath) ? backlogIteration : request.IterationPath,
         ["Microsoft.VSTS.TCM.ReproSteps"] = request.ReproSteps,
         ["System.Tags"] = string.Join("; ", tags.Distinct(StringComparer.OrdinalIgnoreCase)),
         ["Custom.Stakeholders"] = SupportBugs.FormatStakeholders(request.Stakeholders ?? new List<SupportStakeholder>()),

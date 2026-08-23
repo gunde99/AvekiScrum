@@ -87,6 +87,20 @@
   grid-column: 1 / -1;
 }
 
+/* Two fields on one row of their own, with the wider one first - an area path is a long string,
+   an iteration name is short. */
+.sup-subgrid {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.sup-card__title-note {
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
 .sup-repro {
   display: flex;
   flex-direction: column;
@@ -167,7 +181,8 @@
 
 @media (max-width: 700px) {
   .sup-stakeholders__add,
-  .sup-grid {
+  .sup-grid,
+  .sup-subgrid {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -692,18 +707,6 @@
 
 /* The Lime link lives next to the id rather than in a column of its own - a whole column for one
    arrow cost more width than the dates could spare. */
-.sup-tr__lime {
-  margin-left: 3px;
-  color: var(--color-primary);
-  text-decoration: none;
-  font-size: 0.85rem;
-  font-weight: 400;
-}
-
-.sup-tr__lime--plain {
-  color: var(--color-text-muted);
-}
-
 .sup-sev {
   display: inline-block;
   font-size: 0.65rem;

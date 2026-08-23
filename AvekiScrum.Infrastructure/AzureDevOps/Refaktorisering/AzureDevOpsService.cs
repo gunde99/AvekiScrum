@@ -124,6 +124,9 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
         public Task<IReadOnlyList<string>> GetClassificationPathsAsync(bool areas, CancellationToken ct = default)
             => _boards.GetClassificationPathsAsync(areas, ct);
 
+        public Task<IReadOnlyList<IterationNodeDto>> GetIterationNodesAsync(CancellationToken ct = default)
+            => _boards.GetIterationNodesAsync(ct);
+
         public Task<IReadOnlyList<string>> GetTagsAsync(CancellationToken ct = default)
             => _boards.GetTagsAsync(ct);
 
@@ -653,6 +656,7 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
                 CompletedWork = fields.CompletedWork,
                 AssignedTeam = fields.AssignedTeam,
                 Stakeholders = fields.Stakeholders,
+                ExternalLink = fields.ExternalLink,
                 Tags = string.IsNullOrWhiteSpace(fields.Tags)
                     ? new List<string>()
                     : fields.Tags.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),

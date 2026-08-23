@@ -66,6 +66,8 @@ export interface WorkItemDetail {
   completedWork: number | null;
   assignedTeam: string | null;
   stakeholders: string | null;
+  /** The Lime case a support-reported bug came from. Free text on older cards. */
+  externalLink: string | null;
   tags: string[];
   descriptionHtml: string;
   acceptanceCriteriaHtml: string;

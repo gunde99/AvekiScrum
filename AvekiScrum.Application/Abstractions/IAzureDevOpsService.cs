@@ -58,6 +58,8 @@ namespace AvekiScrum.Application.Abstractions
         Task RemoveWorkItemRelationAsync(int workItemId, int targetId, string linkRel, CancellationToken ct = default);
         /// <summary>All area paths (true) or iteration paths (false) in the project, for the pickers.</summary>
         Task<IReadOnlyList<string>> GetClassificationPathsAsync(bool areas, CancellationToken ct = default);
+        /// <summary>The iteration tree with each node's dates - the same paths, plus what they mean in time.</summary>
+        Task<IReadOnlyList<IterationNodeDto>> GetIterationNodesAsync(CancellationToken ct = default);
         Task<IReadOnlyList<string>> GetTagsAsync(CancellationToken ct = default);
         /// <summary>Picklists the process template defines for one work item type, by field ref name.</summary>
         Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetWorkItemTypeFieldOptionsAsync(string workItemType, CancellationToken ct = default);

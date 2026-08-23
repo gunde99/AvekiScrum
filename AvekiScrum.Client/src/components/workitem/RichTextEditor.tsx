@@ -108,11 +108,14 @@ export function RichTextEditor({ value, onChange, placeholder, minRows = 4 }: Ri
         onBlur={emit}
         onPaste={handlePaste}
       />
-      <div className="rte__footer">
-        <span>Klistra in en bild för att bifoga den – den visas direkt i texten.</span>
-        {uploading && <span className="rte__uploading">Laddar upp bild…</span>}
-        {error && <span className="rte__error">{error}</span>}
-      </div>
+      {/* Only speaks up when it has something to say. Pasting an image shows the image, which
+          explains itself better than a line of text under every box on the page did. */}
+      {(uploading || error) && (
+        <div className="rte__footer">
+          {uploading && <span className="rte__uploading">Laddar upp bild…</span>}
+          {error && <span className="rte__error">{error}</span>}
+        </div>
+      )}
     </div>
   );
 }

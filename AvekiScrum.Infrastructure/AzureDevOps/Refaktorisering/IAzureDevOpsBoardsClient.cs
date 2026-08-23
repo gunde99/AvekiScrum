@@ -118,6 +118,9 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
         /// <summary>All area paths (true) or iteration paths (false) in the project.</summary>
         Task<IReadOnlyList<string>> GetClassificationPathsAsync(bool areas, CancellationToken ct = default);
 
+        /// <summary>The iteration tree with each node's start and finish dates.</summary>
+        Task<IReadOnlyList<IterationNodeDto>> GetIterationNodesAsync(CancellationToken ct = default);
+
         Task<IReadOnlyList<string>> GetTagsAsync(CancellationToken ct = default);
 
         /// <summary>Picklists the process template defines for one work item type, by field ref name.</summary>

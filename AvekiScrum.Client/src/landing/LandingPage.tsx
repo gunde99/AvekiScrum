@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTheme } from "../theme/ThemeContext";
 import { Diagnostics } from "../components/Diagnostics";
+import { UserChip } from "../components/UserChip";
 import "./LandingPage.css";
 
 export type AppKey = "scrum" | "support";
@@ -61,6 +62,11 @@ export function LandingPage({ onPick }: LandingPageProps) {
       <header className="landing__top">
         <div className="landing__wordmark">
           Aveki<span>·</span>
+        </div>
+        {/* Sign-in happens before this page renders and covers both tools, so this is where it
+            belongs - you know who you are before you pick a door, not after. */}
+        <div className="landing__identity">
+          <UserChip />
         </div>
         <button
           type="button"

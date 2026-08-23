@@ -3,7 +3,11 @@ import type { SupportBug as SupportBugRow, SupportStakeholder } from "../api/sup
 /**
  * The repro-steps template the team already uses, as separate fields. Support is used to filling
  * in one big text box with these headings; splitting them means nobody deletes a heading by
- * accident and every card comes out with the same five sections in the same order.
+ * accident and every card comes out with the same sections in the same order.
+ *
+ * There is no separate screenshot field: every one of these takes a pasted image inline, the way
+ * Azure's own editor does, so a picture belongs next to the step it illustrates rather than in a
+ * box at the bottom.
  *
  * All parts are optional except the description - a one-line "knappen gör ingenting" bug
  * shouldn't be blocked by an empty "förväntat resultat".
@@ -13,7 +17,6 @@ export interface ReproStepsParts {
   steps: string;
   expected: string;
   actual: string;
-  screenshots: string;
 }
 
 export interface ReproStepsField {
@@ -37,7 +40,7 @@ export const REPRO_FIELDS: ReproStepsField[] = [
     heading: "Steg för att återskapa buggen",
     placeholder: "1. Logga in som…\n2. Gå till…\n3. Klicka på…",
     rows: 6,
-    hint: "Numrera gärna stegen – det är det som gör att en utvecklare kan se samma sak som du.",
+    hint: "Numrera gärna stegen – så blir det lättare att följa.",
   },
   {
     key: "expected",
@@ -51,13 +54,6 @@ export const REPRO_FIELDS: ReproStepsField[] = [
     placeholder: "Vad hände i stället?",
     rows: 3,
   },
-  {
-    key: "screenshots",
-    heading: "Skärmbild(er)",
-    placeholder: "Klistra in en skärmdump här (Ctrl+V).",
-    rows: 4,
-    hint: "Klistra in direkt från urklipp – bilden laddas upp och bifogas kortet.",
-  },
 ];
 
 export const EMPTY_REPRO_PARTS: ReproStepsParts = {
@@ -65,7 +61,6 @@ export const EMPTY_REPRO_PARTS: ReproStepsParts = {
   steps: "",
   expected: "",
   actual: "",
-  screenshots: "",
 };
 
 /**

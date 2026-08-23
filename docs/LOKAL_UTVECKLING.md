@@ -37,14 +37,21 @@ behöver du sätta `Auth__ClientSecret` – och det läget kräver dessutom admi
 **Kontrollera att `http://localhost:5199/` finns som redirect-URI** på SPA-registreringen
 (*Authentication* → Single-page application). Saknas den blir det `AADSTS50011` vid inloggning.
 
+Porten är låst till 5199 i `vite.config.ts` just därför: MSAL skickar tillbaka webbläsaren till
+`window.location.origin`, så en dev-server som glider vidare till nästa lediga port får ett
+`AADSTS50011` som inte ser ut att ha med porten att göra. Är 5199 upptagen vägrar Vite starta i
+stället för att byta – det felet är lättare att förstå.
+
 Det du ska se:
 
 1. Sidan laddar efter en kort paus – inloggningen sker tyst mot din Windows-session.
-2. Ditt namn och din bild uppe till höger.
+2. Ditt namn och din bild uppe till höger – redan på startsidan, innan du valt ingång.
 3. AvekiSupport → *Nytt ärende*: ditt namn ifyllt och **skrivskyddat**, med texten "Hämtat från din
    inloggning".
-4. Buggrapportör-raden under *Berörda* säger ditt namn.
-5. AvekiSupport → *Ärenden*: "Mina ärenden" hittar det du rapporterat.
+4. Buggrapportör-raden under *Berörda (Stakeholders)* säger ditt namn.
+5. *Area Path* förvald efter ditt team – `myCarta` för Nord, `Energi- och VA-banken` för Syd – med
+   texten "Förvald för Team …" under. Teamet läses ur dina rollgrupper i `TeamRoleConfig`.
+6. AvekiSupport → *Ärenden*: "Mina ärenden" hittar det du rapporterat.
 
 Diagnostiken längst ned på startsidan visar vilket läge som gäller. I `EntraWithPat` misslyckas
 kontrollen "Azure DevOps som dig" med flit – det är den som kräver consenten.

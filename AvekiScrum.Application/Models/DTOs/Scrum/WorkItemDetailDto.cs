@@ -28,6 +28,8 @@ namespace AvekiScrum.Application.Models.DTOs.Scrum
         public double? CompletedWork { get; set; }
         public string? AssignedTeam { get; set; }
         public string? Stakeholders { get; set; }
+        /// <summary>The Lime case this card came from, when support filed it. Free text on old cards.</summary>
+        public string? ExternalLink { get; set; }
         public List<string> Tags { get; set; } = new();
         public string DescriptionHtml { get; set; } = "";
         public string AcceptanceCriteriaHtml { get; set; } = "";

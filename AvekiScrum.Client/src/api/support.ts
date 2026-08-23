@@ -1,14 +1,25 @@
 import { apiFetch, describeFailure } from "../lib/apiFetch";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:5273";
 
+/** One choice in the iteration picker: the backlog, the running sprint, or one still to come. */
+export interface SupportIterationOption {
+  path: string;
+  label: string;
+  kind: "backlog" | "current" | "future";
+}
+
 export interface SupportOptions {
   areas: string[];
   /** Real Severity values from the process template - "3 - Medium" and friends. */
   severities: string[];
   sources: string[];
+  iterations: SupportIterationOption[];
   stakeholderCategories: string[];
   systemInfoTemplate: string;
+  /** "Nord" or "Syd", from the signed-in user's role groups - null when we can't tell. */
+  team: string | null;
   defaultAreaPath: string;
+  defaultIterationPath: string;
   defaultSeverity: string;
   defaultSource: string;
 }
@@ -28,6 +39,7 @@ export interface CreateSupportBugRequest {
   systemInfo: string;
   stakeholders: SupportStakeholder[];
   areaPath: string;
+  iterationPath: string;
   /** Link to the case in Lime. */
   externalLink: string;
   tags?: string[];

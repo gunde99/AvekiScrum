@@ -11,13 +11,13 @@ Ett vanligt **Bug**-work item skapas i samma projekt som resten – det finns in
 | Fält på kortet | Kommer från |
 |---|---|
 | `System.Title` | Rubrik |
-| `Microsoft.VSTS.TCM.ReproSteps` | De fem beskrivningsfälten, hopslagna i mallens ordning |
+| `Microsoft.VSTS.TCM.ReproSteps` | De fyra beskrivningsfälten, hopslagna i mallens ordning |
 | `Microsoft.VSTS.Common.Severity` | Allvarlighetsgrad (riktig picklista från processmallen) |
 | `Custom.Source` | Källa |
 | `Microsoft.VSTS.TCM.SystemInfo` | System Info |
 | `Custom.Stakeholders` | Berörda, en `<div><b>Kategori:</b> Namn (notering)</div>` per rad |
-| `System.AreaPath` | Område |
-| `System.IterationPath` | `Support:BacklogIterationPath` – tom betyder projektets rot, dvs. PO:s backlogg |
+| `System.AreaPath` | Area Path – förvald efter rapportörens team, se nedan |
+| `System.IterationPath` | Iteration – förvalt `Support:BacklogIterationPath`, dvs. PO:s backlogg |
 | `System.Tags` | `Support:BugTag` (default `AvekiSupport`) |
 | `Custom.Externallink` | Länk till Lime-ärendet (observera litet "l" i fältnamnet) |
 
@@ -32,25 +32,41 @@ Två saker gör en bugg till supportens, och det räcker med den ena:
 
 ## Repro steps-mallen
 
-Fem separata fält i stället för en textruta med rubriker i:
+Fyra separata fält i stället för en textruta med rubriker i:
 
 1. Kort beskrivning om buggen
 2. Steg för att återskapa buggen
 3. Förväntat resultat (innan bugg)
 4. Faktiskt resultat (vid bugg)
-5. Skärmbild(er)
 
 De slås ihop till en text med rubrikerna i samma ordning varje gång. Rubriker skrivs ut även för
 tomma fält – ett kort utan rubrik ser ut som att frågan glömdes bort, inte som att svaret var
 "inget".
 
-Varje fält är en `MarkdownEditor`, så en skärmdump kan klistras in direkt från urklipp (Ctrl+V) var
-som helst i texten – precis som i Azure. Bilden laddas upp som en bilaga och länkas in, och visas
-som en miniatyr under rutan: markdown-länken i sig säger ingenting om man klistrat in rätt sak.
-Miniatyren renderas ur samma text som skickas, så den kan inte visa något annat än det som hamnar
-på kortet. Krysset tar bort både bilden och dess markdown.
+Varje fält är en `RichTextEditor`, så en skärmdump kan klistras in direkt från urklipp (Ctrl+V) var
+som helst i texten och syns på plats medan man skriver – precis som i Azure. Därför finns ingen
+separat ruta för skärmbilder: en bild hör hemma vid det steg den illustrerar, inte i en låda längst
+ned.
 
 Minimikravet för att kunna skicka är rubrik, ditt namn, och antingen en beskrivning eller steg.
+
+## Var ärendet hamnar
+
+**Area Path** är förvald efter vilket team rapportören tillhör – `myCarta` för Nord,
+`Energi- och VA-banken` för Syd, konfigurerat under `Support:TeamAreaPaths`. Teamet läses ur
+rollgrupperna i `TeamRoleConfig` (supportpersonalen ligger i `StakeholdersTeam*`), så ingen andra
+namnlista behöver underhållas. Pekar konfigurationen på en sökväg projektet inte har – vilket är
+normalfallet i ScrumLab-sandlådan – används `Support:DefaultAreaPath` i stället, för en förvald
+sökväg Azure inte känner igen får hela sparningen att fallera.
+
+**Iteration** har tre sorters val: *Produktbacklogg* (förvalt), den sprint som pågår just nu, och de
+sprintar som ligger kvar i samma release. Passerade sprintar utelämnas – en bugg som rapporteras
+idag kan inte höra hemma i en sprint som redan stängt. "Aktuell release" är den mapp den pågående
+sprinten ligger i, inte en version ur konfigurationen: de två skiljer sig åt så fort en release
+skjuts fram, och sprinten är den som vet vad teamet faktiskt jobbar mot.
+
+Listan byggs ur projektets egna iterationsnoder (`GetIterationNodesAsync`), inte ur
+team-inställningarna – de senare kräver ett team med exakt rätt namn, och sandlådan har inga.
 
 ## Berörda (stakeholders)
 
@@ -134,7 +150,13 @@ innehåller. Matchar intervallet fler än 600 ärenden hämtas de senaste och li
 Version läses från både taggar (`27.1`) och iterationssökvägen (`v27.1`) – båda vanorna finns.
 
 Klick på en rad öppnar samma work item-vy som Scrum-boarden använder, så supporten kan läsa
-diskussionen och kommentera.
+diskussionen och kommentera. Ingen pil vid id:t i listan: klicket stannar i appen. Pilen sitter i
+kortet i stället, där man faktiskt lämnar – `#id ↗` till Azure DevOps och `Lime ↗` till ärendet
+buggen kom ifrån.
+
+Stängs kortet utan att något skrivits laddas listan **inte** om. Att läsa ett kort ändrar ingenting
+i Azure, och att hämta hundratals buggar på nytt för att landa i exakt samma lista är arbete för
+ingenting – kortet rapporterar själv om det skrev något.
 
 ## Konfiguration
 
@@ -143,6 +165,7 @@ diskussionen och kommentera.
   "BugTag": "AvekiSupport",
   "BacklogIterationPath": "",
   "DefaultAreaPath": "",
+  "TeamAreaPaths": { "Nord": "myCarta", "Syd": "Energi- och VA-banken" },
   "DefaultSeverity": "3 - Medium",
   "DefaultSource": "Customer",
   "AdditionalCompanyNames": ["Namn på kollega som inte sitter i något Scrum-team"],

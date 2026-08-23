@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   fetchClassification,
   fetchWorkItemDetail,
@@ -23,7 +23,12 @@ import "./WorkItemModal.css";
 
 interface WorkItemModalProps {
   workItemId: number;
-  onClose: () => void;
+  /**
+   * Closing. `changed` is true only when something was actually written to Azure DevOps while the
+   * card was open, so a caller can skip an expensive reload after a look-and-close - which is the
+   * common case, and which used to cost a full refetch of every row behind the card.
+   */
+  onClose: (changed: boolean) => void;
   onOpenValidation?: (id: number) => void;
   /** Renders the card inline (no overlay, no close button, no Escape handler) so it can be
    *  hosted inside another panel - e.g. the daily flow's "stäm av med teamet" step - while
@@ -54,6 +59,10 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
   // opening the editor and closing it again shouldn't trigger a warning.
   const [draftBaseline, setDraftBaseline] = useState<string>("");
   const [confirmClose, setConfirmClose] = useState(false);
+  // Whether anything was written while this card was open. A ref, not state: it must not re-render
+  // anything, and the Escape handler's closure has to see the current value rather than the one
+  // from the render that installed it.
+  const changed = useRef(false);
 
   const currentId = stack[stack.length - 1].id;
 
@@ -98,7 +107,13 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
   /** Closing has to go through here so unsaved edits can't be lost by a stray Escape. */
   function requestClose() {
     if (isDirty) setConfirmClose(true);
-    else onClose();
+    else onClose(changed.current);
+  }
+
+  /** A tab reporting back that it wrote something: take its fresh copy and remember the write. */
+  function applyChange(updated: WorkItemDetail) {
+    changed.current = true;
+    setDetail(updated);
   }
 
   useEffect(() => {
@@ -158,7 +173,7 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
     setSaving(true);
     try {
       const updated = await updateWorkItemFields(currentId, draft);
-      setDetail(updated);
+      applyChange(updated);
       setStack((prev) => {
         const next = [...prev];
         next[next.length - 1] = { ...next[next.length - 1], title: updated.title };
@@ -200,6 +215,25 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
                 <a className="wi-modal__id-link" href={detail.webUrl} target="_blank" rel="noreferrer" title="Öppna i Azure DevOps">
                   #{detail.id} ↗
                 </a>
+                {/* Support's own bugs carry the case they came from. Only a real URL becomes a
+                    link - the field holds a bare note ("Dalavatten (fredrik knapp)") often enough
+                    that an anchor going nowhere would be worse than plain text. */}
+                {detail.externalLink &&
+                  (/^[a-z][a-z0-9+.-]*:\/\//i.test(detail.externalLink.trim()) ? (
+                    <a
+                      className="wi-modal__id-link"
+                      href={detail.externalLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={`Öppna ärendet i Lime: ${detail.externalLink}`}
+                    >
+                      Lime ↗
+                    </a>
+                  ) : (
+                    <span className="wi-modal__iteration" title={detail.externalLink}>
+                      Lime: {detail.externalLink}
+                    </span>
+                  ))}
                 <span className="wi-modal__state-badge">{detail.state}</span>
                 {/* Full path, not just the leaf - this is where Iteration Path lives now that
                     it's no longer a field in the Översikt grid. */}
@@ -259,12 +293,12 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
                 />
               )}
               {tab === "relations" && (
-                <WorkItemRelationsTab detail={detail} onOpenRelation={openRelation} onChanged={setDetail} people={people} />
+                <WorkItemRelationsTab detail={detail} onOpenRelation={openRelation} onChanged={applyChange} people={people} />
               )}
               {tab === "taskboard" && (
-                <WorkItemTaskboardTab detail={detail} onOpenRelation={openRelation} onCreated={setDetail} people={people} />
+                <WorkItemTaskboardTab detail={detail} onOpenRelation={openRelation} onCreated={applyChange} people={people} />
               )}
-              {tab === "discussion" && <WorkItemDiscussionTab detail={detail} onPosted={setDetail} />}
+              {tab === "discussion" && <WorkItemDiscussionTab detail={detail} onPosted={applyChange} />}
               {tab === "prs" && <WorkItemPullRequestsTab pullRequests={detail.pullRequests} />}
               {tab === "history" && <WorkItemHistoryTab history={detail.history} />}
               {tab === "details" && <WorkItemDetailsTab detail={detail} />}
@@ -318,7 +352,7 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
           danger
           onConfirm={() => {
             setConfirmClose(false);
-            onClose();
+            onClose(changed.current);
           }}
           onCancel={() => setConfirmClose(false)}
         />

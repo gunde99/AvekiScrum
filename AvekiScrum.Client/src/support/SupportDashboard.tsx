@@ -289,10 +289,12 @@ export function SupportDashboard() {
       {openId !== null && (
         <WorkItemModal
           workItemId={openId}
-          onClose={() => {
+          onClose={(changed) => {
             setOpenId(null);
-            // A comment or a state change made in the modal should show in the list behind it.
-            setReloadToken((t) => t + 1);
+            // Only when something was actually written. Reading a card and closing it changes
+            // nothing in Azure, so refetching hundreds of bugs behind it - splash and all - would
+            // be work done to arrive back at the list you already had.
+            if (changed) setReloadToken((t) => t + 1);
           }}
         />
       )}
@@ -303,27 +305,9 @@ export function SupportDashboard() {
 function BugRow({ bug, onOpen }: { bug: SupportBug; onOpen: (id: number) => void }) {
   return (
     <tr className="sup-tr" onClick={() => onOpen(bug.id)} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && onOpen(bug.id)}>
-      <td className="sup-col--id">
-        <span>#{bug.id}</span>
-        {bug.externalLink && isClickable(bug.externalLink) ? (
-          <a
-            className="sup-tr__lime"
-            href={bug.externalLink}
-            target="_blank"
-            rel="noreferrer"
-            title={`Öppna i Lime: ${bug.externalLink}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            ↗
-          </a>
-        ) : (
-          bug.externalLink && (
-            <span className="sup-tr__lime sup-tr__lime--plain" title={bug.externalLink}>
-              •
-            </span>
-          )
-        )}
-      </td>
+      {/* No jump-out arrow here: a click opens the card in this app, not in Azure. The arrow
+          belongs where you actually leave - inside the card, next to the id and the Lime case. */}
+      <td className="sup-col--id">#{bug.id}</td>
       <td className="sup-col--status">
         <span className={`sup-status sup-status--${bug.statusKey}`}>{bug.statusLabel}</span>
       </td>
@@ -352,13 +336,4 @@ function BugRow({ bug, onOpen }: { bug: SupportBug; onOpen: (id: number) => void
       <td className="sup-col--date">{formatDate(bug.changedDate)}</td>
     </tr>
   );
-}
-
-/**
- * The External link field holds a real URL on most cards, but sometimes just a note ("Dalavatten
- * (fredrik knapp)"). Only the former becomes a link; the rest is a dot with the text in its title,
- * rather than an anchor that goes nowhere.
- */
-function isClickable(link: string): boolean {
-  return /^[a-z][a-z0-9+.-]*:\/\//i.test(link.trim());
 }
