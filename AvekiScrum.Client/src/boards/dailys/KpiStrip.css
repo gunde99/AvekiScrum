@@ -50,7 +50,7 @@
 }
 
 .kpi-val--info {
-  color: var(--color-info);
+  color: var(--color-info-text);
 }
 
 .kpi-val--success {

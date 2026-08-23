@@ -472,7 +472,7 @@
 }
 
 .df-slice--active {
-  stroke: var(--color-info);
+  stroke: var(--progress-active);
 }
 
 .df-slice--resolved {
@@ -480,7 +480,7 @@
 }
 
 .df-slice--closed {
-  stroke: var(--color-success);
+  stroke: var(--progress-done);
 }
 
 .df-donut-legend {
@@ -517,7 +517,7 @@
 }
 
 .df-legend-swatch.df-slice--active {
-  background: var(--color-info);
+  background: var(--progress-active);
 }
 
 .df-legend-swatch.df-slice--resolved {
@@ -526,11 +526,11 @@
 
 .df-legend-swatch.df-slice--closed,
 .df-legend-swatch--closed {
-  background: var(--color-success);
+  background: var(--progress-done);
 }
 
 .df-legend-swatch--started {
-  background: var(--color-info);
+  background: var(--progress-active);
 }
 
 .df-donut-caption,

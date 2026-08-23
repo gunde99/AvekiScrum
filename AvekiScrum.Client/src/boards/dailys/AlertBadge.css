@@ -47,7 +47,7 @@
 }
 
 .alert-popover__head--notice {
-  color: var(--color-info);
+  color: var(--color-info-text);
 }
 
 .alert-popover__summary {

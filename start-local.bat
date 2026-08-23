@@ -1,6 +1,16 @@
 @echo off
 setlocal
 
+REM Inloggning ar standard: klienten har VITE_ENTRA_* i .env.development och loggar in mot Entra
+REM oavsett, sa ett Api utan inloggning ger det forvirrande mellanlaget dar webblasaren vet vem du
+REM ar men appen inte gor det - din bild forsvinner utan att nagot sagt till.
+REM   start-local.bat        inloggning kravs (EntraWithPat) - Azure DevOps nas fortfarande via PAT
+REM   start-local.bat pat    ingen inloggning alls, Api:t oppet. Det gamla lokala laget.
+set "AUTH_MODE=EntraWithPat"
+if /i "%~1"=="pat" set "AUTH_MODE=Pat"
+echo Auth:Mode = %AUTH_MODE%
+if /i "%AUTH_MODE%"=="Pat" echo   (ingen inloggning - ditt namn hamnar inte pa korten)
+
 if "%AzureDevOps__PAT%"=="" (
     echo [VARNING] Miljovariabeln AzureDevOps__PAT verkar inte vara satt i denna terminal.
     echo Om AvekiScrum.Api inte kan hamta data fran Azure DevOps, satt den via:
@@ -29,7 +39,7 @@ if not errorlevel 1 (
 
 echo Startar AvekiScrum.Api pa http://localhost:5273 ...
 echo (Forsta raden i det fonstret sager vilket Azure DevOps-projekt som galler.)
-start "AvekiScrum.Api" cmd /k "cd /d "%~dp0AvekiScrum.Api" && dotnet run --launch-profile http"
+start "AvekiScrum.Api" cmd /k "cd /d "%~dp0AvekiScrum.Api" && set Auth__Mode=%AUTH_MODE% && dotnet run --launch-profile http"
 
 echo Startar AvekiScrum.Client pa http://localhost:5199 ...
 start "AvekiScrum.Client" cmd /k "cd /d "%~dp0AvekiScrum.Client" && npm run dev -- --open"

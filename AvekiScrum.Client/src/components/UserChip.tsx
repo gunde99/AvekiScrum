@@ -16,6 +16,10 @@ import "./UserChip.css";
  */
 export function UserChip() {
   const identity = getIdentity();
+  // The browser signed in but the Api doesn't ask anyone to. Nothing is broken - it's what
+  // Auth:Mode "Pat" means - but silently hiding the chip makes it look like the sign-in failed,
+  // which is exactly the wrong conclusion to draw.
+  const apiIsAnonymous = authEnabled && identity !== null && !identity.signedIn;
 
   return (
     <>
@@ -24,6 +28,17 @@ export function UserChip() {
         <span className="user-chip" title={identity.email ?? undefined}>
           <PersonAvatar name={identity.displayName} size={26} />
           <span className="user-chip__name">{identity.displayName}</span>
+        </span>
+      )}
+      {apiIsAnonymous && (
+        <span
+          className="user-chip user-chip--anon"
+          title={
+            "API:t kör med Auth:Mode = \"Pat\": ingen inloggning krävs, och ändringar i Azure DevOps " +
+            "registreras som PAT-ägaren. Starta om API:t med Auth__Mode=EntraWithPat för att logga in som dig själv."
+          }
+        >
+          Ej inloggat läge
         </span>
       )}
     </>

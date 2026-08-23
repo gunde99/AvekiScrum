@@ -56,6 +56,8 @@
   /* Category colors - reused identically across kanban lane headers and task pills
      so the same concept always reads as the same color everywhere on the board. */
   --cat-dev: var(--color-info);
+  /* The dev category as text on the page rather than as a filled lane header. */
+  --cat-dev-text: var(--color-info-text);
   --cat-review: var(--color-primary);
   --cat-test: #b8860b;
   --cat-test-bg: var(--aveki-yellow);
@@ -77,6 +79,11 @@
   --progress-idle: var(--aveki-grey-500);
   --progress-active: var(--color-info);
   --progress-done: var(--color-success);
+
+  /* The blue when it has to be *read* rather than filled: KPI figures, counts, links.
+     --color-info is a background colour with white text on it, and at #0f4170 it is nearly as dark
+     as a dark-mode page - which is why the sprint's numbers were barely there. */
+  --color-info-text: var(--color-info);
 
   --font-main: "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
   --font-accent: var(--font-main);
@@ -119,6 +126,9 @@
   --progress-active: #7fa8cf;
   --progress-done: var(--color-success);
 
+  /* Same blue as the bars, so a figure and the bar it describes are visibly the same thing. */
+  --color-info-text: var(--progress-active);
+
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.45);
 
@@ -140,6 +150,7 @@
 
     --progress-track: #5c554a;
     --progress-active: #7fa8cf;
+    --color-info-text: #7fa8cf;
 
     color-scheme: dark;
   }

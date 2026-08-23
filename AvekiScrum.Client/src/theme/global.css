@@ -22,7 +22,7 @@ body {
 }
 
 a {
-  color: var(--color-info);
+  color: var(--color-info-text);
 }
 
 button {

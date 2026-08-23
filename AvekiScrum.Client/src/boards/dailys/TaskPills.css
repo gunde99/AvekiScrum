@@ -47,8 +47,8 @@
    category color (a "glow" rather than a solid fill) so it stays legible in both themes. */
 .tp-tile--active.tp-tile--dev {
   background: color-mix(in srgb, var(--cat-dev) 16%, transparent);
-  border-color: var(--cat-dev);
-  color: var(--cat-dev);
+  border-color: var(--cat-dev-text);
+  color: var(--cat-dev-text);
 }
 
 .tp-tile--active.tp-tile--review {

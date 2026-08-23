@@ -790,7 +790,7 @@
   color: var(--aveki-grey-600);
 }
 .sup-pill--planerad {
-  color: var(--color-info);
+  color: var(--color-info-text);
 }
 .sup-pill--arbete {
   color: var(--color-primary);

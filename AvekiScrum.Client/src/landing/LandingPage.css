@@ -182,7 +182,7 @@
 }
 
 .landing-card--support .landing-card__title span {
-  color: var(--color-info);
+  color: var(--color-info-text);
 }
 
 .landing-card__text {
@@ -219,7 +219,7 @@
 }
 
 .landing-card--support .landing-card__bullets li::before {
-  background: var(--color-info);
+  background: var(--color-info-text);
 }
 
 .landing-card__cta {
@@ -232,7 +232,7 @@
 }
 
 .landing-card--support .landing-card__cta {
-  color: var(--color-info);
+  color: var(--color-info-text);
 }
 
 .landing-card__cta span {
@@ -243,17 +243,8 @@
   transform: translateX(4px);
 }
 
-/* Dark mode: the blue reads as near-black on a dark card, so support switches to its lighter
-   tint, and the photo tints are toned down. */
-[data-theme="dark"] .landing-card--support .landing-card__title span,
-[data-theme="dark"] .landing-card--support .landing-card__cta {
-  color: var(--aveki-blue-tint-4);
-}
-
-[data-theme="dark"] .landing-card--support .landing-card__bullets li::before {
-  background: var(--aveki-blue-tint-4);
-}
-
+/* The blue-on-dark problem this page solved locally is now --color-info-text's job, so the two
+   tints don't drift apart - the same blue reads everywhere. Only the photo tint stays local. */
 [data-theme="dark"] .landing-card__photo img {
   filter: brightness(0.82);
 }

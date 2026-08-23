@@ -153,7 +153,7 @@
 }
 
 .azure-status.as-active {
-  color: var(--color-info);
+  color: var(--color-info-text);
   border-color: var(--color-info);
 }
 

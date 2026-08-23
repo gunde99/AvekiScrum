@@ -24,6 +24,16 @@
   white-space: nowrap;
 }
 
+/* Deliberately quiet - it reports a configuration, not a problem. */
+.user-chip--anon {
+  padding: 3px var(--space-3);
+  border: 1px dashed var(--color-border);
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.72rem;
+  cursor: help;
+}
+
 .user-chip__name {
   max-width: 180px;
   overflow: hidden;

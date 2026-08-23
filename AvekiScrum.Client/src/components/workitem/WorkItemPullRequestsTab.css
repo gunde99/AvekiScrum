@@ -79,7 +79,7 @@
 }
 
 .wi-pr__status--active {
-  color: var(--color-info);
+  color: var(--color-info-text);
   background: color-mix(in srgb, var(--color-info) 15%, transparent);
 }
 

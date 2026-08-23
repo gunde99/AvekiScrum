@@ -136,7 +136,7 @@
   white-space: nowrap;
 }
 
-.gm-active { background: color-mix(in srgb, var(--color-info) 15%, transparent); color: var(--color-info); }
+.gm-active { background: color-mix(in srgb, var(--color-info) 15%, transparent); color: var(--color-info-text); }
 .gm-done { background: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success); }
 .gm-new { background: var(--color-bg-subtle); color: var(--color-text-muted); }
 .gm-crit { background: color-mix(in srgb, var(--color-danger) 15%, transparent); color: var(--color-danger); }
