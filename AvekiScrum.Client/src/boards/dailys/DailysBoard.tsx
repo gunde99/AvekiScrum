@@ -372,6 +372,31 @@ export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysB
     );
   }, []);
 
+  /**
+   * Cards were just tagged with a sprint goal from inside the daily.
+   *
+   * Patched locally rather than refetched: a refetch mid-standup rebuilds the groups, and the flow
+   * would lose its place. Setting sprintGoal is what actually moves them - the grouping reads that
+   * field - and the tag is carried along so the card looks the same as one loaded from Azure.
+   */
+  const handleCardsLinked = useCallback((storyIds: number[], goalNumber: number) => {
+    const tag = `Sprintmål ${goalNumber}`;
+    const ids = new Set(storyIds);
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            teams: prev.teams.map((t) => ({
+              ...t,
+              stories: t.stories.map((s) =>
+                ids.has(s.id) ? { ...s, sprintGoal: tag, tags: [...(s.tags ?? []), tag] } : s,
+              ),
+            })),
+          }
+        : prev,
+    );
+  }, []);
+
   // The tag may have been cleared from the story, from some of its tasks, or from both, so the
   // local copy is patched by id rather than assuming the story carried it.
   const handleReviewTagCleared = useCallback((storyId: number, clearedIds: number[]) => {
@@ -607,6 +632,7 @@ export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysB
               onHighlightChange={handleFlowHighlightChange}
               onOpenWorkItem={setOpenWorkItemId}
               onTaskAssigned={handleTaskAssigned}
+              onCardsLinked={handleCardsLinked}
               sprintGoalsByNumber={sprintGoalsByNumber}
               onOpenValidation={setOpenValidationId}
               onReviewTagCleared={handleReviewTagCleared}

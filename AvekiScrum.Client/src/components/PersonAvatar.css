@@ -15,3 +15,26 @@
   object-fit: cover;
   border: 1px solid var(--color-border);
 }
+
+/* The done badge, borrowed from the PR reviewers' approval tick so a green check on a face means
+   the same thing wherever it appears. */
+.person-avatar-wrap {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.person-avatar__done {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  border-radius: 50%;
+  background: var(--color-success);
+  color: #ffffff;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--color-bg);
+}

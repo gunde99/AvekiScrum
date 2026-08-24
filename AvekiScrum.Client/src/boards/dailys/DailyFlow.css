@@ -356,6 +356,21 @@
 
 .df-row--test {
   grid-template-columns: 88px 68px 168px minmax(0, 1fr);
+  /* The title cell is two stacked lines now, so the row's own fields align to the top rather than
+     floating in the middle of it. */
+  align-items: start;
+}
+
+/* Task title on one line, the story it belongs to on the next. Truncating instead meant a long
+   test title ate the parenthesis entirely - and the story is the context that makes the test
+   title mean anything. */
+.df-row--test .df-row__title {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  white-space: normal;
+  overflow: visible;
+  line-height: 1.35;
 }
 
 .df-row--po {
@@ -815,4 +830,10 @@
    error state, so it should look like every other goal's title. */
 .df-goal-title--other {
   color: var(--color-text-muted);
+}
+
+.df-link-cards {
+  width: 100%;
+  justify-content: center;
+  font-size: 0.82rem;
 }

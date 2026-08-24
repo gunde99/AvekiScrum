@@ -138,7 +138,9 @@ export function WorkItemTaskboardTab({
           );
         })}
       </div>
-      {tasks.length > 0 && <p className="wi-taskboard__hint">Dra ett kort till en annan status för att spara det i Azure DevOps.</p>}
+      {tasks.length > 0 && (
+        <p className="wi-taskboard__hint">Dra ett kort till en annan status, så slår det igenom i Azure DevOps.</p>
+      )}
     </div>
   );
 }

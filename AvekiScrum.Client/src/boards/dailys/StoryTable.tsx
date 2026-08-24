@@ -9,6 +9,7 @@ import {
   fmtDate,
   fmtDateTime,
   fullPersonName,
+  isStoryDone,
   sortStories,
   storyProg,
   type FlowLaneStage,
@@ -127,7 +128,12 @@ export function StoryTable({ stories, onOpenWorkItem, onOpenValidation, onTaskDr
                 {story.roleText && <div className="sr-role-text">{story.roleText}</div>}
               </div>
               <div className="sr-person">
-                <PersonAvatar name={story.developer} size={22} />
+                <PersonAvatar
+                  name={story.developer}
+                  size={22}
+                  done={isStoryDone(story)}
+                  doneTitle={`Kortet är ${story.azureStatus || "stängt"}`}
+                />
                 <span>{fullPersonName(story.developer) || "Ej tilldelad"}</span>
               </div>
               <div>

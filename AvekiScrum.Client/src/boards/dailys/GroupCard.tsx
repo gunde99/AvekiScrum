@@ -54,7 +54,14 @@ export function GroupCard({
         <div className="group-label">
           {group.mode === "developer" && group.label !== UNASSIGNED_GROUP_LABEL ? (
             <>
-              <PersonAvatar name={group.label} size={26} />
+              {/* Everything this person owns in the sprint is closed - the same green tick the
+                  individual rows get, so the group says it before you expand it. */}
+              <PersonAvatar
+                name={group.label}
+                size={26}
+                done={statStories.length > 0 && done === statStories.length}
+                doneTitle={`Alla ${statStories.length} kort är klara`}
+              />
               <span>{group.label}</span>
             </>
           ) : group.label === UNASSIGNED_GROUP_LABEL ? (

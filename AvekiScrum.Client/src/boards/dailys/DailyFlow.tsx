@@ -24,6 +24,7 @@ import {
   type GroupMode,
   type StoryGroup,
 } from "./dailysLogic";
+import { LinkCardsModal } from "./LinkCardsModal";
 import "./DailyFlow.css";
 
 type FlowStepKind = "review" | "developer" | "goal" | "po" | "testlead";
@@ -68,6 +69,8 @@ interface DailyFlowProps {
   /** Lets the board drop the review tag from its local copy once it's been cleared in Azure.
    *  `clearedIds` are the work items actually written - the story and/or some of its tasks. */
   onReviewTagCleared?: (storyId: number, clearedIds: number[]) => void;
+  /** Lets the board show cards that were just tagged with the goal, without a refetch. */
+  onCardsLinked?: (storyIds: number[], goalNumber: number) => void;
   /** personKeys of the people taking part today; everyone else is skipped. */
   participantKeys: Set<string>;
   onClose: () => void;
@@ -85,6 +88,7 @@ export function DailyFlow({
   sprintGoalsByNumber,
   onOpenValidation,
   onReviewTagCleared,
+  onCardsLinked,
   participantKeys,
   onClose,
 }: DailyFlowProps) {
@@ -386,6 +390,10 @@ export function DailyFlow({
           <GoalTurn
             stepKey={current.key}
             groups={groups}
+            goalNumber={Number(current.name.match(/\d+/)?.[0])}
+            goalName={current.name}
+            allStories={unfilteredStories}
+            onCardsLinked={onCardsLinked}
             goal={sprintGoalsByNumber?.get(Number(current.name.match(/\d+/)?.[0]))}
             value={checkIns[current.key] ?? null}
             onChange={(v) => setCheckIn(current.key, v)}
@@ -617,18 +625,30 @@ function GoalStats({ stories }: { stories: DailyStoryDto[] }) {
 function GoalTurn({
   stepKey,
   groups,
+  goalNumber,
+  goalName,
+  allStories,
+  onCardsLinked,
   goal,
   value,
   onChange,
 }: {
   stepKey: string;
   groups: StoryGroup[];
+  goalNumber: number;
+  goalName: string;
+  allStories: DailyStoryDto[];
+  onCardsLinked?: (storyIds: number[], goalNumber: number) => void;
   goal?: SprintGoal;
   value: number | null;
   onChange: (value: number) => void;
 }) {
   const group = groups.find((g) => g.id === stepKey);
   const stories = group?.stories ?? [];
+  const [linking, setLinking] = useState(false);
+  // Only for a real goal: the "(Inget sprintmål)" bucket is where unlinked cards already sit, so
+  // offering to link them to it would be a no-op.
+  const canLink = Number.isFinite(goalNumber) && !!onCardsLinked;
 
   return (
     <>
@@ -636,7 +656,24 @@ function GoalTurn({
           stacked so it takes as little width as possible. The goal's own text sits between them. */}
       <div className="daily-flow__turn daily-flow__turn--stats">
         <GoalStats stories={stories} />
+        {/* Sits with the goal's numbers because that is where you notice a card is missing from
+            them - and it can be fixed without leaving the standup. */}
+        {canLink && (
+          <button type="button" className="wi-btn df-link-cards" onClick={() => setLinking(true)}>
+            + Koppla kort
+          </button>
+        )}
       </div>
+
+      {linking && canLink && (
+        <LinkCardsModal
+          goalNumber={goalNumber}
+          goalName={goalName}
+          stories={allStories}
+          onClose={() => setLinking(false)}
+          onLinked={(ids, n) => onCardsLinked?.(ids, n)}
+        />
+      )}
 
       {/* The goal's own detail (what it is, who owns it, what "done" means) is exactly what the
           team needs while scoring confidence. */}
@@ -913,8 +950,8 @@ function TestTaskList({
                 )}
               </span>
               <span className="df-row__title" title={t.title + " (" + t.storyTitle + ")"}>
-                {t.title}{" "}
-                {/* The story in parentheses is the context for the test, and the thing you most
+                <span>{t.title}</span>
+                {/* The story on its own line: the context for the test, and the thing you most
                     often want next - so it opens rather than just labelling. */}
                 <button
                   type="button"
@@ -922,7 +959,7 @@ function TestTaskList({
                   onClick={() => onOpenWorkItem(t.storyId)}
                   title={`Öppna #${t.storyId} ${t.storyTitle}`}
                 >
-                  ({t.storyTitle})
+                  {t.storyTitle}
                 </button>
               </span>
             </div>

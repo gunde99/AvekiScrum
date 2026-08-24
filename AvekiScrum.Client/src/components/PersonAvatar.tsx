@@ -5,6 +5,14 @@ import "./PersonAvatar.css";
 interface PersonAvatarProps {
   name: string | null | undefined;
   size?: number;
+  /**
+   * Marks the person's work as finished with a green check on the photo - the same badge the PR
+   * reviewers carry when they've approved. Reused rather than reinvented so "green tick on a face"
+   * means one thing everywhere: this one is done.
+   */
+  done?: boolean;
+  /** Shown on hover over the badge, e.g. which card or how many are closed. */
+  doneTitle?: string;
 }
 
 function initials(name: string): string {
@@ -32,14 +40,14 @@ function colorFor(name: string): string {
   return PALETTE[hash % PALETTE.length];
 }
 
-export function PersonAvatar({ name, size = 32 }: PersonAvatarProps) {
+export function PersonAvatar({ name, size = 32, done = false, doneTitle }: PersonAvatarProps) {
   const [imgFailed, setImgFailed] = useState(false);
   const displayName = name?.trim() || "Ej tilldelad";
   const isUnassigned = !name?.trim();
   const imageUrl = isUnassigned ? null : matchPersonImage(displayName);
 
-  if (imageUrl && !imgFailed) {
-    return (
+  const face =
+    imageUrl && !imgFailed ? (
       <img
         className="person-avatar person-avatar--photo"
         src={imageUrl}
@@ -50,21 +58,35 @@ export function PersonAvatar({ name, size = 32 }: PersonAvatarProps) {
         style={{ width: size, height: size }}
         onError={() => setImgFailed(true)}
       />
+    ) : (
+      <span
+        className="person-avatar"
+        title={displayName}
+        style={{
+          width: size,
+          height: size,
+          fontSize: Math.max(10, size * 0.4),
+          background: isUnassigned ? "var(--color-border)" : colorFor(displayName),
+        }}
+      >
+        {isUnassigned ? "?" : initials(displayName)}
+      </span>
     );
-  }
+
+  if (!done) return face;
 
   return (
-    <span
-      className="person-avatar"
-      title={displayName}
-      style={{
-        width: size,
-        height: size,
-        fontSize: Math.max(10, size * 0.4),
-        background: isUnassigned ? "var(--color-border)" : colorFor(displayName),
-      }}
-    >
-      {isUnassigned ? "?" : initials(displayName)}
+    <span className="person-avatar-wrap" style={{ width: size, height: size }}>
+      {face}
+      <span
+        className="person-avatar__done"
+        title={doneTitle ?? "Klar"}
+        aria-label={doneTitle ?? "Klar"}
+        // Scales with the face so it stays a badge rather than a blob on the small avatars.
+        style={{ width: Math.round(size * 0.5), height: Math.round(size * 0.5), fontSize: Math.round(size * 0.3) }}
+      >
+        ✓
+      </span>
     </span>
   );
 }
