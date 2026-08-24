@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { DailyStoryDto, DailyTaskDto } from "../../api/dailys";
-import { dorStatus, isProgressTaskDone, taskPillCounts, type DorPillState } from "./dailysLogic";
+import { dorStatus, hasDodTag, isProgressTaskDone, taskPillCounts, type DorPillState } from "./dailysLogic";
 import { FloatingPopover } from "./FloatingPopover";
 import "./TaskPills.css";
 
@@ -149,6 +149,12 @@ export function deliveryTiles(story: DailyStoryDto): TileInfo[] {
     },
   ];
 
+  // A signed-off card: everything that isn't finished was looked at and accepted as not needed.
+  // Deliberately the same "not-needed" look DoR already gives an empty optional box - dashed green
+  // with N/A - rather than a second visual language for the same idea one stage later.
+  if (hasDodTag(story)) {
+    return tiles.map((t) => (t.state === "done" ? t : { ...t, state: "not-needed" as const }));
+  }
   return tiles;
 }
 

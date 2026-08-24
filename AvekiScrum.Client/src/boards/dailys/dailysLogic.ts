@@ -240,6 +240,25 @@ export function korthygienWarnings(s: DailyStoryDto): string[] {
   return warnings;
 }
 
+/**
+ * The alert level a card actually has, once sign-offs are taken into account.
+ *
+ * The single place this is decided. The badge, the row tint and the group's accent all used to ask
+ * their own question - which is how an approved card kept its warning-coloured row while its own
+ * triangle was gone.
+ */
+export function effectiveAlertLevel(s: DailyStoryDto): "Critical" | "Warning" | "Notice" | null {
+  if (hasDodTag(s)) return null;
+  if (s.alertLevel === "Critical" || s.alertLevel === "Warning" || s.alertLevel === "Notice") return s.alertLevel;
+  return korthygienWarnings(s).length > 0 ? "Warning" : null;
+}
+
+/** Everything the card is being flagged for, in one list. */
+export function alertDetailsFor(s: DailyStoryDto): string[] {
+  if (hasDodTag(s)) return [];
+  return [...new Set([...(s.alertDetails ?? []), ...korthygienWarnings(s)])];
+}
+
 const STAGE_LABELS: Record<string, string> = {
   New: "Ny",
   Development: "Aktiv",

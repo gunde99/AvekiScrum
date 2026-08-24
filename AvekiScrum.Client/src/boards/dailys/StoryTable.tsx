@@ -10,6 +10,7 @@ import {
   canApproveDod,
   fmtDate,
   fmtDateTime,
+  effectiveAlertLevel,
   fullPersonName,
   hasDodTag,
   isStoryDone,
@@ -174,7 +175,9 @@ export function StoryTable({ stories, onOpenWorkItem, onOpenValidation, onTaskDr
         const isOpen = openStories.has(story.id);
         const isBug = story.type === "Bug";
         const progress = storyProg(story);
-        const alertCls = story.alertLevel === "Critical" ? "al-crit" : story.alertLevel === "Warning" ? "al-warn" : "";
+        // Uses the effective level, so a signed-off card loses its warning tint along with its triangle.
+        const level = effectiveAlertLevel(story);
+        const alertCls = level === "Critical" ? "al-crit" : level === "Warning" ? "al-warn" : "";
 
         return (
           <div className={`story-item ${isOpen ? "story-item--open" : ""}`} key={story.id}>
