@@ -84,9 +84,9 @@ function StatusCell({
           e.stopPropagation();
           setOpen((v) => !v);
         }}
-        title="Godkänn enligt Definition of Done"
+        title="Klicka för att godkänna enligt Definition of Done"
       >
-        {story.azureStatus || "-"} ▾
+        {story.azureStatus || "-"}
       </button>
       {open && (
         <FloatingPopover anchorRef={ref} onClose={() => setOpen(false)} className="dod-quick">

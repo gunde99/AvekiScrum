@@ -222,7 +222,10 @@ export function canApproveDod(s: Pick<DailyStoryDto, "azureStatus">): boolean {
  * board loads. The fields it needs are carried on the row instead.
  */
 export function korthygienWarnings(s: DailyStoryDto): string[] {
-  if (hasDodTag(s)) return [];
+  // DoR says someone has already been through the card and found everything it needs to have; DoD
+  // says someone accepted what it ended up with. Either way the checklist has had its answer, and
+  // repeating it as a warning would just second-guess a decision that was already made.
+  if (hasDodTag(s) || hasTag(s.tags, "DoR")) return [];
 
   const warnings: string[] = [];
   if (!s.hasDescription) warnings.push("Beskrivning saknas.");
