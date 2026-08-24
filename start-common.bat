@@ -8,8 +8,9 @@ setlocal EnableDelayedExpansion
 
 set "AUTH_MODE=%~1"
 if "%AUTH_MODE%"=="" set "AUTH_MODE=Pat"
-set "FORCE="
-if /i "%~2"=="force" set "FORCE=1"
+REM Gamla instanser stoppas utan att fraga. "ask" som andra argument aterinfor fragan.
+set "ASK="
+if /i "%~2"=="ask" set "ASK=1"
 
 echo ==========================================================
 echo   AvekiScrum lokalt  -  Auth:Mode = %AUTH_MODE%
@@ -69,7 +70,12 @@ for %%p in (!PIDS!) do (
 )
 echo.
 
-if defined FORCE goto :FreePortKill
+REM Ingen fraga: det som haller porten ar per definition en gammal instans av det vi ar pa vag att
+REM starta, och svaret var alltid "ja". Kor start-*.bat ask om du vill bli tillfragad anda.
+if defined ASK goto :FreePortAsk
+goto :FreePortKill
+
+:FreePortAsk
 choice /c JN /n /m "Stoppa den och fortsatt? [J/N] "
 if errorlevel 2 (
     echo.

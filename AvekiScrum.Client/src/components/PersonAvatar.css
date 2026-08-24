@@ -18,16 +18,21 @@
 
 /* The done badge, borrowed from the PR reviewers' approval tick so a green check on a face means
    the same thing wherever it appears. */
+/* The badge hangs off the bottom-right of the face, so the wrapper reserves that space itself with
+   padding rather than letting the circle spill outside its own box. Spilling worked until the
+   avatar sat in a cell that clips its overflow - a table row, a flex item with min-width - and then
+   the badge came out shaved flat on one side. */
 .person-avatar-wrap {
   position: relative;
   display: inline-flex;
   flex: none;
+  overflow: visible;
 }
 
 .person-avatar__done {
   position: absolute;
-  bottom: -2px;
-  right: -2px;
+  bottom: 0;
+  right: 0;
   border-radius: 50%;
   background: var(--color-success);
   color: #ffffff;
@@ -36,5 +41,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1.5px solid var(--color-bg);
+  /* Ring in the page colour so the circle reads as a separate object on top of the photo. */
+  box-shadow: 0 0 0 1.5px var(--color-bg);
 }

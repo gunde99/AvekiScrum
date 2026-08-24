@@ -75,15 +75,23 @@ export function PersonAvatar({ name, size = 32, done = false, doneTitle }: Perso
 
   if (!done) return face;
 
+  // Scales with the face so it stays a badge rather than a blob on the small avatars. The overhang
+  // is padding on the wrapper, so the whole circle is inside the element's own box and can't be
+  // clipped by whatever the avatar happens to sit in.
+  const badge = Math.round(size * 0.5);
+  const overhang = Math.round(badge * 0.28);
+
   return (
-    <span className="person-avatar-wrap" style={{ width: size, height: size }}>
+    <span
+      className="person-avatar-wrap"
+      style={{ width: size + overhang, height: size + overhang, paddingRight: overhang, paddingBottom: overhang }}
+    >
       {face}
       <span
         className="person-avatar__done"
         title={doneTitle ?? "Klar"}
         aria-label={doneTitle ?? "Klar"}
-        // Scales with the face so it stays a badge rather than a blob on the small avatars.
-        style={{ width: Math.round(size * 0.5), height: Math.round(size * 0.5), fontSize: Math.round(size * 0.3) }}
+        style={{ width: badge, height: badge, fontSize: Math.round(size * 0.3) }}
       >
         ✓
       </span>
