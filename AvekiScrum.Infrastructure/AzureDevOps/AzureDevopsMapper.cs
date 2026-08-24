@@ -144,6 +144,11 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
                 AssignedTeam = workItemWithFields.Fields.AssignedTeam,
                 Source = workItemWithFields.Fields.Source,
                 ExternalLink = workItemWithFields.Fields.ExternalLink,
+                // Bugs hålls i ReproSteps, User Stories i Description - samma sak för den som
+                // frågar "är kortet beskrivet?".
+                HasDescription = HasContent(workItemWithFields.Fields.Description)
+                                 || HasContent(workItemWithFields.Fields.ReproSteps),
+                HasAcceptanceCriteria = HasContent(workItemWithFields.Fields.AcceptanceCriteria),
                 StakeholdersHtml = workItemWithFields.Fields.Stakeholders,
                 Stakeholders = workItemWithFields.Fields.Stakeholders != null
                     ? workItemWithFields.Fields.Stakeholders.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
@@ -368,6 +373,21 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             }
 
             return (TryGet("web"), TryGet("self"));
+        }
+
+        /// <summary>
+        /// Har html-fältet någon verklig text? Ett tomt fält i Azure är ofta inte tomt utan
+        /// "&lt;div&gt;&lt;br&gt;&lt;/div&gt;" eller ett &amp;nbsp;, och att räkna det som en
+        /// beskrivning gör korthygienkontrollen meningslös.
+        /// </summary>
+        private static bool HasContent(string? html)
+        {
+            if (string.IsNullOrWhiteSpace(html)) return false;
+            var text = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]*>", "");
+            text = System.Net.WebUtility.HtmlDecode(text).Replace(' ', ' ');
+            // En bild räknas som innehåll även om den inte har någon text omkring sig.
+            return text.Trim().Length > 0
+                   || html.Contains("<img", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string? TryGetSmallImageUrl(Microsoft.VisualStudio.Services.WebApi.IdentityRef id)

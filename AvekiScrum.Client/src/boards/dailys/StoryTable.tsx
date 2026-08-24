@@ -1,15 +1,19 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { DailyStoryDto } from "../../api/dailys";
 import { PersonAvatar } from "../../components/PersonAvatar";
 import { AlertBadge } from "./AlertBadge";
+import { FloatingPopover } from "./FloatingPopover";
 import { Kanban } from "./Kanban";
 import { TaskPills } from "./TaskPills";
 import {
   azureStatusClass,
+  canApproveDod,
   fmtDate,
   fmtDateTime,
   fullPersonName,
+  hasDodTag,
   isStoryDone,
+  korthygienWarnings,
   sortStories,
   storyProg,
   type FlowLaneStage,
@@ -33,13 +37,92 @@ interface StoryTableProps {
   onOpenWorkItem: (id: number) => void;
   onOpenValidation: (id: number) => void;
   onTaskDrop: (taskId: number, targetLane: FlowLaneStage) => void;
+  /** Sign off a closed card straight from the row - see DodQuickApprove. */
+  onQuickApproveDod?: (story: DailyStoryDto) => void;
 }
 
 function hasTag(tags: string[], tag: string): boolean {
   return tags.some((t) => t.trim().toLowerCase() === tag.toLowerCase());
 }
 
-export function StoryTable({ stories, onOpenWorkItem, onOpenValidation, onTaskDrop }: StoryTableProps) {
+/**
+ * The status pill, and on a closed card a way to sign it off without opening anything.
+ *
+ * Closing a card is exactly the moment the leftover warnings become a question - "does this still
+ * matter now that it's done?" - so the answer belongs on the pill that just turned green, not three
+ * clicks away in a dialog.
+ */
+function StatusCell({
+  story,
+  onQuickApproveDod,
+}: {
+  story: DailyStoryDto;
+  onQuickApproveDod?: (story: DailyStoryDto) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLButtonElement>(null);
+  const approved = hasDodTag(story);
+  const warnings = korthygienWarnings(story);
+  const offer = !!onQuickApproveDod && canApproveDod(story) && !approved;
+
+  if (!offer) {
+    return (
+      <span className={`azure-status ${azureStatusClass(story.azureStatus)}`} title={approved ? "Godkänd enligt DoD" : undefined}>
+        {story.azureStatus || "-"}
+        {approved && <span className="azure-status__dod" title="Godkänd enligt DoD"> ✓</span>}
+      </span>
+    );
+  }
+
+  return (
+    <>
+      <button
+        ref={ref}
+        type="button"
+        className={`azure-status azure-status--action ${azureStatusClass(story.azureStatus)}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        title="Godkänn enligt Definition of Done"
+      >
+        {story.azureStatus || "-"} ▾
+      </button>
+      {open && (
+        <FloatingPopover anchorRef={ref} onClose={() => setOpen(false)} className="dod-quick">
+          <div className="dod-quick__head">Definition of Done</div>
+          <div className="dod-quick__body">
+            {warnings.length === 0 ? (
+              <p>Inga varningar kvar på kortet. Godkänn för att kvittera det som klart.</p>
+            ) : (
+              <>
+                <p>Kvitterar {warnings.length} varning{warnings.length === 1 ? "" : "ar"}:</p>
+                <ul>
+                  {warnings.map((w) => (
+                    <li key={w}>{w}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+          <button
+            type="button"
+            className="wi-btn wi-btn--primary dod-quick__go"
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(false);
+              onQuickApproveDod?.(story);
+            }}
+          >
+            Godkänn DoD
+          </button>
+        </FloatingPopover>
+      )}
+    </>
+  );
+}
+
+export function StoryTable({ stories, onOpenWorkItem, onOpenValidation, onTaskDrop, onQuickApproveDod }: StoryTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>("lastChangedDate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [openStories, setOpenStories] = useState<Set<number>>(new Set());
@@ -137,7 +220,7 @@ export function StoryTable({ stories, onOpenWorkItem, onOpenValidation, onTaskDr
                 <span>{fullPersonName(story.developer) || "Ej tilldelad"}</span>
               </div>
               <div>
-                <span className={`azure-status ${azureStatusClass(story.azureStatus)}`}>{story.azureStatus || "-"}</span>
+                <StatusCell story={story} onQuickApproveDod={onQuickApproveDod} />
               </div>
               <div>
                 <span title={fmtDateTime(story.lastChangedDate)}>{fmtDate(story.lastChangedDate)}</span>

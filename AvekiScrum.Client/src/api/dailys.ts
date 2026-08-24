@@ -46,6 +46,10 @@ export interface DailyStoryDto {
   developmentPartner: string | null;
   assignedTeam: string | null;
   areaPath: string | null;
+  /** Underlaget för korthygienvarningarna på raden - se korthygienWarnings i dailysLogic. */
+  hasParent: boolean;
+  hasDescription: boolean;
+  hasAcceptanceCriteria: boolean;
   tags: string[];
   stakeholders: string[];
   sprintGoal: string;

@@ -10,14 +10,16 @@ import {
   type WorkItemRelationRef,
 } from "../../api/workitems";
 import { fetchTeamMembers, fetchDevelopers, type PersonOption } from "../../api/people";
-import type { DeveloperTeamId } from "../../api/dailys";
+import type { DailyStoryDto, DeveloperTeamId } from "../../api/dailys";
 import { WorkItemKorthygienTab, draftFromDetail, korthygienOk, type KorthygienDraft } from "./WorkItemKorthygienTab";
 import { WorkItemBehovsbedomningTab } from "./WorkItemBehovsbedomningTab";
+import { WorkItemDodTab } from "./WorkItemDodTab";
+import { hasDodTag } from "../../boards/dailys/dailysLogic";
 import { getWorkItemTypeConfig } from "./workItemTypeConfig";
 import "./WorkItemModal.css";
 import "./WorkItemValidationModal.css";
 
-type ValidationTab = "korthygien" | "behovsbedomning";
+type ValidationTab = "korthygien" | "behovsbedomning" | "dod";
 
 export function hasDorTag(detail: Pick<WorkItemDetail, "tags">): boolean {
   return detail.tags.some((t) => t.trim().toLowerCase() === "dor");
@@ -32,6 +34,11 @@ interface WorkItemValidationModalProps {
    *  of this dialog's job, so it closes itself - unlike "Spara Korthygien", which is a partial
    *  save you're expected to keep working after. */
   onApproved?: () => void;
+  /** The board's own view of the card. Without it the Definition of Done tab has nothing to draw:
+   *  the four delivery boxes are built from the row's tasks and PRs, not from the work item. */
+  story?: DailyStoryDto;
+  /** Fired after a DoD sign-off so the board can drop the card's warnings straight away. */
+  onDodApproved?: (storyId: number) => void;
 }
 
 /**
@@ -39,7 +46,7 @@ interface WorkItemValidationModalProps {
  * separate from WorkItemModal per feedback: this is reached either from a "Validering" entry point
  * in the story list or from a button inside the Work Item form, not as tabs buried in that form.
  */
-export function WorkItemValidationModal({ workItemId, team, onClose, onOpenRelation, onApproved }: WorkItemValidationModalProps) {
+export function WorkItemValidationModal({ workItemId, team, onClose, onOpenRelation, onApproved, story, onDodApproved }: WorkItemValidationModalProps) {
   const [detail, setDetail] = useState<WorkItemDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +59,24 @@ export function WorkItemValidationModal({ workItemId, team, onClose, onOpenRelat
   const [behovsbedomningOk, setBehovsbedomningOk] = useState(false);
   const [classification, setClassification] = useState<ClassificationOptions | null>(null);
   const [parentCandidates, setParentCandidates] = useState<ParentCandidate[]>([]);
+  const [approvingDod, setApprovingDod] = useState(false);
+
+  // Writes the DoD tag. Everything else on this card's warnings follows from that one tag, so
+  // there is nothing else to save.
+  async function approveDod() {
+    if (!detail || !story) return;
+    setApprovingDod(true);
+    try {
+      const updated = await updateWorkItemFields(detail.id, { tags: [...detail.tags, "DoD"] });
+      setDetail(updated);
+      setDraft(draftFromDetail(updated));
+      onDodApproved?.(detail.id);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Kunde inte sätta DoD-taggen.");
+    } finally {
+      setApprovingDod(false);
+    }
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -154,6 +179,8 @@ export function WorkItemValidationModal({ workItemId, team, onClose, onOpenRelat
   const tabs: { id: ValidationTab; label: string; ok: boolean }[] = [
     { id: "korthygien", label: "Korthygien", ok: khOk },
     { id: "behovsbedomning", label: "Behovsbedömning", ok: bbOk },
+    // Only offered when the board handed over its view of the card - see the story prop.
+    ...(story ? [{ id: "dod" as const, label: "Definition of Done", ok: detail ? hasDodTag(detail) : false }] : []),
   ];
 
   return (
@@ -241,6 +268,17 @@ export function WorkItemValidationModal({ workItemId, team, onClose, onOpenRelat
                   }}
                 />
               </div>
+              {story && (
+                <div hidden={tab !== "dod"}>
+                  {/* Drawn from the board's copy, but with the tags and state the dialog has just
+                      written - otherwise approving leaves the tab claiming it is still unapproved. */}
+                  <WorkItemDodTab
+                    story={{ ...story, tags: detail.tags, azureStatus: detail.state }}
+                    approving={approvingDod}
+                    onApprove={approveDod}
+                  />
+                </div>
+              )}
             </>
           )}
         </div>

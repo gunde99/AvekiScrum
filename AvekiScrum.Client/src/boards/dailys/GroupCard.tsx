@@ -1,6 +1,7 @@
 import { PersonAvatar } from "../../components/PersonAvatar";
 import { StoryTable } from "./StoryTable";
 import { samePerson, summarizeStories, UNASSIGNED_GROUP_LABEL, type StoryGroup, type FlowLaneStage } from "./dailysLogic";
+import type { DailyStoryDto } from "../../api/dailys";
 import type { SprintGoal } from "../../api/sprintGoals";
 import "./GroupCard.css";
 
@@ -11,6 +12,8 @@ interface GroupCardProps {
   onToggle: () => void;
   onOpenWorkItem: (id: number) => void;
   onOpenValidation: (id: number) => void;
+  /** Sign off a closed card from its status pill - passed straight through to StoryTable. */
+  onQuickApproveDod?: (story: DailyStoryDto) => void;
   onTaskDrop: (taskId: number, targetLane: FlowLaneStage) => void;
   sprintGoalsByNumber?: Map<number, SprintGoal>;
   onOpenSprintGoal?: (goalNumber: number) => void;
@@ -23,6 +26,7 @@ export function GroupCard({
   onToggle,
   onOpenWorkItem,
   onOpenValidation,
+  onQuickApproveDod,
   onTaskDrop,
   sprintGoalsByNumber,
   onOpenSprintGoal,
@@ -131,13 +135,13 @@ export function GroupCard({
               <div className={`group-subgroup__label group-subgroup__label--${sub.key}`}>
                 {sub.label} <span className="group-subgroup__count">({sub.stories.length})</span>
               </div>
-              <StoryTable stories={sub.stories} onOpenWorkItem={onOpenWorkItem} onOpenValidation={onOpenValidation} onTaskDrop={onTaskDrop} />
+              <StoryTable stories={sub.stories} onOpenWorkItem={onOpenWorkItem} onOpenValidation={onOpenValidation} onTaskDrop={onTaskDrop} onQuickApproveDod={onQuickApproveDod} />
             </div>
           ))}
         </div>
       ) : (
         isOpen && (
-          <StoryTable stories={stories} onOpenWorkItem={onOpenWorkItem} onOpenValidation={onOpenValidation} onTaskDrop={onTaskDrop} />
+          <StoryTable stories={stories} onOpenWorkItem={onOpenWorkItem} onOpenValidation={onOpenValidation} onTaskDrop={onTaskDrop} onQuickApproveDod={onQuickApproveDod} />
         )
       )}
     </div>

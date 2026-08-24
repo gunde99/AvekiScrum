@@ -193,6 +193,50 @@ export function dorStatus(s: DailyStoryDto): DorStatus {
   };
 }
 
+export const DOD_TAG = "DoD";
+
+/**
+ * True when the card carries the Definition of Done tag.
+ *
+ * The tag is a signed-off exception: someone looked at the card, judged the remaining warnings to
+ * be false alarms or deliberate deviations, and said so. It therefore silences every other warning
+ * on the card - which is only safe because it can only be set on a closed card, so no new work can
+ * arrive afterwards to be silently waved through.
+ */
+export function hasDodTag(s: Pick<DailyStoryDto, "tags">): boolean {
+  return hasTag(s.tags, DOD_TAG);
+}
+
+/** Only a closed card can be signed off - see hasDodTag for why that limit matters. */
+export function canApproveDod(s: Pick<DailyStoryDto, "azureStatus">): boolean {
+  const state = (s.azureStatus || "").trim().toLowerCase();
+  return state === "closed" || state === "done";
+}
+
+/**
+ * What the card is missing from the card-hygiene checklist, in the same words the validation
+ * dialog uses.
+ *
+ * Mirrors korthygienOk in WorkItemKorthygienTab, but on the lighter board DTO - the full check
+ * needs the whole work item, and fetching one per row would be dozens of calls every time the
+ * board loads. The fields it needs are carried on the row instead.
+ */
+export function korthygienWarnings(s: DailyStoryDto): string[] {
+  if (hasDodTag(s)) return [];
+
+  const warnings: string[] = [];
+  if (!s.hasDescription) warnings.push("Beskrivning saknas.");
+  // A Bug is filed against something that already exists, so it isn't expected to have a parent.
+  if (s.type !== "Bug" && !s.hasParent) warnings.push("Kortet saknar parent.");
+  if (!s.areaPath) warnings.push("Area Path är inte satt.");
+  if (!s.developer) warnings.push("Ingen ansvarig är utsedd.");
+  if (!s.storyPoints) warnings.push("Story points saknas.");
+  // Warnings rather than blockers in the dialog too - worth saying, not worth stopping for.
+  if (!s.hasAcceptanceCriteria) warnings.push("Acceptanskriterier saknas.");
+  if (s.sprintGoal === "(Inget sprintmål)") warnings.push("Kortet hör inte till något sprintmål.");
+  return warnings;
+}
+
 const STAGE_LABELS: Record<string, string> = {
   New: "Ny",
   Development: "Aktiv",

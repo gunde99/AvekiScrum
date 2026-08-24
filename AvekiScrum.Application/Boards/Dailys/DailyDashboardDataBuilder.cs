@@ -123,6 +123,12 @@ namespace AvekiScrum.Application.Boards.Dailys
                     developmentPartner = source?.DevelopmentPartner,
                     assignedTeam = source?.AssignedTeam,
                     areaPath = source?.AreaPath,
+                    // Underlaget för korthygienvarningarna på raden. Bara det boarden behöver för
+                    // att ställa samma frågor som valideringsdialogen, utan att skicka med hela
+                    // beskrivningen för varje kort.
+                    hasParent = source?.ParentId != null,
+                    hasDescription = source?.HasDescription ?? false,
+                    hasAcceptanceCriteria = source?.HasAcceptanceCriteria ?? false,
                     tags = source?.Tags ?? new List<string>(),
                     stakeholders = source?.Stakeholders ?? new List<string>(),
                     sprintGoal = string.IsNullOrWhiteSpace(story.SprintGoal) ? "(Inget sprintmål)" : story.SprintGoal,

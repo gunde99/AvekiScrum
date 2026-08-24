@@ -4,9 +4,9 @@ import { dorStatus, isProgressTaskDone, taskPillCounts, type DorPillState } from
 import { FloatingPopover } from "./FloatingPopover";
 import "./TaskPills.css";
 
-type Category = "dev" | "review" | "test" | "doc";
+export type Category = "dev" | "review" | "test" | "doc";
 
-interface TileInfo {
+export interface TileInfo {
   label: string;
   count: number;
   state: "empty" | "not-needed" | "active" | "done";
@@ -92,7 +92,13 @@ function Tile({ info }: { info: TileInfo }) {
   );
 }
 
-export function TaskPills({ story }: { story: DailyStoryDto }) {
+/**
+ * The four delivery boxes for a card, with the same wording the tooltips use.
+ *
+ * Exported because the Definition of Done tab shows the same four - deriving them twice is how the
+ * board and the dialog end up disagreeing about whether a card is finished.
+ */
+export function deliveryTiles(story: DailyStoryDto): TileInfo[] {
   const counts = taskPillCounts(story);
   const dor = dorStatus(story);
 
@@ -143,9 +149,13 @@ export function TaskPills({ story }: { story: DailyStoryDto }) {
     },
   ];
 
+  return tiles;
+}
+
+export function TaskPills({ story }: { story: DailyStoryDto }) {
   return (
     <div className="tp-tiles">
-      {tiles.map((t) => (
+      {deliveryTiles(story).map((t) => (
         <Tile key={t.label} info={t} />
       ))}
     </div>

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { BoardShell } from "../../components/BoardShell";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
 import { useToast } from "../../components/Toast";
-import { fetchDailys, type DailysResponse, type DeveloperTeamId } from "../../api/dailys";
+import { fetchDailys, type DailyStoryDto, type DailysResponse, type DeveloperTeamId } from "../../api/dailys";
 import { fetchSprintGoals, type SprintGoal } from "../../api/sprintGoals";
 import { fetchTeamRoles } from "../../api/people";
 import { updateWorkItemFields } from "../../api/workitems";
@@ -17,6 +17,7 @@ import { FlowParticipants } from "./FlowParticipants";
 import {
   buildFlowParticipants,
   buildGroups,
+  DOD_TAG,
   isStaleClosed,
   matchesTestFilter,
   participantOnByDefault,
@@ -372,6 +373,42 @@ export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysB
     );
   }, []);
 
+  /** Adds the DoD tag to the board's local copy, so the card's warnings clear immediately. */
+  const markDodApproved = useCallback((storyId: number) => {
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            teams: prev.teams.map((t) => ({
+              ...t,
+              stories: t.stories.map((s) =>
+                s.id === storyId && !s.tags.includes(DOD_TAG) ? { ...s, tags: [...s.tags, DOD_TAG] } : s,
+              ),
+            })),
+          }
+        : prev,
+    );
+  }, []);
+
+  /**
+   * Sign off a closed card straight from its status pill.
+   *
+   * Writes the same tag the dialog writes - there is only one way to be approved - and patches the
+   * board rather than refetching, so the row simply stops warning where you clicked.
+   */
+  const quickApproveDod = useCallback(
+    async (story: DailyStoryDto) => {
+      try {
+        await updateWorkItemFields(story.id, { tags: [...story.tags, DOD_TAG] });
+        markDodApproved(story.id);
+        showToast(`#${story.id} godkänd enligt Definition of Done.`, "success");
+      } catch (err) {
+        showToast(`Kunde inte godkänna #${story.id}: ${err instanceof Error ? err.message : "Okänt fel"}`, "error");
+      }
+    },
+    [markDodApproved, showToast],
+  );
+
   /**
    * Cards were just tagged with a sprint goal from inside the daily.
    *
@@ -652,6 +689,7 @@ export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysB
                 onToggle={() => toggleGroup(group.id)}
                 onOpenWorkItem={setOpenWorkItemId}
                 onOpenValidation={setOpenValidationId}
+                onQuickApproveDod={quickApproveDod}
                 onTaskDrop={handleTaskDrop}
                 sprintGoalsByNumber={sprintGoalsByNumber}
                 onOpenSprintGoal={setOpenSprintGoalNumber}
@@ -677,6 +715,8 @@ export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysB
           team={team}
           onClose={() => setOpenValidationId(null)}
           onApproved={refreshBoard}
+          story={stories.find((s) => s.id === openValidationId)}
+          onDodApproved={markDodApproved}
           onOpenRelation={(item) => {
             setOpenValidationId(null);
             setOpenWorkItemId(item.id);

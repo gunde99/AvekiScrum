@@ -56,6 +56,14 @@ namespace AvekiScrum.Application.Models.DTOs.Scrum
 
         // Relationer
 
+        /// <summary>
+        /// Har kortet en beskrivning respektive acceptanskriterier? Bara ja/nej - boarden behöver
+        /// veta om korthygienen är uppfylld, inte innehållet, och html-fälten är stora nog att
+        /// märkas i ett svar med hundratals kort.
+        /// </summary>
+        public bool HasDescription { get; set; }
+        public bool HasAcceptanceCriteria { get; set; }
+
         // WorkItems Parent/Children
         public int? ParentId { get; set; }           // <-- NY
         public List<int> ChildIds { get; set; } = new(); // <-- valfri men sjukt användbar

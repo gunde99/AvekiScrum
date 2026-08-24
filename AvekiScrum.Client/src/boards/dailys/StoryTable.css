@@ -257,3 +257,55 @@
   border-top: 1px solid var(--color-border);
   background: color-mix(in srgb, var(--color-bg-subtle) 55%, var(--color-bg));
 }
+
+/* The status pill as a button, when the card is closed and can be signed off. */
+.azure-status--action {
+  border: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.azure-status--action:hover {
+  filter: brightness(1.08);
+}
+
+.azure-status__dod {
+  font-weight: 700;
+}
+
+.dod-quick {
+  width: 300px;
+  padding: 0;
+}
+
+.dod-quick__head {
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-primary);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dod-quick__body {
+  padding: var(--space-3);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.dod-quick__body p {
+  margin: 0 0 var(--space-1);
+}
+
+.dod-quick__body ul {
+  margin: 0;
+  padding-left: var(--space-4);
+}
+
+.dod-quick__go {
+  margin: 0 var(--space-3) var(--space-3);
+  width: calc(100% - var(--space-3) * 2);
+  justify-content: center;
+}
