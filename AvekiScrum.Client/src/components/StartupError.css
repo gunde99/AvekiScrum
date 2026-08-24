@@ -100,3 +100,8 @@
 .startup-error__actions .wi-btn:hover {
   filter: brightness(1.05);
 }
+
+/* Waiting is not failing: the same card, without the alarm. */
+.startup-error__card--waiting {
+  border-top-color: var(--color-border);
+}

@@ -8,6 +8,7 @@ import { initializeAuth, signIn } from './auth/msal'
 import { loadIdentity } from './auth/identity'
 import { fetchServerConfig } from './api/serverConfig'
 import { StartupError } from './components/StartupError'
+import { StartupWaiting } from './components/StartupWaiting'
 import App from './App.tsx'
 
 /**
@@ -22,7 +23,18 @@ async function bootstrap() {
   const root = createRoot(document.getElementById('root')!)
 
   try {
-    const server = await fetchServerConfig()
+    // Retries while the Api finishes starting, and says so on screen once the first attempt has
+    // missed - which is most mornings, since the client is serving long before the build is done.
+    const server = await fetchServerConfig({
+      onWaiting: () =>
+        root.render(
+          <StrictMode>
+            <ThemeProvider>
+              <StartupWaiting />
+            </ThemeProvider>
+          </StrictMode>,
+        ),
+    })
     setSignInRequired(server.signInRequired)
 
     if (server.signInRequired) {
