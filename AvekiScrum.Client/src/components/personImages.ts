@@ -1,3 +1,9 @@
+// Bilderna är **statiska filer** i public/avekiimages - ingenting hämtas från Azure DevOps vid
+// körning, och ingenting cachas därifrån. Får någon en ny bild i Azure syns den alltså inte här
+// förrän filen läggs till. Den kan hämtas med identitetens avatar-URL:
+//   https://dev.azure.com/Aveki/_apis/GraphProfile/MemberAvatars/<descriptor>?size=large
+// där <descriptor> finns på System.AssignedTo i vilket work item som helst personen äger.
+//
 // Source of truth for who has a photo: WorkOrganizer.UI.WinForms/appsettings.json's
 // DashboardBranding.ImageByUserId, copied here since AvekiScrum is a separate codebase
 // (see AvekiScrum/docs/SCRUM_WEB_APP_SPEC.md §5). Keyed by the words guessable from the
@@ -51,7 +57,9 @@ const RAW_ENTRIES: [string, string][] = [
   ["tom.wilhelmsson", "Tom.jpg"],
   ["torkel.endoff", "Torkel.jpg"],
   ["viktor.loby", "Viktor.jpg"],
-  ["fanny.uhr", "Fanny.jpg"],
+  // Hämtad från Azure DevOps avatar-API:t (GraphProfile/MemberAvatars) - därav .png. De övriga
+  // kommer från WorkOrganizers bildmapp.
+  ["fanny.uhr", "Fanny.png"],
 ];
 
 function normalizeWords(value: string): string[] {

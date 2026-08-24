@@ -296,7 +296,13 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
                 <WorkItemRelationsTab detail={detail} onOpenRelation={openRelation} onChanged={applyChange} people={people} />
               )}
               {tab === "taskboard" && (
-                <WorkItemTaskboardTab detail={detail} onOpenRelation={openRelation} onCreated={applyChange} people={people} />
+                <WorkItemTaskboardTab
+                  detail={detail}
+                  onOpenRelation={openRelation}
+                  onCreated={applyChange}
+                  people={people}
+                  classification={classification}
+                />
               )}
               {tab === "discussion" && <WorkItemDiscussionTab detail={detail} onPosted={applyChange} />}
               {tab === "prs" && <WorkItemPullRequestsTab pullRequests={detail.pullRequests} />}

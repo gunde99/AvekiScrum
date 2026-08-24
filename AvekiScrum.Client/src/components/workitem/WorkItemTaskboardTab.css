@@ -2,14 +2,25 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--space-3);
-  align-items: start;
+  /* stretch, not start: the lanes are drop targets, and a short column that stops where its cards
+     end leaves nowhere to aim when it is empty. Equal height also stops the row from stepping up
+     and down as tasks move between states. */
+  align-items: stretch;
 }
 
 .wi-taskboard__column {
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-bg-subtle);
   overflow: hidden;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.wi-taskboard__column--dragover {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-bg-subtle));
 }
 
 .wi-taskboard__head {
@@ -27,10 +38,34 @@
 }
 
 .wi-taskboard__cards {
+  flex: 1;
   padding: var(--space-2);
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  /* Room to drop into even when the lane is empty. */
+  min-height: 72px;
+}
+
+.wi-taskboard__empty {
+  margin: auto;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.wi-taskboard__draggable {
+  cursor: grab;
+}
+
+.wi-taskboard__draggable--busy {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.wi-taskboard__hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
 }
 
 .wi-taskboard-tab {

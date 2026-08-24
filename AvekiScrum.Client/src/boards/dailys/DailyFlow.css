@@ -237,6 +237,23 @@
   font-weight: 400;
 }
 
+/* Stays visually a parenthetical until you approach it - it shouldn't compete with the task's own
+   title for attention, but it should say it can be clicked once you are looking at it. */
+.daily-flow__list-parent--link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  text-align: left;
+}
+
+.daily-flow__list-parent--link:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
 .daily-flow__list-progress {
   color: var(--color-text-muted);
   flex-shrink: 0;

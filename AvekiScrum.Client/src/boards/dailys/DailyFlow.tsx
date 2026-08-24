@@ -913,7 +913,17 @@ function TestTaskList({
                 )}
               </span>
               <span className="df-row__title" title={t.title + " (" + t.storyTitle + ")"}>
-                {t.title} <span className="daily-flow__list-parent">({t.storyTitle})</span>
+                {t.title}{" "}
+                {/* The story in parentheses is the context for the test, and the thing you most
+                    often want next - so it opens rather than just labelling. */}
+                <button
+                  type="button"
+                  className="daily-flow__list-parent daily-flow__list-parent--link"
+                  onClick={() => onOpenWorkItem(t.storyId)}
+                  title={`Öppna #${t.storyId} ${t.storyTitle}`}
+                >
+                  ({t.storyTitle})
+                </button>
               </span>
             </div>
           </li>

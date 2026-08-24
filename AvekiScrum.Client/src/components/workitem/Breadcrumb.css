@@ -47,6 +47,15 @@
   cursor: default;
 }
 
+/* The arrow carries the direction of the whole trail, so it can't be the faintest thing on the
+   row - at border colour on a dark background it was practically absent. */
 .wi-breadcrumb__sep {
-  color: var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 1.05rem;
+  line-height: 1;
+  margin: 0 2px;
+}
+
+[data-theme="dark"] .wi-breadcrumb__sep {
+  color: var(--aveki-grey-400);
 }
