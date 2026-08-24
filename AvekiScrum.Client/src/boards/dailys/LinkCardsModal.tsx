@@ -18,6 +18,12 @@ interface LinkCardsModalProps {
   onLinked: (storyIds: number[], goalNumber: number) => void;
 }
 
+/** The area path without the project root - the product, which is the part that varies. */
+function shortAreaPath(path: string): string {
+  const parts = path.split("\\").filter(Boolean);
+  return parts.length > 1 ? parts.slice(1).join(" / ") : path;
+}
+
 /**
  * Ties loose cards to the sprint goal being discussed.
  *
@@ -30,19 +36,30 @@ export function LinkCardsModal({ goalNumber, goalName, stories, onClose, onLinke
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
+  const [areaPath, setAreaPath] = useState("");
 
   // Only cards with no goal at all. A card already tied to another goal is a decision someone made,
   // and quietly moving it from inside a daily is not this button's job.
   const candidates = stories.filter((s) => !s.sprintGoal || s.sprintGoal === "(Inget sprintmål)");
+
+  // Only the paths actually present among the candidates. A full list of the project's area paths
+  // would be mostly dead options - the point is to narrow this list, not to browse the tree.
+  const areaCounts = new Map<string, number>();
+  for (const s of candidates) {
+    if (s.areaPath) areaCounts.set(s.areaPath, (areaCounts.get(s.areaPath) ?? 0) + 1);
+  }
+  const areaOptions = [...areaCounts.entries()].sort((a, b) => a[0].localeCompare(b[0], "sv"));
+
   const query = search.trim().toLowerCase();
-  const visible = query
-    ? candidates.filter(
-        (s) =>
-          s.title.toLowerCase().includes(query) ||
-          String(s.id).includes(query) ||
-          (s.developer ?? "").toLowerCase().includes(query),
-      )
-    : candidates;
+  const visible = candidates
+    .filter((s) => !areaPath || s.areaPath === areaPath)
+    .filter(
+      (s) =>
+        !query ||
+        s.title.toLowerCase().includes(query) ||
+        String(s.id).includes(query) ||
+        (s.developer ?? "").toLowerCase().includes(query),
+    );
 
   function toggle(id: number) {
     setSelected((prev) => {
@@ -101,12 +118,29 @@ export function LinkCardsModal({ goalNumber, goalName, stories, onClose, onLinke
         </header>
 
         {candidates.length > 8 && (
-          <input
-            className="link-cards__search"
-            placeholder="Sök på rubrik, id eller utvecklare…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <div className="link-cards__filters">
+            <input
+              className="link-cards__search"
+              placeholder="Sök på rubrik, id eller utvecklare…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {areaOptions.length > 1 && (
+              <select
+                className="link-cards__area"
+                value={areaPath}
+                onChange={(e) => setAreaPath(e.target.value)}
+                title="Filtrera på Area Path"
+              >
+                <option value="">Alla area paths ({candidates.length})</option>
+                {areaOptions.map(([path, count]) => (
+                  <option key={path} value={path}>
+                    {shortAreaPath(path)} ({count})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
         )}
 
         <div className="link-cards__list">
@@ -114,7 +148,7 @@ export function LinkCardsModal({ goalNumber, goalName, stories, onClose, onLinke
             <p className="link-cards__empty">
               {candidates.length === 0
                 ? "Alla kort i sprinten hör redan till ett sprintmål."
-                : "Inga kort matchar sökningen."}
+                : "Inga kort matchar urvalet."}
             </p>
           ) : (
             visible.map((story) => (
