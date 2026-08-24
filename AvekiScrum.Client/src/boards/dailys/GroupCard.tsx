@@ -1,6 +1,6 @@
 import { PersonAvatar } from "../../components/PersonAvatar";
 import { StoryTable } from "./StoryTable";
-import { effectiveAlertLevel, samePerson, summarizeStories, UNASSIGNED_GROUP_LABEL, type StoryGroup, type FlowLaneStage } from "./dailysLogic";
+import { rowAlertLevel, samePerson, summarizeStories, UNASSIGNED_GROUP_LABEL, type StoryGroup, type FlowLaneStage } from "./dailysLogic";
 import type { DailyStoryDto } from "../../api/dailys";
 import type { SprintGoal } from "../../api/sprintGoals";
 import "./GroupCard.css";
@@ -46,8 +46,9 @@ export function GroupCard({
   const ownsGroup = group.mode === "developer" && group.label !== UNASSIGNED_GROUP_LABEL;
   const statStories = ownsGroup ? stories.filter((s) => samePerson(s.developer, group.label)) : stories;
   const { done, active, newCount, totalSP, doneSP, progress, progressFromCards } = summarizeStories(statStories);
-  const hasCrit = stories.some((s) => effectiveAlertLevel(s) === "Critical");
-  const hasWarn = stories.some((s) => effectiveAlertLevel(s) === "Warning");
+  // The group accent follows the rows: hygiene alone shouldn't colour a whole group either.
+  const hasCrit = stories.some((s) => rowAlertLevel(s) === "Critical");
+  const hasWarn = stories.some((s) => rowAlertLevel(s) === "Warning");
 
   const accentCls = hasCrit ? "gr-crit" : hasWarn ? "gr-warn" : progress >= 100 ? "gr-done" : progress > 0 ? "gr-active" : "gr-idle";
 

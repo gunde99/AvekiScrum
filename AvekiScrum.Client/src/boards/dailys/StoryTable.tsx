@@ -11,7 +11,7 @@ import {
   fmtDate,
   fmtDateTime,
   alertDetailsFor,
-  effectiveAlertLevel,
+  rowAlertLevel,
   fullPersonName,
   hasDodTag,
   isStoryDone,
@@ -177,8 +177,9 @@ export function StoryTable({ stories, onOpenWorkItem, onOpenValidation, onTaskDr
         const isOpen = openStories.has(story.id);
         const isBug = story.type === "Bug";
         const progress = storyProg(story);
-        // Uses the effective level, so a signed-off card loses its warning tint along with its triangle.
-        const level = effectiveAlertLevel(story);
+        // Only the server's own alerts tint the row - card hygiene stays a triangle. A signed-off
+        // card loses both.
+        const level = rowAlertLevel(story);
         const alertCls = level === "Critical" ? "al-crit" : level === "Warning" ? "al-warn" : "";
 
         return (

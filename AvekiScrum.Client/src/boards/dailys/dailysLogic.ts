@@ -240,17 +240,30 @@ export function korthygienWarnings(s: DailyStoryDto): string[] {
   return warnings;
 }
 
-/**
- * The alert level a card actually has, once sign-offs are taken into account.
- *
- * The single place this is decided. The badge, the row tint and the group's accent all used to ask
- * their own question - which is how an approved card kept its warning-coloured row while its own
- * triangle was gone.
- */
-export function effectiveAlertLevel(s: DailyStoryDto): "Critical" | "Warning" | "Notice" | null {
+type AlertLevel = "Critical" | "Warning" | "Notice" | null;
+
+/** The level the server reports, unless the card has been signed off. */
+function serverAlertLevel(s: DailyStoryDto): AlertLevel {
   if (hasDodTag(s)) return null;
-  if (s.alertLevel === "Critical" || s.alertLevel === "Warning" || s.alertLevel === "Notice") return s.alertLevel;
-  return korthygienWarnings(s).length > 0 ? "Warning" : null;
+  return s.alertLevel === "Critical" || s.alertLevel === "Warning" || s.alertLevel === "Notice" ? s.alertLevel : null;
+}
+
+/**
+ * What the triangle shows: everything the card is flagged for, card hygiene included.
+ */
+export function effectiveAlertLevel(s: DailyStoryDto): AlertLevel {
+  return serverAlertLevel(s) ?? (korthygienWarnings(s).length > 0 ? "Warning" : null);
+}
+
+/**
+ * What tints the row and colours the group's accent - only the flow problems the server reports.
+ *
+ * Card hygiene deliberately stops at the triangle. A missing acceptance criterion is advice; a card
+ * that has been closed with an open task is a fault. Tinting both the same way makes most of the
+ * board amber, and a colour that is everywhere has stopped saying anything.
+ */
+export function rowAlertLevel(s: DailyStoryDto): AlertLevel {
+  return serverAlertLevel(s);
 }
 
 /** Everything the card is being flagged for, in one list. */
