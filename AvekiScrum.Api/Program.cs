@@ -57,7 +57,11 @@ builder.Services.AddScoped<DailyDashboardDataBuilder>();
 //                    typing your own name) except the attribution in Azure's own history, which
 //                    needs the delegated consent. Meant for the wait, not for good.
 //   "Pat"          - no sign-in at all. Local development.
-var authMode = builder.Configuration["Auth:Mode"] ?? "Pat";
+// Trimmed. `set Auth__Mode=Pat && dotnet run` in a batch file hands over "Pat " - the space before
+// the && is part of the value - and surrounding whitespace should never be the difference between
+// a working app and one that refuses to start.
+var authMode = (builder.Configuration["Auth:Mode"] ?? "Pat").Trim();
+if (authMode.Length == 0) authMode = "Pat";
 // Refused rather than guessed at. A value that matches nothing used to fall through to "Pat",
 // which is the one mode that leaves the Api open to anonymous callers - so a typo, or a stray
 // translation of the word, silently turned sign-in off. This has happened once already.
@@ -243,7 +247,9 @@ app.MapGet("/api/health", (IConfiguration configuration) => Results.Ok(new
     // project - and nothing on screen said so. Now it does.
     project = configuration["AzureDevOps:Project"],
     sandbox = !string.IsNullOrWhiteSpace(projectOverride),
-    authMode = configuration["Auth:Mode"],
+    // The trimmed value, i.e. the one actually in force - reporting the raw config here would show
+    // "EntraWithPat " and send someone hunting for a difference that no longer exists.
+    authMode,
     // Says outright which of the two things sign-in buys you are actually on.
     signInRequired = requireSignIn,
     azureDevOpsAs = delegatedAzureDevOps ? "inloggad användare" : "delad PAT",

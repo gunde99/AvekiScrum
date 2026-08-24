@@ -18,10 +18,12 @@ if /i "%AUTH_MODE%"=="EntraWithPat" echo   Du loggar in med ditt eget konto.
 echo ==========================================================
 echo.
 
+REM Parenteserna i exempelkommandot maste escapas med ^. Oescapade stanger de if-blocket har mitt i,
+REM sa varningen kapades och sista raden skrevs ut aven nar PAT-en var satt.
 if "%AzureDevOps__PAT%"=="" (
     echo [VARNING] AzureDevOps__PAT ar inte satt i den har terminalen.
     echo Utan den kan API:t inte hamta nagot fran Azure DevOps. Satt den med:
-    echo   [Environment]::SetEnvironmentVariable("AzureDevOps__PAT", "DITT_TOKEN", "User")
+    echo   [Environment]::SetEnvironmentVariable^("AzureDevOps__PAT", "DITT_TOKEN", "User"^)
     echo och starta om Utforskaren.
     echo.
 )
@@ -34,7 +36,9 @@ call :FreePort 5199 "AvekiScrum.Client" || exit /b 1
 
 echo Startar AvekiScrum.Api pa http://localhost:5273 ...
 echo   (Forsta raderna i det fonstret sager projekt och lage.)
-start "AvekiScrum.Api (%AUTH_MODE%)" cmd /k "cd /d "%~dp0AvekiScrum.Api" && set Auth__Mode=%AUTH_MODE% && dotnet run --launch-profile http"
+REM Citattecknen runt hela tilldelningen ar inte kosmetika: "set X=Pat && ..." tar med blanksteget
+REM fore && i vardet, sa lagert blir "Pat " och matchar ingenting.
+start "AvekiScrum.Api (%AUTH_MODE%)" cmd /k "cd /d "%~dp0AvekiScrum.Api" && set "Auth__Mode=%AUTH_MODE%" && dotnet run --launch-profile http"
 
 echo Startar AvekiScrum.Client pa http://localhost:5199 ...
 start "AvekiScrum.Client" cmd /k "cd /d "%~dp0AvekiScrum.Client" && npm run dev -- --open"
