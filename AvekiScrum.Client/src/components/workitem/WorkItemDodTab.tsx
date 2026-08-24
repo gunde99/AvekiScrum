@@ -38,9 +38,9 @@ export function WorkItemDodTab({ story, approving, onApprove }: WorkItemDodTabPr
 
       <div className="wi-dod__grid">
         {tiles.map((tile) => {
-          // An approved card turns every box green: the ones that were grey were the exceptions
-          // being signed off, and they read as N/A rather than as something still outstanding.
-          const state = approved && tile.state !== "done" ? "na" : tile.state;
+          // N/A is reserved for a box with nothing in it. A box that holds something unfinished is
+          // shown as done once signed off - the work existed, it was just judged good enough.
+          const state = tile.state === "not-needed" ? "na" : tile.state;
           return (
             <section key={tile.label} className={`wi-dod__box wi-dod__box--${tile.category} wi-dod__box--${state}`}>
               <header className="wi-dod__box-head">

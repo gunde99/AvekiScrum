@@ -149,11 +149,16 @@ export function deliveryTiles(story: DailyStoryDto): TileInfo[] {
     },
   ];
 
-  // A signed-off card: everything that isn't finished was looked at and accepted as not needed.
-  // Deliberately the same "not-needed" look DoR already gives an empty optional box - dashed green
-  // with N/A - rather than a second visual language for the same idea one stage later.
+  // A signed-off card, and the two cases are not the same thing:
+  //   nothing there  -> N/A. Nobody built it, and that was accepted. Dashed green, as DoR already
+  //                     marks an empty optional box - the same idea one stage later.
+  //   something there but unfinished -> ✓. There *is* a PR or a task; someone judged where it got
+  //                     to as good enough. An abandoned PR is still a PR that was dealt with, and
+  //                     calling that "N/A" would deny the work existed.
   if (hasDodTag(story)) {
-    return tiles.map((t) => (t.state === "done" ? t : { ...t, state: "not-needed" as const }));
+    return tiles.map((t) =>
+      t.state === "done" ? t : t.state === "active" ? { ...t, state: "done" as const } : { ...t, state: "not-needed" as const },
+    );
   }
   return tiles;
 }

@@ -10,11 +10,11 @@ import {
   canApproveDod,
   fmtDate,
   fmtDateTime,
+  alertDetailsFor,
   effectiveAlertLevel,
   fullPersonName,
   hasDodTag,
   isStoryDone,
-  korthygienWarnings,
   sortStories,
   storyProg,
   type FlowLaneStage,
@@ -63,7 +63,9 @@ function StatusCell({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLButtonElement>(null);
   const approved = hasDodTag(story);
-  const warnings = korthygienWarnings(story);
+  // Everything the card is flagged for, not just the hygiene half - the sign-off silences all of
+  // it, so all of it is what you are being asked to accept.
+  const warnings = alertDetailsFor(story);
   const offer = !!onQuickApproveDod && canApproveDod(story) && !approved;
 
   if (!offer) {
