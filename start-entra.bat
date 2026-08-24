@@ -9,5 +9,8 @@ REM  kraver admin consent.
 REM
 REM  Kraver AzureDevOps__PAT, och att http://localhost:5199/ finns som redirect-URI pa
 REM  SPA-registreringen. Ingen klienthemlighet behovs i det har laget.
+REM
+REM  Holls portarna av en gammal instans erbjuder skriptet sig att stoppa den. "start-entra.bat force"
+REM  gor det utan att fraga.
 REM =============================================================================================
-call "%~dp0start-common.bat" EntraWithPat
+call "%~dp0start-common.bat" EntraWithPat %1

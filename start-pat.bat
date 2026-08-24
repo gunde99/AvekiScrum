@@ -7,5 +7,8 @@ REM  forst och ratter sig efter svaret. Ditt namn hamnar alltsa inte pa korten; 
 REM  PAT-agaren. Det ar priset for att kunna jobba utan att na Entra.
 REM
 REM  Kraver miljovariabeln AzureDevOps__PAT.
+REM
+REM  Holls portarna av en gammal instans erbjuder skriptet sig att stoppa den. "start-pat.bat force"
+REM  gor det utan att fraga.
 REM =============================================================================================
-call "%~dp0start-common.bat" Pat
+call "%~dp0start-common.bat" Pat %1

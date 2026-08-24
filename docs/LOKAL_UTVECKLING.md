@@ -77,9 +77,27 @@ aldrig röras när du byter läge; den anger bara vad klienten *kan*, inte vad d
 Går API:t inte att nå alls säger startsidan **"Servern svarar inte"** och pekar ut bat-filerna, i
 stället för att blanda in inloggningen i ett fel som inte har med den att göra.
 
-Bat-filerna vägrar dessutom starta om något redan lyssnar på 5273 eller 5199, och skriver ut vilken
-process det är. En kvarglömd instans läser configen från när *den* startade – det är så man hamnar i
-fel projekt eller fel läge utan att något säger till.
+## Kvarglömda processer
+
+Bat-filerna kollar 5273 och 5199 innan de startar något. Är en port upptagen visas vilken process
+det är, och du får frågan om den ska stoppas:
+
+```
+[UPPTAGEN] Port 5273 halls redan av - troligen AvekiScrum.Api fran tidigare.
+   pid 42504  AvekiScrum.Api.exe
+
+Stoppa den och fortsatt? [J/N]
+```
+
+`start-pat.bat force` respektive `start-entra.bat force` hoppar över frågan.
+
+Det behövs eftersom **att stänga fönstret inte räcker**: `dotnet run` och `npm run dev` startar den
+riktiga processen som ett barn, och den överlever när cmd försvinner. Då finns varken fönster att
+stänga eller synlig ledtråd till vad som håller porten. **Ctrl+C i fönstret** stoppar hela kedjan;
+krysset gör det inte.
+
+En kvarglömd instans är värre än bara i vägen: den läser configen från när *den* startade, så den
+kan svara i ett annat läge eller mot ett annat projekt än det du just valde.
 
 ## Byta mellan sandlådan och skarpa projektet
 
