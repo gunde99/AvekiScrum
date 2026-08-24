@@ -3,7 +3,7 @@ import {
   PublicClientApplication,
   type AccountInfo,
 } from "@azure/msal-browser";
-import { authEnabled, loginRequest, msalConfig } from "./authConfig";
+import { authConfigured, loginRequest, msalConfig, signInRequired } from "./authConfig";
 
 export const msalInstance = new PublicClientApplication(msalConfig);
 
@@ -17,7 +17,7 @@ let initialized = false;
  * leg of a redirect sign-in.
  */
 export async function initializeAuth(): Promise<AccountInfo | null> {
-  if (!authEnabled) return null;
+  if (!authConfigured) return null;
   if (!initialized) {
     await msalInstance.initialize();
     initialized = true;
@@ -66,7 +66,10 @@ export async function signOut(): Promise<void> {
  * bouncing the user to a login page for a transient network error.
  */
 export async function getApiToken(): Promise<string | null> {
-  if (!authEnabled) return null;
+  // Asked of the server's answer, not of the build: against a Pat-mode Api there is no token to
+  // get and no sign-in to trigger, and trying anyway is what used to bounce people to Entra for
+  // an Api that would have answered them anonymously.
+  if (!authConfigured || !signInRequired()) return null;
 
   const account = msalInstance.getActiveAccount() ?? msalInstance.getAllAccounts()[0];
   if (!account) {

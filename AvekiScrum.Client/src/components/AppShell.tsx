@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useTheme } from "../theme/ThemeContext";
-import { authEnabled } from "../auth/authConfig";
+import { signInRequired } from "../auth/authConfig";
 import { getIdentity, getIdentityError } from "../auth/identity";
 import { Diagnostics } from "./Diagnostics";
 import { UserChip } from "./UserChip";
@@ -47,7 +47,10 @@ export function AppShell({
   const identity = getIdentity();
   // Signed in at Entra but rejected by our own Api: every view will show its own failure, and
   // none of them will say why. One banner naming the real problem beats six error messages.
-  const identityProblem = authEnabled && identity && !identity.signedIn ? getIdentityError() : null;
+  // Only when the server asked for a sign-in and still doesn't know us - that is a real problem.
+  // In Pat mode being unknown is the expected state, not a fault, and saying otherwise sent people
+  // looking for a broken token that was never supposed to exist.
+  const identityProblem = signInRequired() && identity && !identity.signedIn ? getIdentityError() : null;
   const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   return (

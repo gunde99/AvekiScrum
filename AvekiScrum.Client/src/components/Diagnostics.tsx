@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { apiFetch } from "../lib/apiFetch";
-import { authEnabled } from "../auth/authConfig";
+import { signInRequired } from "../auth/authConfig";
 import { getIdentity, getIdentityError } from "../auth/identity";
 import "./Diagnostics.css";
 
@@ -30,9 +30,9 @@ export function Diagnostics({ onClose }: { onClose: () => void }) {
     const identity = getIdentity();
     checks.push({
       name: "Inloggning i webbläsaren",
-      ok: !authEnabled || !!identity?.signedIn,
-      detail: !authEnabled
-        ? "Avstängd i det här bygget (PAT-läge)."
+      ok: !signInRequired() || !!identity?.signedIn,
+      detail: !signInRequired()
+        ? "Servern kräver ingen inloggning (Auth:Mode = Pat), så ingen begärs."
         : identity?.signedIn
           ? `${identity.displayName} (${identity.email ?? "ingen e-post i token"})`
           : (getIdentityError() ?? "Ingen inloggad användare."),

@@ -7,11 +7,26 @@ const clientId = import.meta.env.VITE_ENTRA_CLIENT_ID as string | undefined;
 export const API_SCOPE = (import.meta.env.VITE_API_SCOPE as string | undefined) ?? "";
 
 /**
- * Sign-in is on when the build was given an Entra client id. A developer running `vite` without
- * an .env keeps the old anonymous behaviour against a PAT-mode Api, so the two halves can be
- * switched over independently.
+ * Whether this build *can* sign in - it was given a tenant, a client id and a scope.
+ *
+ * Not the same as whether it *should*: that is the server's call, see signInRequired below. The
+ * two were the same thing once, and every mismatch between the client's env and the Api's
+ * Auth:Mode showed up as something apparently broken - a name that vanished, a 401 on every call.
  */
-export const authEnabled = Boolean(tenantId && clientId && API_SCOPE);
+export const authConfigured = Boolean(tenantId && clientId && API_SCOPE);
+
+// Set once at startup from /api/health. Read by everything that has to know whether a token is
+// expected, so there is exactly one answer and it came from the server.
+let signInRequiredFlag = false;
+
+export function setSignInRequired(required: boolean): void {
+  signInRequiredFlag = required;
+}
+
+/** True when the Api rejects anonymous calls, i.e. Auth:Mode is one of the Entra modes. */
+export function signInRequired(): boolean {
+  return signInRequiredFlag;
+}
 
 export const msalConfig: Configuration = {
   auth: {

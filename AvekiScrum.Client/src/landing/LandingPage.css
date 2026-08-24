@@ -249,6 +249,42 @@
   filter: brightness(0.82);
 }
 
+/* Team cards carry no bullet list, so their bodies are short - the photo does the explaining. */
+.landing-card--team .landing-card__title {
+  font-size: 1.45rem;
+}
+
+.landing-card--team-nord:hover,
+.landing-card--team-nord:focus-visible {
+  border-color: var(--color-success);
+}
+
+.landing-card--team-syd:hover,
+.landing-card--team-syd:focus-visible {
+  border-color: var(--color-info-text);
+}
+
+.landing-card--team-nord .landing-card__photo::after {
+  background: linear-gradient(160deg, rgba(157, 191, 33, 0.34), rgba(234, 91, 27, 0.12) 70%);
+}
+
+.landing-card--team-syd .landing-card__photo::after {
+  background: linear-gradient(160deg, rgba(15, 65, 112, 0.4), rgba(157, 191, 33, 0.12) 70%);
+}
+
+.landing-card--team-nord .landing-card__cta {
+  color: var(--color-success);
+}
+
+.landing-card--team-syd .landing-card__cta {
+  color: var(--color-info-text);
+}
+
+.landing__back {
+  margin-top: var(--space-4);
+  text-align: center;
+}
+
 .landing__foot {
   margin-top: var(--space-5);
   text-align: center;

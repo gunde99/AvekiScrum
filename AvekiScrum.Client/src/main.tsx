@@ -3,24 +3,36 @@ import { createRoot } from 'react-dom/client'
 import './theme/global.css'
 import { ThemeProvider } from './theme/ThemeContext'
 import { ToastProvider } from './components/Toast'
-import { authEnabled } from './auth/authConfig'
+import { authConfigured, setSignInRequired } from './auth/authConfig'
 import { initializeAuth, signIn } from './auth/msal'
 import { loadIdentity } from './auth/identity'
+import { fetchServerConfig } from './api/serverConfig'
 import { StartupError } from './components/StartupError'
 import App from './App.tsx'
 
 /**
- * Sign in before the first render.
+ * Start-up, in the order the answers become available.
  *
- * Everything the app shows comes from Azure DevOps as the signed-in user, so there is nothing
- * meaningful to draw before we know who that is. On a domain-joined machine this completes without
- * showing anything; only a machine without a usable session ever sees the Entra page.
+ * The server is asked first, and it decides whether anyone signs in. That single fact is what
+ * makes the three ways of running this independent of each other: PAT-only, sign-in against a
+ * PAT-backed Api, and full delegated Entra differ by one setting on the server, and the client
+ * follows. Nothing here has to be switched to match.
  */
 async function bootstrap() {
   const root = createRoot(document.getElementById('root')!)
 
   try {
-    if (authEnabled) {
+    const server = await fetchServerConfig()
+    setSignInRequired(server.signInRequired)
+
+    if (server.signInRequired) {
+      if (!authConfigured) {
+        throw new Error(
+          `Servern kräver inloggning (Auth:Mode = "${server.authMode}") men den här klientbygget ` +
+            'saknar VITE_ENTRA_TENANT_ID / VITE_ENTRA_CLIENT_ID / VITE_API_SCOPE. Antingen sätter du ' +
+            'dem i AvekiScrum.Client/.env.development, eller så kör du API:t med Auth__Mode=Pat.',
+        )
+      }
       const account = await initializeAuth()
       if (!account) {
         await signIn()
@@ -41,7 +53,7 @@ async function bootstrap() {
     )
   } catch (error) {
     // Without this the page just stays blank, which says nothing about what went wrong - and
-    // sign-in has a lot of ways to go wrong that are entirely fixable once named.
+    // both halves of start-up have plenty of ways to fail that are fixable once named.
     console.error('AvekiScrum kunde inte starta', error)
     root.render(
       <StrictMode>

@@ -87,11 +87,13 @@ interface DailysBoardProps {
   onNavigate?: (board: "dailys" | "review") => void;
   /** Back to the start page, where AvekiSupport lives. */
   onHome?: () => void;
+  /** Which team's board to open, chosen on the start page. The toggle still switches freely. */
+  initialTeam?: DeveloperTeamId;
 }
 
-export function DailysBoard({ onNavigate, onHome }: DailysBoardProps) {
+export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysBoardProps) {
   const { showToast } = useToast();
-  const [team, setTeam] = useState<DeveloperTeamId>("Syd");
+  const [team, setTeam] = useState<DeveloperTeamId>(initialTeam);
   const [mode, setMode] = useState<GroupMode>("goals");
   const [data, setData] = useState<DailysResponse | null>(null);
   const [error, setError] = useState<string | null>(null);

@@ -14,6 +14,10 @@ interface StartupErrorProps {
 export function StartupError({ error }: StartupErrorProps) {
   const message = error instanceof Error ? error.message : String(error);
   const code = extractErrorCode(message);
+  // The Api being down and the sign-in being misconfigured need completely different things done
+  // about them, so they don't get to share a heading. "Kunde inte logga in" on a dead Api sends
+  // you to the Entra portal for a problem that is a batch file away.
+  const serverDown = message.includes("Ingen kontakt med API:t");
 
   return (
     <div className="startup-error">
@@ -21,8 +25,8 @@ export function StartupError({ error }: StartupErrorProps) {
         <h1>
           Aveki<span>Scrum</span>
         </h1>
-        <h2>Kunde inte logga in</h2>
-        <p className="startup-error__hint">{hintFor(code)}</p>
+        <h2>{serverDown ? "Servern svarar inte" : "Kunde inte logga in"}</h2>
+        <p className="startup-error__hint">{serverDown ? message : hintFor(code)}</p>
 
         <details>
           <summary>Tekniska detaljer</summary>
