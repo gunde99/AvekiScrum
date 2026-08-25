@@ -397,6 +397,11 @@ export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysB
       try {
         await updateWorkItemFields(story.id, { state });
         showToast(`#${story.id} satt till "${state}".`, "success");
+        // Varningarna räknas ut på servern utifrån kortets status, så en lokal patch lämnar dem
+        // kvar och säger emot pillret bredvid - "Test väntar på att huvudkortet blir Resolved" på
+        // ett kort som just blev Resolved. Hämtar om boarden; openGroups rörs inte, så det man
+        // hade uppfällt förblir uppfällt.
+        void refreshBoard();
       } catch (err) {
         // Put it back: an optimistic move that failed must not leave the board claiming otherwise.
         setData((prev) =>
