@@ -14,6 +14,8 @@ interface GroupCardProps {
   onOpenValidation: (id: number) => void;
   /** Sign off a closed card from its status pill - passed straight through to StoryTable. */
   onQuickApproveDod?: (story: DailyStoryDto) => void;
+  /** Change an open card's state from its pill. */
+  onQuickSetState?: (story: DailyStoryDto, state: string) => void;
   onTaskDrop: (taskId: number, targetLane: FlowLaneStage) => void;
   sprintGoalsByNumber?: Map<number, SprintGoal>;
   onOpenSprintGoal?: (goalNumber: number) => void;
@@ -27,6 +29,7 @@ export function GroupCard({
   onOpenWorkItem,
   onOpenValidation,
   onQuickApproveDod,
+  onQuickSetState,
   onTaskDrop,
   sprintGoalsByNumber,
   onOpenSprintGoal,
@@ -136,13 +139,13 @@ export function GroupCard({
               <div className={`group-subgroup__label group-subgroup__label--${sub.key}`}>
                 {sub.label} <span className="group-subgroup__count">({sub.stories.length})</span>
               </div>
-              <StoryTable stories={sub.stories} onOpenWorkItem={onOpenWorkItem} onOpenValidation={onOpenValidation} onTaskDrop={onTaskDrop} onQuickApproveDod={onQuickApproveDod} />
+              <StoryTable stories={sub.stories} onOpenWorkItem={onOpenWorkItem} onOpenValidation={onOpenValidation} onTaskDrop={onTaskDrop} onQuickApproveDod={onQuickApproveDod} onQuickSetState={onQuickSetState} />
             </div>
           ))}
         </div>
       ) : (
         isOpen && (
-          <StoryTable stories={stories} onOpenWorkItem={onOpenWorkItem} onOpenValidation={onOpenValidation} onTaskDrop={onTaskDrop} onQuickApproveDod={onQuickApproveDod} />
+          <StoryTable stories={stories} onOpenWorkItem={onOpenWorkItem} onOpenValidation={onOpenValidation} onTaskDrop={onTaskDrop} onQuickApproveDod={onQuickApproveDod} onQuickSetState={onQuickSetState} />
         )
       )}
     </div>

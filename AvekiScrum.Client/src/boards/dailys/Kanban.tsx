@@ -76,6 +76,9 @@ function TaskCard({ task, cls, draggable }: { task: DailyTaskDto; cls: string; d
       <div className="kbc-title">{task.title}</div>
       <div className="kbc-foot">
         <span>{task.assignedTo ? compactPersonName(task.assignedTo) : "–"}</span>
+        {/* Tre lanes i stället för fyra ger bredd över - aktiviteten säger vad kortet är för
+            sorts arbete utan att man behöver öppna det. */}
+        {task.activity && <span className="kbc-activity">{task.activity}</span>}
         <span>{ageLabel(task.createdDate)}</span>
       </div>
     </a>
@@ -116,8 +119,10 @@ export function Kanban({ story, onTaskDrop }: KanbanProps) {
   }
 
   const devNew = tasks.filter((t) => t.stage === "New");
-  const devActive = tasks.filter((t) => t.stage === "Active");
-  const devResolved = tasks.filter((t) => t.stage === "Resolved");
+  // Resolved har ingen egen lane längre - teamet använder tre steg, inte fyra, och en tom fjärde
+  // kolumn både stal bredd och bröt uppställningen mot de fyra rutorna nedanför. Kort som ändå
+  // ligger på Resolved i Azure visas som aktiva; deras egen statusetikett säger var de står.
+  const devActive = tasks.filter((t) => t.stage === "Active" || t.stage === "Resolved");
   const devDone = tasks.filter((t) => t.stage === "Done");
   const reviewTasks = tasks.filter((t) => t.stage === "CodeReview");
   const testTasks = tasks.filter((t) => t.stage === "Test");
@@ -138,12 +143,7 @@ export function Kanban({ story, onTaskDrop }: KanbanProps) {
           </Lane>
           <Lane label="Aktiv" laneCls="active" count={devActive.length} dropStage="Active" onTaskDrop={onTaskDrop}>
             {devActive.map((t) => (
-              <TaskCard key={t.id} task={t} cls="kb-card--active" draggable={!!onTaskDrop} />
-            ))}
-          </Lane>
-          <Lane label="Löst" laneCls="resolved" count={devResolved.length} dropStage="Resolved" onTaskDrop={onTaskDrop}>
-            {devResolved.map((t) => (
-              <TaskCard key={t.id} task={t} cls="kb-card--resolved" draggable={!!onTaskDrop} />
+              <TaskCard key={t.id} task={t} cls={t.stage === "Resolved" ? "kb-card--resolved" : "kb-card--active"} draggable={!!onTaskDrop} />
             ))}
           </Lane>
           <Lane label="Klar" laneCls="done" count={devDone.length} dropStage="Done" onTaskDrop={onTaskDrop}>

@@ -373,6 +373,49 @@ export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysB
     );
   }, []);
 
+  /**
+   * Move a card between the open states from its pill.
+   *
+   * Patched locally rather than refetched: the whole point is a one-click change during a standup,
+   * and a full reload would collapse the groups you were looking at. Closed is never offered here -
+   * see OPEN_STATES in StoryTable.
+   */
+  const quickSetState = useCallback(
+    async (story: DailyStoryDto, state: string) => {
+      const previous = story.azureStatus;
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              teams: prev.teams.map((t) => ({
+                ...t,
+                stories: t.stories.map((s) => (s.id === story.id ? { ...s, azureStatus: state } : s)),
+              })),
+            }
+          : prev,
+      );
+      try {
+        await updateWorkItemFields(story.id, { state });
+        showToast(`#${story.id} satt till "${state}".`, "success");
+      } catch (err) {
+        // Put it back: an optimistic move that failed must not leave the board claiming otherwise.
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                teams: prev.teams.map((t) => ({
+                  ...t,
+                  stories: t.stories.map((s) => (s.id === story.id ? { ...s, azureStatus: previous } : s)),
+                })),
+              }
+            : prev,
+        );
+        showToast(`Kunde inte ändra #${story.id}: ${err instanceof Error ? err.message : "Okänt fel"}`, "error");
+      }
+    },
+    [showToast],
+  );
+
   /** Adds the DoD tag to the board's local copy, so the card's warnings clear immediately. */
   const markDodApproved = useCallback((storyId: number) => {
     setData((prev) =>
@@ -690,6 +733,7 @@ export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysB
                 onOpenWorkItem={setOpenWorkItemId}
                 onOpenValidation={setOpenValidationId}
                 onQuickApproveDod={quickApproveDod}
+                onQuickSetState={quickSetState}
                 onTaskDrop={handleTaskDrop}
                 sprintGoalsByNumber={sprintGoalsByNumber}
                 onOpenSprintGoal={setOpenSprintGoalNumber}

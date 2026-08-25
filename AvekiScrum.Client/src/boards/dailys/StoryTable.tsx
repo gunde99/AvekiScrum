@@ -38,9 +38,19 @@ interface StoryTableProps {
   onOpenWorkItem: (id: number) => void;
   onOpenValidation: (id: number) => void;
   onTaskDrop: (taskId: number, targetLane: FlowLaneStage) => void;
-  /** Sign off a closed card straight from the row - see DodQuickApprove. */
+  /** Sign off a closed card straight from the row - see StatusCell. */
   onQuickApproveDod?: (story: DailyStoryDto) => void;
+  /** Move a card to another state from its pill. Closed is not offered - see StatusCell. */
+  onQuickSetState?: (story: DailyStoryDto, state: string) => void;
 }
+
+/**
+ * The states a card can be moved to from the row.
+ *
+ * Closed is deliberately absent: closing a card is a decision with consequences - it settles story
+ * points, it invites a DoD sign-off - and it belongs where the card can be looked at properly.
+ */
+const OPEN_STATES = ["New", "Active", "Resolved"];
 
 function hasTag(tags: string[], tag: string): boolean {
   return tags.some((t) => t.trim().toLowerCase() === tag.toLowerCase());
@@ -56,9 +66,11 @@ function hasTag(tags: string[], tag: string): boolean {
 function StatusCell({
   story,
   onQuickApproveDod,
+  onQuickSetState,
 }: {
   story: DailyStoryDto;
   onQuickApproveDod?: (story: DailyStoryDto) => void;
+  onQuickSetState?: (story: DailyStoryDto, state: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLButtonElement>(null);
@@ -66,7 +78,12 @@ function StatusCell({
   // Everything the card is flagged for, not just the hygiene half - the sign-off silences all of
   // it, so all of it is what you are being asked to accept.
   const warnings = alertDetailsFor(story);
-  const offer = !!onQuickApproveDod && canApproveDod(story) && !approved;
+  const closed = canApproveDod(story);
+
+  // A closed card offers the sign-off; anything else offers a change of state. An already
+  // signed-off card offers nothing - there is nothing left to decide, and reopening it from a
+  // popover would undo a decision by accident.
+  const offer = closed ? !!onQuickApproveDod && !approved : !!onQuickSetState;
 
   if (!offer) {
     return (
@@ -87,13 +104,34 @@ function StatusCell({
           e.stopPropagation();
           setOpen((v) => !v);
         }}
-        title="Klicka för att godkänna enligt Definition of Done"
+        title={closed ? "Klicka för att godkänna enligt Definition of Done" : "Klicka för att ändra status"}
       >
         {story.azureStatus || "-"}
       </button>
       {open && (
         <FloatingPopover anchorRef={ref} onClose={() => setOpen(false)} className="dod-quick">
-          <div className="dod-quick__head">Definition of Done</div>
+          <div className="dod-quick__head">{closed ? "Definition of Done" : "Ändra status"}</div>
+          {!closed ? (
+            <div className="dod-quick__states">
+              {OPEN_STATES.filter((state) => state !== story.azureStatus).map((state) => (
+                <button
+                  key={state}
+                  type="button"
+                  className={`azure-status azure-status--action ${azureStatusClass(state)} dod-quick__state`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpen(false);
+                    onQuickSetState?.(story, state);
+                  }}
+                >
+                  {state}
+                </button>
+              ))}
+              <p className="dod-quick__note">
+                Stäng kortet i Azure DevOps – här går det bara att flytta mellan de öppna lägena.
+              </p>
+            </div>
+          ) : (
           <div className="dod-quick__body">
             {warnings.length === 0 ? (
               <p>Inga varningar kvar på kortet. Godkänn för att kvittera det som klart.</p>
@@ -108,6 +146,8 @@ function StatusCell({
               </>
             )}
           </div>
+          )}
+          {closed && (
           <button
             type="button"
             className="wi-btn wi-btn--primary dod-quick__go"
@@ -119,13 +159,14 @@ function StatusCell({
           >
             Godkänn DoD
           </button>
+          )}
         </FloatingPopover>
       )}
     </>
   );
 }
 
-export function StoryTable({ stories, onOpenWorkItem, onOpenValidation, onTaskDrop, onQuickApproveDod }: StoryTableProps) {
+export function StoryTable({ stories, onOpenWorkItem, onOpenValidation, onTaskDrop, onQuickApproveDod, onQuickSetState }: StoryTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>("lastChangedDate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [openStories, setOpenStories] = useState<Set<number>>(new Set());
@@ -226,7 +267,7 @@ export function StoryTable({ stories, onOpenWorkItem, onOpenValidation, onTaskDr
                 <span>{fullPersonName(story.developer) || "Ej tilldelad"}</span>
               </div>
               <div>
-                <StatusCell story={story} onQuickApproveDod={onQuickApproveDod} />
+                <StatusCell story={story} onQuickApproveDod={onQuickApproveDod} onQuickSetState={onQuickSetState} />
               </div>
               <div>
                 <span title={fmtDateTime(story.lastChangedDate)}>{fmtDate(story.lastChangedDate)}</span>

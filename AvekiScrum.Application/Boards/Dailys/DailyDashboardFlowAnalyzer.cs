@@ -187,17 +187,8 @@ namespace AvekiScrum.Application.Boards.Dailys
                 .Where(pr => IsPullRequestActive(pr, pullRequestDetails))
                 .ToList();
 
-            if (hasIncompleteDev)
-            {
-                var activeWithRequiredReviewers = activePullRequests
-                    .Where(pr => HasRequiredReviewer(pr, pullRequestDetails))
-                    .Select(pr => pr.PullRequestId)
-                    .Distinct()
-                    .ToList();
-
-                if (activeWithRequiredReviewers.Count > 0)
-                    warnings.Add("PR skapad och fördelad fast all utveckling ej är klar");
-            }
+            // Ingen varning för PR under granskning medan utveckling pågår. Att lägga upp en del för
+            // granskning och fortsätta med nästa är hur teamet arbetar, inte ett fel.
 
             if (!pullRequests.Any(pr => IsPullRequestCompleted(pr, pullRequestDetails)) && testTasks.Any(IsTestInProgress))
                 warnings.Add("Test startat innan PR är klar");
@@ -206,8 +197,23 @@ namespace AvekiScrum.Application.Boards.Dailys
             if (!sourceResolved && testTasks.Any(IsTestInProgress))
                 warnings.Add("Test väntar på att huvudkortet blir Resolved");
 
-            if (pullRequests.Any(pr => IsPullRequestAbandoned(pr, pullRequestDetails)))
-                warnings.Add("PR övergiven");
+            // En övergiven PR är i sig inget problem - man byter approach, öppnar en ny mot samma
+            // gren. Det som betyder något är om grenen blev utan PR när den övergavs. Att PR mot
+            // main/master och release-grenar verkligen finns kontrolleras separat, via taggningen.
+            foreach (var abandoned in pullRequests.Where(pr => IsPullRequestAbandoned(pr, pullRequestDetails)))
+            {
+                var branch = TargetBranchOf(abandoned, pullRequestDetails);
+                var hasLivePullRequest = pullRequests.Any(pr =>
+                    !IsPullRequestAbandoned(pr, pullRequestDetails)
+                    && string.Equals(TargetBranchOf(pr, pullRequestDetails), branch, StringComparison.OrdinalIgnoreCase));
+
+                if (!hasLivePullRequest)
+                {
+                    warnings.Add(string.IsNullOrWhiteSpace(branch)
+                        ? "PR övergiven utan ersättare"
+                        : $"PR övergiven utan ersättare mot {branch}");
+                }
+            }
 
             foreach (var test in testTasks.Where(task => task.IsBlocked))
                 warnings.Add($"Testkort {test.Key} blockerat");
@@ -333,6 +339,18 @@ namespace AvekiScrum.Application.Boards.Dailys
             PullRequestCardVm pullRequest,
             IReadOnlyDictionary<(Guid RepoId, int PullRequestId), PullRequestDetails> details)
             => GetPullRequestStatus(pullRequest, details) is "abandoned" or "aborted";
+
+        /// <summary>Grenen en PR går mot, utan refs/heads-prefix. Tom när detaljerna saknas.</summary>
+        private static string TargetBranchOf(
+            PullRequestCardVm pullRequest,
+            IReadOnlyDictionary<(Guid RepoId, int PullRequestId), PullRequestDetails> details)
+        {
+            details.TryGetValue((pullRequest.RepoId, pullRequest.PullRequestId), out var detail);
+            var branch = detail?.TargetBranch ?? "";
+            return branch.StartsWith("refs/heads/", StringComparison.OrdinalIgnoreCase)
+                ? branch["refs/heads/".Length..]
+                : branch;
+        }
 
         private static bool HasRequiredReviewer(
             PullRequestCardVm pullRequest,
