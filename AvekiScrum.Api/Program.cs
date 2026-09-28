@@ -487,15 +487,23 @@ app.MapGet("/api/dailys/checkins", async (
 // flow's own step order.
 var talkingPoints = app.MapGroup("/api/talking-points");
 
+// "Both" is a valid Scope/team-filter value but not a DeveloperTeam - these three helpers are the
+// one place that trio of strings ("Nord"/"Syd"/"Both") gets validated and parsed.
+static bool IsValidScope(string? scope) => scope is "Nord" or "Syd" or "Both";
+
 talkingPoints.MapGet("/", async (
-    string team,
+    string? team,
     ITalkingPointRepository repository,
     CancellationToken ct) =>
 {
+    // No 'team' at all -> everything, any scope (the settings modal's "Alla" filter). A concrete
+    // team returns just what's relevant to it (Scope == that team or "Both") - DailyFlow's own use.
+    if (string.IsNullOrWhiteSpace(team))
+        return Results.Ok(await repository.GetAllAsync(ct));
     if (!Enum.TryParse<DeveloperTeam>(team, ignoreCase: true, out var developerTeam))
         return Results.BadRequest($"Unknown team '{team}'. Expected 'Nord' or 'Syd'.");
 
-    var points = await repository.GetByTeamAsync(developerTeam, ct);
+    var points = await repository.GetForTeamAsync(developerTeam, ct);
     return Results.Ok(points);
 })
 .WithName("GetTalkingPoints");
@@ -505,13 +513,14 @@ talkingPoints.MapPost("/", async (
     ITalkingPointRepository repository,
     CancellationToken ct) =>
 {
-    if (!Enum.TryParse<DeveloperTeam>(request.Team, ignoreCase: true, out var developerTeam))
-        return Results.BadRequest($"Unknown team '{request.Team}'. Expected 'Nord' or 'Syd'.");
+    if (!IsValidScope(request.Scope))
+        return Results.BadRequest($"Unknown scope '{request.Scope}'. Expected 'Nord', 'Syd' or 'Both'.");
     if (string.IsNullOrWhiteSpace(request.AssigneeEmail))
         return Results.BadRequest("Missing 'assigneeEmail'.");
 
-    var created = await repository.CreateAsync(developerTeam, new TalkingPoint
+    var created = await repository.CreateAsync(new TalkingPoint
     {
+        Scope = request.Scope,
         BodyHtml = request.BodyHtml ?? "",
         AssigneeEmail = request.AssigneeEmail,
         AssigneeDisplayName = string.IsNullOrWhiteSpace(request.AssigneeDisplayName) ? request.AssigneeEmail : request.AssigneeDisplayName,
@@ -529,12 +538,13 @@ talkingPoints.MapPut("/{id}", async (
     ITalkingPointRepository repository,
     CancellationToken ct) =>
 {
-    if (!Enum.TryParse<DeveloperTeam>(request.Team, ignoreCase: true, out var developerTeam))
-        return Results.BadRequest($"Unknown team '{request.Team}'. Expected 'Nord' or 'Syd'.");
+    if (!IsValidScope(request.Scope))
+        return Results.BadRequest($"Unknown scope '{request.Scope}'. Expected 'Nord', 'Syd' or 'Both'.");
 
     var updated = await repository.UpdateAsync(
-        developerTeam, id, request.BodyHtml ?? "", request.AssigneeEmail ?? "",
-        string.IsNullOrWhiteSpace(request.AssigneeDisplayName) ? request.AssigneeEmail ?? "" : request.AssigneeDisplayName, ct);
+        id, request.BodyHtml ?? "", request.AssigneeEmail ?? "",
+        string.IsNullOrWhiteSpace(request.AssigneeDisplayName) ? request.AssigneeEmail ?? "" : request.AssigneeDisplayName,
+        request.Scope, ct);
     return updated is null ? Results.NotFound() : Results.Ok(updated);
 })
 .WithName("UpdateTalkingPoint");
@@ -545,39 +555,37 @@ talkingPoints.MapPost("/{id}/raised", async (
     ITalkingPointRepository repository,
     CancellationToken ct) =>
 {
-    if (!Enum.TryParse<DeveloperTeam>(request.Team, ignoreCase: true, out var developerTeam))
-        return Results.BadRequest($"Unknown team '{request.Team}'. Expected 'Nord' or 'Syd'.");
+    if (!IsValidScope(request.Team))
+        return Results.BadRequest($"Unknown team '{request.Team}'. Expected 'Nord', 'Syd' or 'Both'.");
 
-    var updated = await repository.SetRaisedAsync(developerTeam, id, request.Raised, ct);
+    var updated = await repository.SetRaisedAsync(id, request.Team, request.Raised, ct);
     return updated is null ? Results.NotFound() : Results.Ok(updated);
 })
 .WithName("SetTalkingPointRaised");
 
-// The settings page's "tänd/släck allt" bulk action - lets a mis-clicked round of checkoffs (or a
-// deliberate "start the list fresh") be undone in one call instead of one row at a time.
+// The settings modal's "tänd/släck allt" bulk action - lets a mis-clicked round of checkoffs (or a
+// deliberate "start the list fresh") be undone in one call instead of one row at a time. Scoped the
+// same way as whatever list it was clicked from: "Nord"/"Syd" only touches items relevant to that
+// team, "Both" (the "Alla" filter) touches every item's flags for both teams.
 talkingPoints.MapPost("/raised-all", async (
     SetAllTalkingPointsRaisedRequest request,
     ITalkingPointRepository repository,
     CancellationToken ct) =>
 {
-    if (!Enum.TryParse<DeveloperTeam>(request.Team, ignoreCase: true, out var developerTeam))
-        return Results.BadRequest($"Unknown team '{request.Team}'. Expected 'Nord' or 'Syd'.");
+    if (!IsValidScope(request.Team))
+        return Results.BadRequest($"Unknown team '{request.Team}'. Expected 'Nord', 'Syd' or 'Both'.");
 
-    await repository.SetAllRaisedAsync(developerTeam, request.Raised, ct);
+    await repository.SetAllRaisedAsync(request.Team, request.Raised, ct);
     return Results.Ok();
 })
 .WithName("SetAllTalkingPointsRaised");
 
 talkingPoints.MapDelete("/{id}", async (
     string id,
-    string team,
     ITalkingPointRepository repository,
     CancellationToken ct) =>
 {
-    if (!Enum.TryParse<DeveloperTeam>(team, ignoreCase: true, out var developerTeam))
-        return Results.BadRequest($"Unknown team '{team}'. Expected 'Nord' or 'Syd'.");
-
-    var removed = await repository.DeleteAsync(developerTeam, id, ct);
+    var removed = await repository.DeleteAsync(id, ct);
     return removed ? Results.Ok() : Results.NotFound();
 })
 .WithName("DeleteTalkingPoint");
@@ -2025,7 +2033,7 @@ internal sealed record DailyCheckInEntryRequest(
     double Score);
 
 internal sealed record CreateTalkingPointRequest(
-    string Team,
+    string Scope,
     string? BodyHtml,
     string AssigneeEmail,
     string? AssigneeDisplayName,
@@ -2033,11 +2041,12 @@ internal sealed record CreateTalkingPointRequest(
     string? CreatedByDisplayName);
 
 internal sealed record UpdateTalkingPointRequest(
-    string Team,
+    string Scope,
     string? BodyHtml,
     string? AssigneeEmail,
     string? AssigneeDisplayName);
 
+/// <summary>Team is "Nord", "Syd", or "Both" (mark done/reset on both teams' flags at once).</summary>
 internal sealed record SetTalkingPointRaisedRequest(string Team, bool Raised);
 
 internal sealed record SetAllTalkingPointsRaisedRequest(string Team, bool Raised);

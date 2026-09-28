@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -14,17 +13,19 @@ using Microsoft.Extensions.Options;
 namespace AvekiScrum.Infrastructure.Persistence
 {
     /// <summary>
-    /// One JSON file per team under TalkingPointSettings.DataDirectory - same rationale and shape as
-    /// JsonFileDailyCheckInRepository. A per-team SemaphoreSlim serializes every read-modify-write so
-    /// two overlapping edits (the settings page and a running daily flow, say) can't race each other's
-    /// file.
+    /// A single JSON file under TalkingPointSettings.DataDirectory holding every talking point,
+    /// whatever team(s) it's scoped to - unlike JsonFileDailyCheckInRepository, a talking point
+    /// isn't owned by one team's own file, since "Both" scope means the same item is tracked
+    /// independently against both teams' raised state. One SemaphoreSlim serializes every
+    /// read-modify-write so two overlapping edits (the settings modal and a running daily flow's
+    /// "Lyft" click, say) can't race each other's file.
     /// </summary>
     public sealed class JsonFileTalkingPointRepository : ITalkingPointRepository
     {
         private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
 
         private readonly string _dataDirectory;
-        private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new(StringComparer.OrdinalIgnoreCase);
+        private readonly SemaphoreSlim _gate = new(1, 1);
 
         public JsonFileTalkingPointRepository(IOptions<TalkingPointSettings> settings)
         {
@@ -34,119 +35,134 @@ namespace AvekiScrum.Infrastructure.Persistence
                 : Path.Combine(AppContext.BaseDirectory, configured);
         }
 
-        public async Task<IReadOnlyList<TalkingPoint>> GetByTeamAsync(DeveloperTeam team, CancellationToken ct = default)
-            => await ReadAsync(team.ToString(), ct);
+        public async Task<IReadOnlyList<TalkingPoint>> GetAllAsync(CancellationToken ct = default)
+            => await ReadAsync(ct);
 
-        public async Task<TalkingPoint> CreateAsync(DeveloperTeam team, TalkingPoint point, CancellationToken ct = default)
+        public async Task<IReadOnlyList<TalkingPoint>> GetForTeamAsync(DeveloperTeam team, CancellationToken ct = default)
         {
-            var teamKey = team.ToString();
-            var gate = _locks.GetOrAdd(teamKey, _ => new SemaphoreSlim(1, 1));
-            await gate.WaitAsync(ct);
+            var teamName = team.ToString();
+            var all = await ReadAsync(ct);
+            return all.Where(p => p.Scope == "Both" || string.Equals(p.Scope, teamName, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+
+        public async Task<TalkingPoint> CreateAsync(TalkingPoint point, CancellationToken ct = default)
+        {
+            await _gate.WaitAsync(ct);
             try
             {
-                var existing = await ReadAsync(teamKey, ct);
+                var existing = await ReadAsync(ct);
                 point.Id = Guid.NewGuid().ToString("N");
-                point.Team = teamKey;
                 existing.Add(point);
-                await WriteAsync(teamKey, existing, ct);
+                await WriteAsync(existing, ct);
                 return point;
             }
             finally
             {
-                gate.Release();
+                _gate.Release();
             }
         }
 
-        public async Task<TalkingPoint?> UpdateAsync(DeveloperTeam team, string id, string bodyHtml, string assigneeEmail, string assigneeDisplayName, CancellationToken ct = default)
+        public async Task<TalkingPoint?> UpdateAsync(string id, string bodyHtml, string assigneeEmail, string assigneeDisplayName, string scope, CancellationToken ct = default)
         {
-            var teamKey = team.ToString();
-            var gate = _locks.GetOrAdd(teamKey, _ => new SemaphoreSlim(1, 1));
-            await gate.WaitAsync(ct);
+            await _gate.WaitAsync(ct);
             try
             {
-                var existing = await ReadAsync(teamKey, ct);
+                var existing = await ReadAsync(ct);
                 var point = existing.FirstOrDefault(p => p.Id == id);
                 if (point is null) return null;
 
                 point.BodyHtml = bodyHtml;
                 point.AssigneeEmail = assigneeEmail;
                 point.AssigneeDisplayName = assigneeDisplayName;
-                await WriteAsync(teamKey, existing, ct);
+                point.Scope = scope;
+                await WriteAsync(existing, ct);
                 return point;
             }
             finally
             {
-                gate.Release();
+                _gate.Release();
             }
         }
 
-        public async Task<TalkingPoint?> SetRaisedAsync(DeveloperTeam team, string id, bool raised, CancellationToken ct = default)
+        public async Task<TalkingPoint?> SetRaisedAsync(string id, string team, bool raised, CancellationToken ct = default)
         {
-            var teamKey = team.ToString();
-            var gate = _locks.GetOrAdd(teamKey, _ => new SemaphoreSlim(1, 1));
-            await gate.WaitAsync(ct);
+            await _gate.WaitAsync(ct);
             try
             {
-                var existing = await ReadAsync(teamKey, ct);
+                var existing = await ReadAsync(ct);
                 var point = existing.FirstOrDefault(p => p.Id == id);
                 if (point is null) return null;
 
-                point.Raised = raised;
-                point.RaisedAt = raised ? DateTimeOffset.UtcNow : null;
-                await WriteAsync(teamKey, existing, ct);
+                ApplyRaised(point, team, raised);
+                await WriteAsync(existing, ct);
                 return point;
             }
             finally
             {
-                gate.Release();
+                _gate.Release();
             }
         }
 
-        public async Task SetAllRaisedAsync(DeveloperTeam team, bool raised, CancellationToken ct = default)
+        public async Task SetAllRaisedAsync(string teamFilter, bool raised, CancellationToken ct = default)
         {
-            var teamKey = team.ToString();
-            var gate = _locks.GetOrAdd(teamKey, _ => new SemaphoreSlim(1, 1));
-            await gate.WaitAsync(ct);
+            await _gate.WaitAsync(ct);
             try
             {
-                var existing = await ReadAsync(teamKey, ct);
+                var existing = await ReadAsync(ct);
                 if (existing.Count == 0) return;
 
-                var now = raised ? DateTimeOffset.UtcNow : (DateTimeOffset?)null;
                 foreach (var point in existing)
                 {
-                    point.Raised = raised;
-                    point.RaisedAt = now;
+                    // "Nord"/"Syd": only items relevant to that team move - a Syd-only item is
+                    // untouched by a Nord bulk action. "Both": everything moves, on both flags.
+                    if (teamFilter != "Both" && point.Scope != "Both" && !string.Equals(point.Scope, teamFilter, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    ApplyRaised(point, teamFilter, raised);
                 }
-                await WriteAsync(teamKey, existing, ct);
+                await WriteAsync(existing, ct);
             }
             finally
             {
-                gate.Release();
+                _gate.Release();
             }
         }
 
-        public async Task<bool> DeleteAsync(DeveloperTeam team, string id, CancellationToken ct = default)
+        private static void ApplyRaised(TalkingPoint point, string team, bool raised)
         {
-            var teamKey = team.ToString();
-            var gate = _locks.GetOrAdd(teamKey, _ => new SemaphoreSlim(1, 1));
-            await gate.WaitAsync(ct);
+            var now = raised ? DateTimeOffset.UtcNow : (DateTimeOffset?)null;
+            if (team is "Nord" or "Both")
+            {
+                point.NordRaised = raised;
+                point.NordRaisedAt = now;
+            }
+            if (team is "Syd" or "Both")
+            {
+                point.SydRaised = raised;
+                point.SydRaisedAt = now;
+            }
+        }
+
+        public async Task<bool> DeleteAsync(string id, CancellationToken ct = default)
+        {
+            await _gate.WaitAsync(ct);
             try
             {
-                var existing = await ReadAsync(teamKey, ct);
+                var existing = await ReadAsync(ct);
                 var removed = existing.RemoveAll(p => p.Id == id) > 0;
-                if (removed) await WriteAsync(teamKey, existing, ct);
+                if (removed) await WriteAsync(existing, ct);
                 return removed;
             }
             finally
             {
-                gate.Release();
+                _gate.Release();
             }
         }
 
-        private async Task<List<TalkingPoint>> ReadAsync(string team, CancellationToken ct)
+        private string FilePath => Path.Combine(_dataDirectory, "talking-points.json");
+
+        private async Task<List<TalkingPoint>> ReadAsync(CancellationToken ct)
         {
-            var path = PathFor(team);
+            var path = FilePath;
             if (!File.Exists(path))
                 return new List<TalkingPoint>();
 
@@ -155,10 +171,10 @@ namespace AvekiScrum.Infrastructure.Persistence
             return entries ?? new List<TalkingPoint>();
         }
 
-        private async Task WriteAsync(string team, List<TalkingPoint> entries, CancellationToken ct)
+        private async Task WriteAsync(List<TalkingPoint> entries, CancellationToken ct)
         {
             Directory.CreateDirectory(_dataDirectory);
-            var path = PathFor(team);
+            var path = FilePath;
             // Written to a temp file and swapped in, rather than truncated in place, so a crash or a
             // concurrent read mid-write can never observe a half-written file.
             var tempPath = path + ".tmp";
@@ -168,7 +184,5 @@ namespace AvekiScrum.Infrastructure.Persistence
             }
             File.Move(tempPath, path, overwrite: true);
         }
-
-        private string PathFor(string team) => Path.Combine(_dataDirectory, $"{team}.json");
     }
 }

@@ -30,6 +30,9 @@ interface AppShellProps {
    *  with no notion of team (Support, Documentation) simply omit these and get no switcher. */
   team?: DeveloperTeamId;
   onTeamChange?: (team: DeveloperTeamId) => void;
+  /** An extra header control, rendered as the very last (rightmost) item - e.g. BoardShell's
+   *  "Saker att ta upp" gear button. Support/Documentation simply omit it. */
+  headerExtra?: ReactNode;
   children: ReactNode;
 }
 
@@ -49,6 +52,7 @@ export function AppShell({
   subtitle,
   team,
   onTeamChange,
+  headerExtra,
   children,
 }: AppShellProps) {
   const { theme, toggleTheme } = useTheme();
@@ -125,6 +129,7 @@ export function AppShell({
         >
           {theme === "dark" ? "☀️" : "🌙"}
         </button>
+        {headerExtra}
       </header>
       <main className="board-shell__content">
         {identityProblem && (

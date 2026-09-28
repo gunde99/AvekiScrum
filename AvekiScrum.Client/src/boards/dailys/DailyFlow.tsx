@@ -6,7 +6,7 @@ import { fetchTeamRoles, type PersonOption } from "../../api/people";
 import { updateWorkItemFields } from "../../api/workitems";
 import { WorkItemModal } from "../../components/workitem/WorkItemModal";
 import { fetchDailys, fetchSprints, saveDailyCheckIns, type DailyStoryDto, type DeveloperTeamId } from "../../api/dailys";
-import { fetchTalkingPoints, setTalkingPointRaised, type TalkingPointDto } from "../../api/talkingPoints";
+import { fetchTalkingPoints, isRaisedForTeam, setTalkingPointRaised, type TalkingPointDto } from "../../api/talkingPoints";
 import type { SprintGoal } from "../../api/sprintGoals";
 import { MoodGauge } from "./MoodGauge";
 import { TestTaskBoard, type ExtraTestIteration } from "./TestTaskBoard";
@@ -342,7 +342,7 @@ export function DailyFlow({
         // roster member's own items are spliced right in front of their turn further down; anyone
         // else's - PO/test-lead, someone on the other team, a stakeholder, or Miro as SM by default
         // - get their own full turn appended at the very end, via buildTalkingPointTailSteps.
-        const openPoints = allPoints.filter((p) => !p.raised);
+        const openPoints = allPoints.filter((p) => !isRaisedForTeam(p, team));
         const byAssignee = new Map<string, TalkingPointDto[]>();
         for (const p of openPoints) {
           const key = personKey(p.assigneeDisplayName);

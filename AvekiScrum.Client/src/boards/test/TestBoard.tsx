@@ -19,7 +19,7 @@ import { buildTestBoardExportHtml, downloadHtmlFile } from "../dailys/testExport
 import { TestIterationFilter } from "./TestIterationFilter";
 
 interface TestBoardProps {
-  onNavigate?: (board: "refinement" | "dailys" | "review" | "test" | "settings") => void;
+  onNavigate?: (board: "refinement" | "dailys" | "review" | "test") => void;
   onHome?: () => void;
   team: DeveloperTeamId;
   onTeamChange: (team: DeveloperTeamId) => void;
