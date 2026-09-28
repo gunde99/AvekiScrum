@@ -425,6 +425,38 @@
   max-height: 480px;
 }
 
+.daily-flow__talking-points {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.daily-flow__talking-point {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.daily-flow__talking-point-body {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.daily-flow__talking-point-body img {
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+}
+
 .daily-flow__list-owner {
   flex-shrink: 0;
   max-width: 130px;

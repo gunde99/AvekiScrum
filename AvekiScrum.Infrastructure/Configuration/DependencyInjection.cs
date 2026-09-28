@@ -36,6 +36,7 @@ namespace AvekiScrum.Infrastructure.Configuration
             services.AddSingleton<ITeamRoleProvider, TeamRoleProvider>();
             // Singleton: it only guards its own per-team file locks, no per-request state.
             services.AddSingleton<IDailyCheckInRepository, JsonFileDailyCheckInRepository>();
+            services.AddSingleton<ITalkingPointRepository, JsonFileTalkingPointRepository>();
 
             // Default credential. AvekiScrum.Api replaces this with the delegated one when
             // Auth:Mode is "Entra".

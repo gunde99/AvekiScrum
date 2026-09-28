@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { PersonAvatar } from "../../components/PersonAvatar";
+import { RichText } from "../../components/RichText";
 import { useToast } from "../../components/Toast";
 import { fetchTeamRoles, type PersonOption } from "../../api/people";
 import { updateWorkItemFields } from "../../api/workitems";
 import { WorkItemModal } from "../../components/workitem/WorkItemModal";
 import { fetchDailys, fetchSprints, saveDailyCheckIns, type DailyStoryDto, type DeveloperTeamId } from "../../api/dailys";
+import { fetchTalkingPoints, setTalkingPointRaised, type TalkingPointDto } from "../../api/talkingPoints";
 import type { SprintGoal } from "../../api/sprintGoals";
 import { MoodGauge } from "./MoodGauge";
 import { TestTaskBoard, type ExtraTestIteration } from "./TestTaskBoard";
@@ -27,7 +29,7 @@ import {
 import { LinkCardsModal } from "./LinkCardsModal";
 import "./DailyFlow.css";
 
-type FlowStepKind = "review" | "developer" | "goal" | "po" | "testlead";
+type FlowStepKind = "review" | "developer" | "goal" | "po" | "testlead" | "talkingPoints";
 
 interface FlowStep {
   kind: FlowStepKind;
@@ -38,6 +40,12 @@ interface FlowStep {
   /** Review steps only: the story and/or tasks carrying the tag, and which tasks those were. */
   taggedIds?: number[];
   taggedTaskTitles?: string[];
+  /** talkingPoints steps only: this person's still-open "Saker att ta upp" entries. */
+  talkingPoints?: TalkingPointDto[];
+  /** talkingPoints steps only: renders with its own CheckInGauge like a full participant turn -
+   *  used for someone outside the team roster (see buildTalkingPointTailSteps below), instead of
+   *  the lightweight variant spliced in front of a present roster member's own turn. */
+  fullTurn?: boolean;
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -64,9 +72,11 @@ function specialRoleLabel(name: string): string | null {
   return null;
 }
 
-/** Review cards aren't a "turn" in the time-budget sense, and neither is a time-exempt person. */
+/** Review cards aren't a "turn" in the time-budget sense, and neither is a time-exempt person nor
+ *  a talking-points step (lightweight ones piggyback on the turn right after them; full-turn ones
+ *  are for someone outside the roster the budget was built for). */
 function isCountedStep(step: FlowStep | null | undefined): boolean {
-  return !!step && step.kind !== "review" && !isTimeExemptPerson(step.name);
+  return !!step && step.kind !== "review" && step.kind !== "talkingPoints" && !isTimeExemptPerson(step.name);
 }
 
 // ─── Daily timer ───────────────────────────────────────────────────────────
@@ -193,6 +203,9 @@ export function DailyFlow({
   const [queue, setQueue] = useState<FlowStep[]>([]);
   const [history, setHistory] = useState<FlowStep[]>([]);
   const [checkIns, setCheckIns] = useState<Record<string, number>>({});
+  // Optimistically hides a talking point the moment its "✓ Lyft" is clicked, without waiting for a
+  // refetch of the whole flow (which would also reshuffle/resize a round already in progress).
+  const [raisedTalkingPointIds, setRaisedTalkingPointIds] = useState<Set<string>>(new Set());
   const [total, setTotal] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
   // Ticked by default: showing the card in the daily is what the tag asked for, so it comes off
@@ -309,9 +322,11 @@ export function DailyFlow({
       setQueue(fullOrder.slice(1));
     };
 
-    fetchTeamRoles(team)
-      .catch(() => ({ po: null, testLead: null, developers: [] }))
-      .then((r) => {
+    Promise.all([
+      fetchTeamRoles(team).catch(() => ({ po: null, testLead: null, developers: [] })),
+      // Best-effort: a talking-points fetch failure shouldn't block the daily itself from starting.
+      fetchTalkingPoints(team).catch(() => [] as TalkingPointDto[]),
+    ]).then(([r, allPoints]) => {
         if (cancelled) return;
         setRoles(r);
         // The picker covers the closing steps too - neither the PO nor the test lead is always
@@ -323,11 +338,50 @@ export function DailyFlow({
         if (!r.testLead || takesPart(r.testLead.displayName))
           closingSteps.push({ kind: "testlead", key: "testlead", name: r.testLead?.displayName || "Testansvarig" });
 
+        // "Saker att ta upp" - still-open talking points, grouped by who they're assigned to. A
+        // roster member's own items are spliced right in front of their turn further down; anyone
+        // else's - PO/test-lead, someone on the other team, a stakeholder, or Miro as SM by default
+        // - get their own full turn appended at the very end, via buildTalkingPointTailSteps.
+        const openPoints = allPoints.filter((p) => !p.raised);
+        const byAssignee = new Map<string, TalkingPointDto[]>();
+        for (const p of openPoints) {
+          const key = personKey(p.assigneeDisplayName);
+          const list = byAssignee.get(key);
+          if (list) list.push(p);
+          else byAssignee.set(key, [p]);
+        }
+        const rosterNames = [
+          ...r.developers.map((d) => d.displayName),
+          ...(r.po ? [r.po.displayName] : []),
+          ...(r.testLead ? [r.testLead.displayName] : []),
+        ];
+        const isRosterMember = (name: string) => rosterNames.some((n) => samePerson(n, name));
+        // A roster member absent from today's flow simply doesn't get a talking-point turn either -
+        // it stays open for the day they're actually back. Anyone not on the roster at all has no
+        // participant toggle to respect, so they always get their turn.
+        function buildTalkingPointTailSteps(map: Map<string, TalkingPointDto[]>): FlowStep[] {
+          return [...map.values()]
+            .filter((items) => !isRosterMember(items[0].assigneeDisplayName) || takesPart(items[0].assigneeDisplayName))
+            .map((items) => ({
+              kind: "talkingPoints" as const,
+              key: `tp-tail-${personKey(items[0].assigneeDisplayName)}`,
+              name: items[0].assigneeDisplayName,
+              talkingPoints: items,
+              fullTurn: true,
+            }));
+        }
+
         if (mode === "goals") {
           // Sprint goals keep their existing (meaningful) order instead of being shuffled. The
           // PO and test lead close the round here just as they do in the developer standup - the
-          // questions differ, but both still need their turn.
-          start([...groups.map((g) => ({ kind: "goal" as const, key: g.id, name: g.label })), ...closingSteps]);
+          // questions differ, but both still need their turn. There's no per-developer turn in
+          // this mode to splice a roster member's talking point in front of, so every one of them
+          // falls through to a full tail turn here too.
+          start([
+            ...groups.map((g) => ({ kind: "goal" as const, key: g.id, name: g.label })),
+            ...closingSteps,
+            ...buildTalkingPointTailSteps(byAssignee),
+          ]);
           return;
         }
 
@@ -364,7 +418,23 @@ export function DailyFlow({
             .filter((g) => takesPart(g.label) && isTimeExemptPerson(g.label))
             .map((g) => ({ kind: "developer" as const, key: g.id, name: g.label })),
         ];
-        start([...devSteps, ...closingSteps, ...tailSteps]);
+
+        // Splices a lightweight talking-points step immediately before a present developer's own
+        // turn - "first thing in their flow, before their cards show as usual". Whatever's left
+        // (nobody matched a devStep - a PO/test-lead assignee, say) falls through to a full tail
+        // turn below.
+        const remainingPoints = new Map(byAssignee);
+        const devStepsWithTalkingPoints: FlowStep[] = [];
+        for (const step of devSteps) {
+          const items = remainingPoints.get(personKey(step.name));
+          if (items) {
+            devStepsWithTalkingPoints.push({ kind: "talkingPoints", key: `tp-${step.key}`, name: step.name, talkingPoints: items });
+            remainingPoints.delete(personKey(step.name));
+          }
+          devStepsWithTalkingPoints.push(step);
+        }
+
+        start([...devStepsWithTalkingPoints, ...closingSteps, ...tailSteps, ...buildTalkingPointTailSteps(remainingPoints)]);
       });
     return () => {
       cancelled = true;
@@ -513,6 +583,22 @@ export function DailyFlow({
     setCheckIns((m) => ({ ...m, [key]: value }));
   }
 
+  // Marks a talking point raised - left as-is (still open) is exactly what happens if this is
+  // never called for it: skipping the step or just moving on leaves it for next time.
+  async function raiseTalkingPoint(id: string) {
+    setRaisedTalkingPointIds((prev) => new Set(prev).add(id));
+    try {
+      await setTalkingPointRaised(id, team, true);
+    } catch (err) {
+      setRaisedTalkingPointIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      showToast(`Kunde inte bocka av: ${err instanceof Error ? err.message : "okänt fel"}`, "error");
+    }
+  }
+
   if (current === undefined) {
     return (
       <div className="daily-flow">
@@ -645,7 +731,9 @@ export function DailyFlow({
                   ? "Sprintmål"
                   : current.kind === "po"
                     ? "Product Owner"
-                    : "Testansvarig"}
+                    : current.kind === "testlead"
+                      ? "Testansvarig"
+                      : "Sak att ta upp"}
             </div>
           </div>
         </div>
@@ -690,6 +778,15 @@ export function DailyFlow({
             previousIteration={previousIteration}
             value={checkIns[current.key] ?? null}
             onChange={(v) => setCheckIn(current.key, v)}
+          />
+        )}
+        {current.kind === "talkingPoints" && (
+          <TalkingPointsTurn
+            items={(current.talkingPoints ?? []).filter((tp) => !raisedTalkingPointIds.has(tp.id))}
+            fullTurn={!!current.fullTurn}
+            value={checkIns[current.key] ?? null}
+            onChange={(v) => setCheckIn(current.key, v)}
+            onRaise={raiseTalkingPoint}
           />
         )}
       </div>
@@ -853,6 +950,46 @@ function DeveloperTurn({
         </span>
       </div>
       <CheckInGauge label="Hur känns sprinten just nu? (1-5)" value={value} onChange={onChange} />
+    </div>
+  );
+}
+
+/**
+ * One or more "Saker att ta upp" for the person whose turn this is. The lightweight variant (no
+ * CheckInGauge) sits in front of a present roster member's own developer turn; the full-turn
+ * variant (fullTurn) stands in for someone who has no turn of their own to sit in front of - see
+ * buildTalkingPointTailSteps in the flow-building effect above.
+ */
+function TalkingPointsTurn({
+  items,
+  fullTurn,
+  value,
+  onChange,
+  onRaise,
+}: {
+  items: TalkingPointDto[];
+  fullTurn: boolean;
+  value: number | null;
+  onChange: (value: number) => void;
+  onRaise: (id: string) => void;
+}) {
+  return (
+    <div className="daily-flow__turn">
+      {items.length === 0 ? (
+        <p className="daily-flow__empty">Allt avbockat.</p>
+      ) : (
+        <ul className="daily-flow__talking-points">
+          {items.map((tp) => (
+            <li key={tp.id} className="daily-flow__talking-point">
+              <RichText content={tp.bodyHtml} className="daily-flow__talking-point-body" />
+              <button type="button" className="wi-btn wi-btn--primary" onClick={() => onRaise(tp.id)}>
+                ✓ Lyft
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {fullTurn && <CheckInGauge label="Hur känns sprinten just nu? (1-5)" value={value} onChange={onChange} />}
     </div>
   );
 }

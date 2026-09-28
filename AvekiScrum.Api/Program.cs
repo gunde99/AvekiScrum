@@ -41,6 +41,7 @@ builder.Services.Configure<AzureSettings>(builder.Configuration.GetSection("Azur
 builder.Services.Configure<TeamRoleConfig>(builder.Configuration.GetSection("TeamRoleConfig"));
 builder.Services.Configure<DailyFlowConfig>(builder.Configuration.GetSection("DailyFlow"));
 builder.Services.Configure<DailyCheckInSettings>(builder.Configuration.GetSection("DailyCheckIns"));
+builder.Services.Configure<TalkingPointSettings>(builder.Configuration.GetSection("TalkingPoints"));
 // Plain outbound client for the Teams webhook - no Azure DevOps auth on this one.
 builder.Services.AddHttpClient();
 
@@ -479,6 +480,107 @@ app.MapGet("/api/dailys/checkins", async (
     return Results.Ok(entries);
 })
 .WithName("GetDailyCheckIns");
+
+// "Saker att ta upp" - notes prepared ahead of time (often on a PO's request) that should be raised
+// with a specific person once the daily flow reaches them. See ITalkingPointRepository/
+// JsonFileTalkingPointRepository for storage, and DailyFlow.tsx for how these get woven into the
+// flow's own step order.
+var talkingPoints = app.MapGroup("/api/talking-points");
+
+talkingPoints.MapGet("/", async (
+    string team,
+    ITalkingPointRepository repository,
+    CancellationToken ct) =>
+{
+    if (!Enum.TryParse<DeveloperTeam>(team, ignoreCase: true, out var developerTeam))
+        return Results.BadRequest($"Unknown team '{team}'. Expected 'Nord' or 'Syd'.");
+
+    var points = await repository.GetByTeamAsync(developerTeam, ct);
+    return Results.Ok(points);
+})
+.WithName("GetTalkingPoints");
+
+talkingPoints.MapPost("/", async (
+    CreateTalkingPointRequest request,
+    ITalkingPointRepository repository,
+    CancellationToken ct) =>
+{
+    if (!Enum.TryParse<DeveloperTeam>(request.Team, ignoreCase: true, out var developerTeam))
+        return Results.BadRequest($"Unknown team '{request.Team}'. Expected 'Nord' or 'Syd'.");
+    if (string.IsNullOrWhiteSpace(request.AssigneeEmail))
+        return Results.BadRequest("Missing 'assigneeEmail'.");
+
+    var created = await repository.CreateAsync(developerTeam, new TalkingPoint
+    {
+        BodyHtml = request.BodyHtml ?? "",
+        AssigneeEmail = request.AssigneeEmail,
+        AssigneeDisplayName = string.IsNullOrWhiteSpace(request.AssigneeDisplayName) ? request.AssigneeEmail : request.AssigneeDisplayName,
+        CreatedByEmail = request.CreatedByEmail ?? "",
+        CreatedByDisplayName = request.CreatedByDisplayName ?? "",
+        CreatedAt = DateTimeOffset.UtcNow,
+    }, ct);
+    return Results.Ok(created);
+})
+.WithName("CreateTalkingPoint");
+
+talkingPoints.MapPut("/{id}", async (
+    string id,
+    UpdateTalkingPointRequest request,
+    ITalkingPointRepository repository,
+    CancellationToken ct) =>
+{
+    if (!Enum.TryParse<DeveloperTeam>(request.Team, ignoreCase: true, out var developerTeam))
+        return Results.BadRequest($"Unknown team '{request.Team}'. Expected 'Nord' or 'Syd'.");
+
+    var updated = await repository.UpdateAsync(
+        developerTeam, id, request.BodyHtml ?? "", request.AssigneeEmail ?? "",
+        string.IsNullOrWhiteSpace(request.AssigneeDisplayName) ? request.AssigneeEmail ?? "" : request.AssigneeDisplayName, ct);
+    return updated is null ? Results.NotFound() : Results.Ok(updated);
+})
+.WithName("UpdateTalkingPoint");
+
+talkingPoints.MapPost("/{id}/raised", async (
+    string id,
+    SetTalkingPointRaisedRequest request,
+    ITalkingPointRepository repository,
+    CancellationToken ct) =>
+{
+    if (!Enum.TryParse<DeveloperTeam>(request.Team, ignoreCase: true, out var developerTeam))
+        return Results.BadRequest($"Unknown team '{request.Team}'. Expected 'Nord' or 'Syd'.");
+
+    var updated = await repository.SetRaisedAsync(developerTeam, id, request.Raised, ct);
+    return updated is null ? Results.NotFound() : Results.Ok(updated);
+})
+.WithName("SetTalkingPointRaised");
+
+// The settings page's "tänd/släck allt" bulk action - lets a mis-clicked round of checkoffs (or a
+// deliberate "start the list fresh") be undone in one call instead of one row at a time.
+talkingPoints.MapPost("/raised-all", async (
+    SetAllTalkingPointsRaisedRequest request,
+    ITalkingPointRepository repository,
+    CancellationToken ct) =>
+{
+    if (!Enum.TryParse<DeveloperTeam>(request.Team, ignoreCase: true, out var developerTeam))
+        return Results.BadRequest($"Unknown team '{request.Team}'. Expected 'Nord' or 'Syd'.");
+
+    await repository.SetAllRaisedAsync(developerTeam, request.Raised, ct);
+    return Results.Ok();
+})
+.WithName("SetAllTalkingPointsRaised");
+
+talkingPoints.MapDelete("/{id}", async (
+    string id,
+    string team,
+    ITalkingPointRepository repository,
+    CancellationToken ct) =>
+{
+    if (!Enum.TryParse<DeveloperTeam>(team, ignoreCase: true, out var developerTeam))
+        return Results.BadRequest($"Unknown team '{team}'. Expected 'Nord' or 'Syd'.");
+
+    var removed = await repository.DeleteAsync(developerTeam, id, ct);
+    return removed ? Results.Ok() : Results.NotFound();
+})
+.WithName("DeleteTalkingPoint");
 
 // Feeds the sprint picker (the "sp1 · 2026-08-17 – 2026-09-04" text on the daily board, made
 // clickable). Rather than every iteration ever created, this is a window of three releases - the
@@ -1921,6 +2023,24 @@ internal sealed record DailyCheckInEntryRequest(
     string Key,
     string Label,
     double Score);
+
+internal sealed record CreateTalkingPointRequest(
+    string Team,
+    string? BodyHtml,
+    string AssigneeEmail,
+    string? AssigneeDisplayName,
+    string? CreatedByEmail,
+    string? CreatedByDisplayName);
+
+internal sealed record UpdateTalkingPointRequest(
+    string Team,
+    string? BodyHtml,
+    string? AssigneeEmail,
+    string? AssigneeDisplayName);
+
+internal sealed record SetTalkingPointRaisedRequest(string Team, bool Raised);
+
+internal sealed record SetAllTalkingPointsRaisedRequest(string Team, bool Raised);
 
 internal sealed record WorkItemFieldUpdateRequest(
     string? Title,

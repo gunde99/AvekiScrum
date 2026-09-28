@@ -3,6 +3,7 @@ import { DailysBoard } from "./boards/dailys/DailysBoard";
 import { ReviewBoard } from "./boards/review/ReviewBoard";
 import { TestBoard } from "./boards/test/TestBoard";
 import { RefinementBoard } from "./boards/refinement/RefinementBoard";
+import { SettingsBoard } from "./boards/settings/SettingsBoard";
 import { LandingPage, type AppKey, type TeamKey } from "./landing/LandingPage";
 import { SupportApp } from "./support/SupportApp";
 import { DocumentationApp } from "./documentation/DocumentationApp";
@@ -16,7 +17,7 @@ type Route =
   | { app: "documentation" }
   | { app: "testing" };
 
-const NAVIGABLE_BOARDS: readonly NavigableBoardId[] = ["dailys", "review", "test", "refinement"];
+const NAVIGABLE_BOARDS: readonly NavigableBoardId[] = ["dailys", "review", "test", "refinement", "settings"];
 
 /**
  * `?board=dailys` skips the landing page and opens straight into that board - see vice-SM.bat,
@@ -62,5 +63,6 @@ export default function App() {
   if (route.board === "review") return <ReviewBoard team={route.team} onTeamChange={changeTeam} onNavigate={navigate} onHome={home} />;
   if (route.board === "test") return <TestBoard team={route.team} onTeamChange={changeTeam} onNavigate={navigate} onHome={home} />;
   if (route.board === "refinement") return <RefinementBoard team={route.team} onTeamChange={changeTeam} onNavigate={navigate} onHome={home} />;
+  if (route.board === "settings") return <SettingsBoard team={route.team} onTeamChange={changeTeam} onNavigate={navigate} onHome={home} />;
   return <DailysBoard team={route.team} onTeamChange={changeTeam} onNavigate={navigate} onHome={home} />;
 }
