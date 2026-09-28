@@ -9,6 +9,7 @@ import {
   type WorkItemRelationRef,
 } from "../../api/workitems";
 import { fetchAllPeople, type PersonOption } from "../../api/people";
+import { LoadingOverlay } from "../LoadingOverlay";
 import { Breadcrumb, type BreadcrumbHop } from "./Breadcrumb";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { getWorkItemTypeConfig } from "./workItemTypeConfig";
@@ -19,6 +20,12 @@ import { WorkItemDiscussionTab } from "./WorkItemDiscussionTab";
 import { WorkItemPullRequestsTab } from "./WorkItemPullRequestsTab";
 import { WorkItemHistoryTab } from "./WorkItemHistoryTab";
 import { WorkItemDetailsTab } from "./WorkItemDetailsTab";
+import { WorkItemDorTab } from "./WorkItemDorTab";
+import { WorkItemSakkunnigFeatureTab } from "./WorkItemSakkunnigFeatureTab";
+import { WorkItemSakkunnigStoryTab } from "./WorkItemSakkunnigStoryTab";
+import { RequestHelpTextModal } from "./RequestHelpTextModal";
+import { BreakoutHelpTextModal } from "./BreakoutHelpTextModal";
+import { StatePill } from "./StatePill";
 import "./WorkItemModal.css";
 
 interface WorkItemModalProps {
@@ -34,17 +41,22 @@ interface WorkItemModalProps {
    *  hosted inside another panel - e.g. the daily flow's "stäm av med teamet" step - while
    *  keeping every tab and action identical to the popup version. */
   embedded?: boolean;
+  /** Fired after a successful "Spara" while editing - for a host that keeps its own copy of the
+   *  card alongside this one (the validation modal's two-pane layout) and needs to know when to
+   *  refetch its side, since embedded mode has no close event to hang that off of. */
+  onSaved?: (detail: WorkItemDetail) => void;
 }
 
-type TabId = "overview" | "relations" | "taskboard" | "discussion" | "prs" | "history" | "details";
+type TabId = "overview" | "relations" | "taskboard" | "discussion" | "prs" | "history" | "dor" | "sakkunnig" | "details";
 
-const DOR_ELIGIBLE_TYPES = new Set(["User Story", "Product Backlog Item", "Bug"]);
+const DOR_ELIGIBLE_TYPES = new Set(["User Story", "Bug"]);
+const SAKKUNNIG_ELIGIBLE_TYPES = new Set(["Feature", "User Story"]);
 
 function hasTag(tags: string[], tag: string): boolean {
   return tags.some((t) => t.trim().toLowerCase() === tag.toLowerCase());
 }
 
-export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded = false }: WorkItemModalProps) {
+export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded = false, onSaved }: WorkItemModalProps) {
   const [stack, setStack] = useState<BreadcrumbHop[]>([{ id: workItemId, type: "", title: "…", relationLabel: null }]);
   const [detail, setDetail] = useState<WorkItemDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -59,6 +71,11 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
   // opening the editor and closing it again shouldn't trigger a warning.
   const [draftBaseline, setDraftBaseline] = useState<string>("");
   const [confirmClose, setConfirmClose] = useState(false);
+  // "Beställ hjälptext": additive to the DoR checklist's own related-story flow, which is untouched -
+  // this opens a separate small modal on top, so it doesn't compete with the tab/editing state above.
+  const [showHelpTextRequest, setShowHelpTextRequest] = useState(false);
+  // "Bryt ut hjälptext": same pattern, its own modal on top rather than sharing tab/editing state.
+  const [showBreakoutHelpText, setShowBreakoutHelpText] = useState(false);
   // Whether anything was written while this card was open. A ref, not state: it must not re-render
   // anything, and the Escape handler's closure has to see the current value rather than the one
   // from the render that installed it.
@@ -156,6 +173,7 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
       severity: detail.severity ?? "",
       source: detail.source ?? "",
       activity: detail.activity ?? "",
+      isBlocked: detail.isBlocked,
       remainingWork: detail.remainingWork ?? undefined,
       completedWork: detail.completedWork ?? undefined,
       originalEstimate: detail.originalEstimate ?? undefined,
@@ -180,6 +198,7 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
         return next;
       });
       setEditing(false);
+      onSaved?.(updated);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Kunde inte spara ändringarna.");
     } finally {
@@ -187,9 +206,29 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
     }
   }
 
-  const taskCount = detail?.children.filter((c) => c.type === "Task").length ?? 0;
+  const taskChildren = detail?.children.filter((c) => c.type === "Task") ?? [];
+  const taskCount = taskChildren.length;
   const relationCount = detail ? (detail.parent ? 1 : 0) + detail.children.length + detail.related.length : 0;
   const dorEligible = !!detail && DOR_ELIGIBLE_TYPES.has(detail.type);
+  const sakkunnigEligible = !!detail && SAKKUNNIG_ELIGIBLE_TYPES.has(detail.type);
+  // Only offered once every Task is out of the way, and never on a card that's already Closed -
+  // naturally excludes types with no Task children at all (a Feature's children are stories/bugs,
+  // never tasks), so this doesn't need its own type check on top.
+  const canCompleteCard =
+    !!detail && detail.state !== "Closed" && taskChildren.length > 0 && taskChildren.every((c) => c.state === "Closed");
+
+  async function completeCard() {
+    setSaving(true);
+    try {
+      const updated = await updateWorkItemFields(currentId, { state: "Closed" });
+      applyChange(updated);
+      onSaved?.(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kunde inte slutföra kortet.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const tabs: { id: TabId; label: string; count?: number }[] = [
     { id: "overview", label: "Översikt" },
@@ -199,6 +238,10 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
     { id: "discussion", label: "Diskussion", count: detail?.comments.length ?? 0 },
     { id: "prs", label: "PRs", count: detail?.pullRequests.length ?? 0 },
     { id: "history", label: "Historik" },
+    // Only where DoR applies at all - a Task or Feature has no Korthygien/Behovsbedömning/INVEST
+    // to have been reviewed against.
+    ...(dorEligible ? [{ id: "dor" as const, label: "DoR" }] : []),
+    ...(sakkunnigEligible ? [{ id: "sakkunnig" as const, label: "Sakkunnig" }] : []),
     { id: "details", label: "Details" },
   ];
 
@@ -234,7 +277,7 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
                       Lime: {detail.externalLink}
                     </span>
                   ))}
-                <span className="wi-modal__state-badge">{detail.state}</span>
+                <StatePill state={detail.state} />
                 {/* Full path, not just the leaf - this is where Iteration Path lives now that
                     it's no longer a field in the Översikt grid. */}
                 {detail.iterationPath && <span className="wi-modal__iteration">{detail.iterationPath}</span>}
@@ -290,6 +333,7 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
                   onDraftChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
                   classification={classification}
                   people={people}
+                  onChanged={applyChange}
                 />
               )}
               {tab === "relations" && (
@@ -307,48 +351,125 @@ export function WorkItemModal({ workItemId, onClose, onOpenValidation, embedded 
               {tab === "discussion" && <WorkItemDiscussionTab detail={detail} onPosted={applyChange} />}
               {tab === "prs" && <WorkItemPullRequestsTab pullRequests={detail.pullRequests} />}
               {tab === "history" && <WorkItemHistoryTab history={detail.history} />}
+              {tab === "dor" && <WorkItemDorTab detail={detail} />}
+              {tab === "sakkunnig" && detail.type === "Feature" && (
+                <WorkItemSakkunnigFeatureTab detail={detail} onChanged={applyChange} />
+              )}
+              {tab === "sakkunnig" && detail.type === "User Story" && (
+                <WorkItemSakkunnigStoryTab detail={detail} onOpenRelation={openRelation} onChanged={applyChange} />
+              )}
               {tab === "details" && <WorkItemDetailsTab detail={detail} />}
             </>
           )}
         </div>
 
-        <footer className="wi-modal__footer">
-          {dorEligible && onOpenValidation && !editing && (
-            <button
-              type="button"
-              className="wi-btn wi-validation-btn"
-              onClick={() => onOpenValidation(currentId)}
-              disabled={!detail}
-            >
-              Validering
-            </button>
-          )}
-          <span className="wi-modal__footer-spacer" />
-          {editing ? (
-            <>
-              <button type="button" className="wi-btn" onClick={() => setEditing(false)} disabled={saving}>
-                Avbryt
-              </button>
-              <button type="button" className="wi-btn wi-btn--primary" onClick={saveEdit} disabled={saving}>
-                {saving ? "Sparar…" : "Spara"}
-              </button>
-            </>
-          ) : (
-            <button type="button" className="wi-btn wi-btn--primary" onClick={startEdit} disabled={!detail}>
-              Redigera
-            </button>
-          )}
-        </footer>
+        {(editing ||
+          tab === "overview" ||
+          (dorEligible && tab === "dor" && !!onOpenValidation) ||
+          (dorEligible && (tab === "relations" || tab === "taskboard")) ||
+          (tab === "taskboard" && canCompleteCard)) && (
+          <footer className="wi-modal__footer">
+            <div className="wi-actions">
+              <span className="wi-actions__label">Actions</span>
+              {editing ? (
+                <>
+                  <button type="button" className="wi-btn" onClick={() => setEditing(false)} disabled={saving}>
+                    Avbryt
+                  </button>
+                  <button type="button" className="wi-btn wi-btn--primary" onClick={saveEdit} disabled={saving}>
+                    {saving ? "Sparar…" : "Spara"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  {tab === "overview" && (
+                    <button type="button" className="wi-btn wi-btn--primary" onClick={startEdit} disabled={!detail}>
+                      Redigera
+                    </button>
+                  )}
+                  {dorEligible && tab === "dor" && onOpenValidation && (
+                    <button
+                      type="button"
+                      className="wi-btn wi-btn--primary"
+                      onClick={() => onOpenValidation(currentId)}
+                      disabled={!detail}
+                    >
+                      Validering
+                    </button>
+                  )}
+                  {dorEligible && (tab === "relations" || tab === "taskboard") && (
+                    <>
+                      <button
+                        type="button"
+                        className="wi-btn wi-btn--primary"
+                        disabled
+                        title="Skapar ett hjälptextkort direkt i Dokumentation-projektet, länkat till detta kort - tillsvidare ersatt av Bryt ut hjälptext"
+                      >
+                        Beställ hjälptext
+                      </button>
+                      <button
+                        type="button"
+                        className="wi-btn wi-btn--primary"
+                        onClick={() => setShowBreakoutHelpText(true)}
+                        disabled={!detail}
+                        title="Skapar en ny User Story, relaterad till denna, och flyttar Hjälptext-Tasken dit."
+                      >
+                        Bryt ut hjälptext
+                      </button>
+                    </>
+                  )}
+                  {tab === "taskboard" && canCompleteCard && (
+                    <button
+                      type="button"
+                      className="wi-btn wi-btn--success"
+                      onClick={() => void completeCard()}
+                      disabled={saving}
+                      title="Sätter kortets status till Closed."
+                    >
+                      {saving ? "Slutför…" : "Slutför kortet"}
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </footer>
+        )}
       </div>
   );
 
-  if (embedded) return panel;
+  const helpTextRequestModal = showHelpTextRequest && detail && (
+    <RequestHelpTextModal
+      workItemId={detail.id}
+      workItemTitle={detail.title}
+      onClose={() => setShowHelpTextRequest(false)}
+    />
+  );
+
+  const breakoutHelpTextModal = showBreakoutHelpText && detail && (
+    <BreakoutHelpTextModal detail={detail} onClose={() => setShowBreakoutHelpText(false)} onChanged={applyChange} />
+  );
+
+  // Full-screen and input-blocking on purpose: a PATCH mid-flight is the one moment a second click
+  // (Avbryt, Stäng, another Spara) would race the request or double-submit it.
+  const savingOverlay = saving && <LoadingOverlay message="Sparar…" />;
+
+  if (embedded) return (
+    <>
+      {panel}
+      {helpTextRequestModal}
+      {breakoutHelpTextModal}
+      {savingOverlay}
+    </>
+  );
 
   return (
     <>
       {/* No click-to-dismiss: a card is a form, and losing a half-written description to a
           mis-aimed click is worse than having to reach for the close button. */}
       <div className="wi-modal-overlay">{panel}</div>
+      {helpTextRequestModal}
+      {breakoutHelpTextModal}
+      {savingOverlay}
       {confirmClose && (
         <ConfirmDialog
           title="Osparade ändringar"

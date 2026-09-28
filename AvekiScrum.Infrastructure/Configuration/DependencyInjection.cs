@@ -1,7 +1,9 @@
-﻿using AvekiScrum.Application.Abstractions;
+using AvekiScrum.Application.Abstractions;
+using AvekiScrum.Application.Abstractions.Repositories;
 using AvekiScrum.Application.Abstractions.Services;
 using AvekiScrum.Application.Configuration;
 using AvekiScrum.Infrastructure.AzureDevOps;
+using AvekiScrum.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AvekiScrum.Infrastructure.Configuration
@@ -29,8 +31,11 @@ namespace AvekiScrum.Infrastructure.Configuration
             services.AddScoped<IAzureDevOpsWikiClient, AzureDevOpsWikiClient>();
             services.AddScoped<IAzureDevOpsTeamClient, AzureDevOpsTeamClient>();
             services.AddScoped<IAzureDevOpsTestPlansClient, AzureDevOpsTestPlansClient>();
+            services.AddScoped<ITestPlansService, AzureTestPlansService>();
             services.AddScoped<IAzureDevOpsService, AzureDevOpsService>();
             services.AddSingleton<ITeamRoleProvider, TeamRoleProvider>();
+            // Singleton: it only guards its own per-team file locks, no per-request state.
+            services.AddSingleton<IDailyCheckInRepository, JsonFileDailyCheckInRepository>();
 
             // Default credential. AvekiScrum.Api replaces this with the delegated one when
             // Auth:Mode is "Entra".

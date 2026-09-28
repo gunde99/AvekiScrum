@@ -37,5 +37,9 @@ Desktop.ini
 AvekiScrum.Api/wwwroot/
 publish/
 
+# Runtime-data, inte källkod - se JsonFileDailyCheckInRepository. Får inte tystas bort vid
+# ombyggnad/omdeploy (se DailyCheckIns:DataDirectory i appsettings), bara vid git-incheckning.
+AvekiScrum.Api/App_Data/
+
 # Personliga anteckningar - har innehållit klienthemligheter och ska inte checkas in.
 docs/anteckningar.txt

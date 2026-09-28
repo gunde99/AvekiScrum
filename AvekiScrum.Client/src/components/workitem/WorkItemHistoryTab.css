@@ -1,25 +1,94 @@
 .wi-history {
   display: flex;
   flex-direction: column;
+  gap: var(--space-2);
+}
+
+.wi-history__revision {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+}
+
+.wi-history__summary {
+  display: flex;
+  width: 100%;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: color-mix(in srgb, var(--color-bg) 60%, transparent);
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.wi-history__summary:hover {
+  background: color-mix(in srgb, var(--color-bg) 30%, transparent);
+}
+
+.wi-history__chevron {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: transform 0.15s ease;
+}
+
+.wi-history__chevron--open {
+  transform: rotate(90deg);
+}
+
+.wi-history__when {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.wi-history__by {
+  flex-shrink: 0;
+  overflow: hidden;
+  max-width: 160px;
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wi-history__summary-text {
+  overflow: hidden;
+  min-width: 0;
+  flex: 1;
+  color: var(--color-text);
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wi-history__rev {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+}
+
+.wi-history__changes {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--color-border);
 }
 
 .wi-history__row {
   display: grid;
-  grid-template-columns: 170px 110px 1fr;
-  gap: var(--space-3);
-  padding: var(--space-2) 0;
+  grid-template-columns: minmax(130px, 180px) minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  align-items: start;
+  padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--color-border);
   font-size: 0.8rem;
-  align-items: center;
 }
 
 .wi-history__row:last-child {
   border-bottom: none;
-}
-
-.wi-history__when {
-  color: var(--color-text-muted);
-  font-size: 0.75rem;
 }
 
 .wi-history__field {
@@ -28,28 +97,56 @@
 
 .wi-history__change {
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  overflow: hidden;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.wi-history__old,
+.wi-history__new {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .wi-history__old {
   color: var(--color-text-muted);
   text-decoration: line-through;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .wi-history__arrow {
-  color: var(--color-border);
   flex-shrink: 0;
+  color: var(--color-border);
 }
 
 .wi-history__new {
-  font-weight: 600;
   color: var(--color-success);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-weight: 600;
+}
+
+.wi-history__row--comment {
+  align-items: start;
+}
+
+.wi-history__comment {
+  min-width: 0;
+  color: var(--color-text);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .wi-history__summary {
+    flex-wrap: wrap;
+  }
+
+  .wi-history__summary-text {
+    order: 1;
+    flex-basis: 100%;
+    white-space: normal;
+  }
+
+  .wi-history__row {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
 }

@@ -1,0 +1,190 @@
+.rc-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.rc-status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.rc-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+
+.rc-status-row__mark {
+  color: var(--color-text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rc-status-row__mark--ok {
+  color: var(--color-success);
+}
+
+.rc-status-row__detail {
+  font-weight: 400;
+  font-size: 0.85rem;
+}
+
+.rc-divider {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  /* The gap above already separates this from its neighbour - this margin is the breathing room
+     on the *other* side, so the line reads as a break between two sections rather than sitting
+     flush against the one below it. */
+  margin: 0 0 var(--space-2);
+}
+
+.rc-questions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.rc-question {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-block: var(--space-1);
+}
+
+.rc-question__text {
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.rc-question__answers {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.rc-answer {
+  /* Fixed regardless of state - the checkmark slot inside is what used to make Ja/Nej resize
+     when toggled. */
+  width: 84px;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: var(--color-bg-subtle);
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rc-answer:first-child {
+  border-right: 1px solid var(--color-border);
+}
+
+.rc-answer__check {
+  display: inline-block;
+  width: 14px;
+  text-align: left;
+}
+
+.rc-answer--good {
+  background: var(--color-success);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.rc-answer--bad {
+  background: var(--color-danger);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.rc-assessment {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.rc-assessment__title {
+  font-weight: 600;
+}
+
+.rc-assessment__option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.rc-comment {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rc-comment__label {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.rc-comment textarea {
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+  color: var(--color-text);
+  resize: vertical;
+}
+
+.rc-approver {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.rc-approver__label {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.rc-approver__hint {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.rc-approver select {
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.rc-last-approved {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.rc-submit {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-2);
+}

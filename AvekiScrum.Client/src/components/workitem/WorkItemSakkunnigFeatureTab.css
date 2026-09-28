@@ -1,0 +1,52 @@
+.sk-feature-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.sk-candidates {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.sk-candidates__field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sk-candidates__field > span {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.sk-candidates__field select {
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.85rem;
+}
+
+.sk-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sk-info__label {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.sk-submit {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-2);
+}

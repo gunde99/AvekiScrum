@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { useTheme } from "../theme/ThemeContext";
 import { signInRequired } from "../auth/authConfig";
 import { getIdentity, getIdentityError } from "../auth/identity";
+import { TEAM_OPTIONS, type DeveloperTeamId } from "../api/dailys";
 import { Diagnostics } from "./Diagnostics";
 import { UserChip } from "./UserChip";
 import "./BoardShell.css";
@@ -24,6 +25,11 @@ interface AppShellProps {
   onHome?: () => void;
   title: string;
   subtitle?: ReactNode;
+  /** Team switcher, shown in the header when both are given - so the choice sits above every tab
+   *  instead of being repeated (and able to drift out of sync) on each board's own toolbar. Boards
+   *  with no notion of team (Support, Documentation) simply omit these and get no switcher. */
+  team?: DeveloperTeamId;
+  onTeamChange?: (team: DeveloperTeamId) => void;
   children: ReactNode;
 }
 
@@ -41,6 +47,8 @@ export function AppShell({
   onHome,
   title,
   subtitle,
+  team,
+  onTeamChange,
   children,
 }: AppShellProps) {
   const { theme, toggleTheme } = useTheme();
@@ -92,6 +100,20 @@ export function AppShell({
           <button type="button" className="board-shell__home" onClick={onHome} title="Till startsidan">
             ⌂ Start
           </button>
+        )}
+        {team && onTeamChange && (
+          <div className="board-shell__team" role="group" aria-label="Team">
+            {TEAM_OPTIONS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className={"board-shell__team-btn" + (t.id === team ? " board-shell__team-btn--active" : "")}
+                onClick={() => onTeamChange(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         )}
         <UserChip />
         <button

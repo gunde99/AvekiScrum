@@ -1,6 +1,6 @@
 # Bilder på startsidan
 
-Båda foton kommer från [Pexels](https://www.pexels.com) och används under
+Fotona kommer från [Pexels](https://www.pexels.com) och används under
 [Pexels-licensen](https://www.pexels.com/license/): fria att använda, även kommersiellt, utan krav
 på attribution. Vi anger ändå fotograf här — det kostar inget och gör det spårbart var bilderna
 kommer ifrån om de någon gång behöver bytas ut.
@@ -11,6 +11,8 @@ kommer ifrån om de någon gång behöver bytas ut.
 | `support.jpg` | Supportmedarbetare med headset | Mikhail Nilov | https://www.pexels.com/photo/shallow-focus-of-woman-working-in-a-call-center-7682340/ |
 | `nord-mycarta.jpg` | Topografisk karta med kompass – Team Nord / myCarta | Larry Hyler | https://www.pexels.com/photo/topographic-map-with-compass-in-dunnellon-florida-29806465/ |
 | `syd-vabanken.jpg` | Vattenledningar med ventiler – Team Syd / Energi- och VA-banken | Sonny Sixteen | https://www.pexels.com/photo/industrial-pipes-with-colorful-valves-against-a-wall-29248902/ |
+| `dokumentation.jpg` | Person som skriver och signerar dokument vid skrivbord – AvekiDokumentation | RDNE Stock project | https://www.pexels.com/photo/man-writing-on-documents-while-sitting-at-his-desk-10376256/ |
+| `test.jpg` | Två personer granskar programkod tillsammans – AvekiTest | Christina Morillo | https://www.pexels.com/photo/two-women-looking-at-the-code-at-laptop-1181263/ |
 
 Andra gratisbibliotek med samma typ av licens, om ni vill byta motiv:
 [Pexels](https://www.pexels.com), [Unsplash](https://unsplash.com) och

@@ -45,9 +45,11 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             "System.CreatedBy",
             "System.CreatedDate",
             "System.ChangedDate",
+            "Microsoft.VSTS.Common.StateChangeDate",
             "System.AreaPath",
             "System.IterationPath",
             "System.Tags",
+            "Microsoft.VSTS.Common.Priority",
             "Microsoft.VSTS.Common.Severity",
             "Microsoft.VSTS.Scheduling.StoryPoints",
             "Microsoft.VSTS.Common.Activity",
@@ -71,6 +73,7 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             "System.CreatedDate",
             "System.CreatedBy",
             "System.ChangedDate",
+            "Microsoft.VSTS.Common.StateChangeDate",
             "System.ChangedBy",
             "System.Reason",
             "System.AreaPath",
@@ -98,7 +101,13 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             "Custom.Source",
             "Custom.Stakeholders",
             "Custom.Externallink",
-            "Custom.DevelopmentPartner"
+            "Custom.DevelopmentPartner",
+            "System.Rev",
+            "Custom.DoRStatus",
+            "Custom.DoRDecision",
+            "Custom.DoRApprovedBy",
+            "Custom.DoRApprovedDate",
+            "Custom.DoRRevision"
         };
 
         private static string[] GetFieldsForProfile(WorkItemFieldProfile profile) =>
@@ -119,6 +128,8 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
         public string Project => _project;
 
         private readonly string _absoluteBaseUrl;
+        private readonly string _organization;
+        private readonly string _organizationBaseUrl;
 
         public AzureDevOpsBoardsClient(
             IAzureDevOpsRestClient rest,
@@ -133,6 +144,11 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             // absolute URL, unlike every other AzureUrlHelper.BaseUrl consumer that relies on the
             // HttpClient's own BaseAddress to fill in the scheme+host.
             _absoluteBaseUrl = $"{azureSettings.Value.BaseUrl.TrimEnd('/')}/{azureSettings.Value.Organization}/{azureSettings.Value.Project}/";
+            // Org-level, no project - lets CreateCrossProjectHelpTextTaskAsync address a second
+            // project (Dokumentation) without touching the AzureUrlHelper.BaseUrl singleton, which
+            // is fixed to this client's own project for the lifetime of the process.
+            _organization = azureSettings.Value.Organization;
+            _organizationBaseUrl = $"{azureSettings.Value.BaseUrl.TrimEnd('/')}/{azureSettings.Value.Organization}/";
         }
 
         #region Iterationer
@@ -253,7 +269,13 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             IReadOnlyList<int> ids,
             WorkItemFieldProfile profile,
             bool expandRelations,
-            CancellationToken ct)
+            CancellationToken ct,
+            // Board/list views fetch dozens of items across several batches, where one batch
+            // failing shouldn't take the whole view down - so those swallow and log. A single
+            // explicit lookup by id has no such "the rest still matters" case: swallowing there
+            // silently turned a fetch failure into "not found" (a wrong PATCH's field name, a
+            // timeout, whatever) - a 404 with no explanation, from a card that demonstrably exists.
+            bool throwOnFailure = false)
         {
             var all = new List<WorkItemWithFields>();
 
@@ -286,6 +308,7 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
                     _logger.LogError(ex,
                         "Failed to fetch work item details for batch {Ids}",
                         string.Join(",", batch));
+                    if (throwOnFailure) throw;
                 }
             }
 
@@ -298,7 +321,7 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             bool expandRelations,
             CancellationToken ct)
         {
-            var items = await GetWorkItemsInternalAsync(new[] { id }, profile, expandRelations, ct)
+            var items = await GetWorkItemsInternalAsync(new[] { id }, profile, expandRelations, ct, throwOnFailure: true)
                 .ConfigureAwait(false);
 
             return items.SingleOrDefault();
@@ -453,6 +476,368 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
 
         #endregion
 
+        #region Refinement / Product Backlog
+
+        // Sorted first, in this order; anything else the board defines follows in Azure's own row
+        // order, and the board's unnamed default row (mapped to "Standard") always comes last.
+        private static readonly string[] KnownRowPriority = { "Måste", "Bör", "Önskvärt", "Extra" };
+
+        private static int RowPriority(string rowName)
+        {
+            if (string.IsNullOrWhiteSpace(rowName)) return int.MaxValue; // the default/"Standard" row
+            var index = Array.FindIndex(KnownRowPriority, n => string.Equals(n, rowName, StringComparison.OrdinalIgnoreCase));
+            return index < 0 ? KnownRowPriority.Length : index;
+        }
+
+        public async Task<IReadOnlyList<AzureTeamDto>> GetProjectTeamsAsync(CancellationToken ct = default)
+        {
+            var response = await _rest.GetJsonAsync<AzureTeamsResponse>(AzureUrlHelper.GetProjectTeamsUrl(), ct)
+                .ConfigureAwait(false);
+            return (response?.Value ?? new List<AzureTeam>())
+                .Select(t => new AzureTeamDto { Id = t.Id, Name = t.Name })
+                .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        public async Task<ProductBacklogDto> GetProductBacklogAsync(
+            string boardTeam,
+            string? tag,
+            string? iterationPath,
+            string? areaPath,
+            CancellationToken ct = default)
+        {
+            const string boardName = "Features";
+
+            var boardsResponse = await _rest.GetJsonAsync<AzureBoardsResponse>(AzureUrlHelper.GetTeamBoardsUrl(boardTeam), ct)
+                .ConfigureAwait(false);
+            var boardRef = (boardsResponse?.Value ?? new List<AzureBoardReference>())
+                .FirstOrDefault(b => string.Equals(b.Name, boardName, StringComparison.OrdinalIgnoreCase));
+            if (boardRef is null)
+                throw new InvalidOperationException($"Teamet \"{boardTeam}\" saknar en \"{boardName}\"-backlognivå.");
+
+            var board = await _rest.GetJsonAsync<AzureBoardDetail>(AzureUrlHelper.GetTeamBoardUrl(boardTeam, boardRef.Id), ct)
+                .ConfigureAwait(false);
+            if (board is null)
+                throw new InvalidOperationException($"Kunde inte läsa boarden \"{boardName}\" för \"{boardTeam}\".");
+
+            var rows = board.Rows
+                .Select((row, index) => new { row, index })
+                .OrderBy(r => RowPriority(r.row.Name))
+                .ThenBy(r => r.index)
+                .Select((r, order) => new ProductBacklogRowDto
+                {
+                    Name = string.IsNullOrWhiteSpace(r.row.Name) ? "Standard" : r.row.Name,
+                    Color = r.row.Color,
+                    Order = order,
+                })
+                .ToList();
+            if (rows.Count == 0 || rows.All(r => r.Name != "Standard"))
+                rows.Add(new ProductBacklogRowDto { Name = "Standard", Order = rows.Count });
+
+            var columns = board.Columns
+                .Select((column, index) =>
+                {
+                    var name = string.IsNullOrWhiteSpace(column.Name) ? "Övrigt" : column.Name;
+                    var kind = string.Equals(name, "Icebox", StringComparison.OrdinalIgnoreCase) ? "icebox"
+                        : string.Equals(name, "Closed", StringComparison.OrdinalIgnoreCase) ? "closed"
+                        : "lane";
+                    return new ProductBacklogColumnDto { Name = name, Kind = kind, Order = index };
+                })
+                .ToList();
+
+            var boardDto = new ProductBacklogBoardDto
+            {
+                Id = boardRef.Id,
+                Name = board.Name ?? boardName,
+                Team = boardTeam,
+                Rows = rows,
+                Columns = columns,
+            };
+
+            var whereParts = new List<string>
+            {
+                $"[System.TeamProject] = '{WiqlHelper.Escape(_project)}'",
+                "[System.WorkItemType] = 'Feature'",
+                "[System.State] <> 'Removed'",
+            };
+            if (!string.IsNullOrWhiteSpace(iterationPath))
+                whereParts.Add($"[System.IterationPath] = '{WiqlHelper.Escape(iterationPath)}'");
+            if (!string.IsNullOrWhiteSpace(areaPath))
+                whereParts.Add($"([System.AreaPath] = '{WiqlHelper.Escape(areaPath)}' OR [System.AreaPath] UNDER '{WiqlHelper.Escape(areaPath)}')");
+
+            var wiql = "SELECT [System.Id] FROM WorkItems WHERE " + string.Join(" AND ", whereParts) +
+                       " ORDER BY [Microsoft.VSTS.Common.StackRank] ASC, [System.Id] ASC";
+            var orderedFeatureIds = await RunWiqlIdsAsync(wiql, ct).ConfigureAwait(false);
+            if (orderedFeatureIds.Count == 0)
+                return new ProductBacklogDto { Board = boardDto, FeatureIds = new List<int>(), Items = new List<ProductBacklogItemDto>() };
+
+            var featureRaw = await GetWorkItemsInternalAsync(orderedFeatureIds, WorkItemFieldProfile.Full, expandRelations: true, ct)
+                .ConfigureAwait(false);
+            var featureItems = featureRaw.Select(w => w.ToDto()).ToList();
+
+            var requestedTag = tag?.Trim();
+            if (!string.IsNullOrWhiteSpace(requestedTag))
+                featureItems = featureItems
+                    .Where(f => f.Tags.Any(t => string.Equals(t, requestedTag, StringComparison.OrdinalIgnoreCase)))
+                    .ToList();
+            var featureIdSet = featureItems.Select(f => f.Id).ToHashSet();
+            var filteredFeatureIds = orderedFeatureIds.Where(featureIdSet.Contains).ToList();
+
+            // The board's actual column/lane field - a per-team, per-backlog-level custom field on
+            // most orgs (Azure generates a name like "WEF_<hash>_Kanban.Column"), not the fixed
+            // System.BoardColumn/System.BoardLane those two only cover for the Requirements board.
+            var columnFieldRef = board.Fields?.ColumnField?.ReferenceName;
+            var rowFieldRef = board.Fields?.RowField?.ReferenceName;
+            var boardPositionByFeatureId = featureRaw.ToDictionary(
+                w => w.Id,
+                w => (
+                    Lane: ResolveBoardFieldValue(w.Fields, rowFieldRef, w.Fields?.BoardLane),
+                    Column: ResolveBoardFieldValue(w.Fields, columnFieldRef, w.Fields?.BoardColumn)));
+
+            var byId = await ExpandParentChainAsync(featureItems, ct).ConfigureAwait(false);
+            byId = await ExpandChildrenAsync(byId, featureItems.Select(f => f.Id), ct).ConfigureAwait(false);
+
+            // "rows" always contains a "Standard" entry by this point - either a real unnamed row
+            // that got the name, or the synthetic one added above when the board had none.
+            const string defaultLaneName = "Standard";
+            var items = byId.Values
+                .Where(d => !string.Equals(d.Type, "Task", StringComparison.OrdinalIgnoreCase))
+                .Select(d => ToBacklogItem(d, isFeature: featureIdSet.Contains(d.Id), defaultLaneName, byId, boardPositionByFeatureId))
+                .ToList();
+
+            return new ProductBacklogDto { Board = boardDto, FeatureIds = filteredFeatureIds, Items = items };
+        }
+
+        /// <summary>
+        /// The board's column/lane field, resolved from whatever reference name the board's own
+        /// config names (falling back to the typed System.BoardColumn/System.BoardLane properties
+        /// when that happens to be it, or when the board didn't say). Anything else comes back out
+        /// of WorkItemFields.ExtensionData, since it isn't a field this app otherwise reads.
+        /// </summary>
+        private static string ResolveBoardFieldValue(WorkItemFields fields, string referenceName, string typedFallback)
+        {
+            if (fields is null) return null;
+            if (string.IsNullOrWhiteSpace(referenceName) ||
+                string.Equals(referenceName, "System.BoardColumn", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(referenceName, "System.BoardLane", StringComparison.OrdinalIgnoreCase))
+                return typedFallback;
+
+            if (fields.ExtensionData != null &&
+                fields.ExtensionData.TryGetValue(referenceName, out var element) &&
+                element.ValueKind == JsonValueKind.String)
+                return element.GetString();
+
+            return null;
+        }
+
+        public async Task<ProductBacklogDto> GetRefinementSprintAsync(
+            string iterationPath,
+            IEnumerable<string> areaPaths,
+            CancellationToken ct = default)
+        {
+            // Features are almost never themselves scheduled into a sprint iteration - only their
+            // User Stories/Bugs are - so the seed query excludes Feature and ExpandParentChainAsync
+            // pulls each one's Feature (and Epic) parent in afterwards regardless of iteration.
+            var seed = await GetIterationWorkItemsAsync(
+                    iterationPath,
+                    areaPaths,
+                    new[] { WorkItemType.UserStory, WorkItemType.Bug },
+                    ct)
+                .ConfigureAwait(false);
+
+            var byId = await ExpandParentChainAsync(seed, ct).ConfigureAwait(false);
+            var items = byId.Values
+                .Where(d => !string.Equals(d.Type, "Task", StringComparison.OrdinalIgnoreCase))
+                .Select(d => ToBacklogItem(d, isFeature: false, defaultLaneName: null, byId, boardPositions: null))
+                .ToList();
+
+            return new ProductBacklogDto
+            {
+                Board = null,
+                FeatureIds = byId.Values.Where(d => string.Equals(d.Type, "Feature", StringComparison.OrdinalIgnoreCase)).Select(d => d.Id).ToList(),
+                Items = items,
+            };
+        }
+
+        public async Task<ProductBacklogDto> GetTaggedRefinementItemsAsync(
+            string iterationPathPrefix,
+            IEnumerable<string> areaPaths,
+            string tag,
+            CancellationToken ct = default)
+        {
+            var areaClause = WiqlHelper.BuildAreaPathWhereClause(areaPaths);
+
+            var whereParts = new List<string>
+            {
+                $"[System.TeamProject] = '{WiqlHelper.Escape(_project)}'",
+                "[System.State] <> 'Removed'",
+                $"[System.IterationPath] UNDER '{WiqlHelper.Escape(iterationPathPrefix)}'",
+                $"[System.Tags] CONTAINS '{WiqlHelper.Escape(tag)}'",
+            };
+            if (!string.IsNullOrWhiteSpace(areaClause))
+                whereParts.Add(areaClause);
+
+            var wiql = "SELECT [System.Id] FROM WorkItems WHERE " + string.Join(" AND ", whereParts) +
+                       " ORDER BY [System.WorkItemType] ASC, [System.Id] ASC";
+            var ids = await RunWiqlIdsAsync(wiql, ct).ConfigureAwait(false);
+            if (ids.Count == 0)
+                return new ProductBacklogDto { Board = null, FeatureIds = new List<int>(), Items = new List<ProductBacklogItemDto>() };
+
+            var seed = (await GetWorkItemsInternalAsync(ids, WorkItemFieldProfile.Full, expandRelations: true, ct)
+                    .ConfigureAwait(false))
+                .Select(w => w.ToDto())
+                .Where(d => !string.Equals(d.Type, "Task", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            // Pulls each match's Epic/Feature ancestors in for context (the same EpicChain every
+            // other source shows above a card) - a tagged match can itself be any type, unlike the
+            // sprint source's seed which is always User Story/Bug.
+            var byId = await ExpandParentChainAsync(seed, ct).ConfigureAwait(false);
+            var items = byId.Values
+                .Where(d => !string.Equals(d.Type, "Task", StringComparison.OrdinalIgnoreCase))
+                .Select(d => ToBacklogItem(d, isFeature: false, defaultLaneName: null, byId, boardPositions: null))
+                .ToList();
+
+            return new ProductBacklogDto
+            {
+                Board = null,
+                FeatureIds = byId.Values.Where(d => string.Equals(d.Type, "Feature", StringComparison.OrdinalIgnoreCase)).Select(d => d.Id).ToList(),
+                Items = items,
+            };
+        }
+
+        public async Task<ProductBacklogDto> SearchRefinementItemsAsync(
+            string query,
+            CancellationToken ct = default)
+        {
+            var term = query?.Trim() ?? "";
+            if (term.Length < 2)
+                return new ProductBacklogDto { Board = null, FeatureIds = new List<int>(), Items = new List<ProductBacklogItemDto>() };
+
+            var ids = int.TryParse(term, out var idValue)
+                ? await RunWiqlIdsAsync($"SELECT [System.Id] FROM WorkItems WHERE [System.Id] = {idValue}", ct).ConfigureAwait(false)
+                : await RunWiqlIdsAsync(
+                        "SELECT [System.Id] FROM WorkItems WHERE [System.Title] CONTAINS '" + WiqlHelper.Escape(term) + "' " +
+                        "AND [System.State] <> 'Removed' ORDER BY [System.ChangedDate] DESC",
+                        ct)
+                    .ConfigureAwait(false);
+
+            if (ids.Count == 0)
+                return new ProductBacklogDto { Board = null, FeatureIds = new List<int>(), Items = new List<ProductBacklogItemDto>() };
+
+            // No location scoping at all - "regardless of where it lives" is the whole point of
+            // this source - and no parent-chain expansion either, unlike the other sources: a
+            // search hit's ancestors are rarely also in the (unrelated) hit list, so there'd be
+            // nothing for an EpicChain to show anyway.
+            var capped = ids.Take(50).ToList();
+            var dtos = (await GetWorkItemsInternalAsync(capped, WorkItemFieldProfile.Full, expandRelations: true, ct)
+                    .ConfigureAwait(false))
+                .Select(w => w.ToDto())
+                .Where(d => !string.Equals(d.Type, "Task", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            var byId = dtos.ToDictionary(d => d.Id);
+
+            var items = dtos
+                .Select(d => ToBacklogItem(d, isFeature: false, defaultLaneName: null, byId, boardPositions: null))
+                .ToList();
+
+            return new ProductBacklogDto { Board = null, FeatureIds = new List<int>(), Items = items };
+        }
+
+        private static ProductBacklogItemDto ToBacklogItem(
+            WorkItemDto d,
+            bool isFeature,
+            string? defaultLaneName,
+            Dictionary<int, WorkItemDto> byId,
+            Dictionary<int, (string? Lane, string? Column)>? boardPositions)
+        {
+            string? lane = null;
+            string? column = null;
+            if (isFeature)
+            {
+                var resolved = boardPositions != null && boardPositions.TryGetValue(d.Id, out var pos) ? pos : (Lane: d.BoardLane, Column: d.BoardColumn);
+                lane = string.IsNullOrWhiteSpace(resolved.Lane) ? defaultLaneName : resolved.Lane;
+                column = resolved.Column;
+            }
+
+            return new ProductBacklogItemDto
+            {
+                Id = d.Id,
+                Type = d.Type,
+                Title = d.Title,
+                State = d.State,
+                AssignedTo = d.AssignedTo,
+                CreatedBy = d.CreatedBy,
+                StoryPoints = d.StoryPoints,
+                Tags = d.Tags,
+                ParentId = d.ParentId,
+                // Excludes Task ids implicitly - Tasks are never fetched into byId.
+                ChildIds = d.ChildIds.Where(byId.ContainsKey).ToList(),
+                BoardLane = lane,
+                BoardColumn = column,
+                StackRank = isFeature ? d.StackRank : null,
+            };
+        }
+
+        /// <summary>Walks each item's ParentId upward (Feature -> Epic -> Epic -> ...), fetching
+        /// whatever isn't already in hand. Capped at 5 levels so a data error can't loop forever.</summary>
+        private async Task<Dictionary<int, WorkItemDto>> ExpandParentChainAsync(
+            IEnumerable<WorkItemDto> seed,
+            CancellationToken ct)
+        {
+            var byId = seed.ToDictionary(d => d.Id);
+            var toFetch = new Queue<int>(
+                byId.Values
+                    .Where(d => d.ParentId.HasValue && !byId.ContainsKey(d.ParentId.Value))
+                    .Select(d => d.ParentId!.Value)
+                    .Distinct());
+
+            for (var level = 0; level < 5 && toFetch.Count > 0; level++)
+            {
+                var batch = toFetch.Distinct().Where(id => !byId.ContainsKey(id)).ToList();
+                toFetch.Clear();
+                if (batch.Count == 0) break;
+
+                var parents = (await GetWorkItemsInternalAsync(batch, WorkItemFieldProfile.Full, expandRelations: true, ct)
+                        .ConfigureAwait(false))
+                    .Select(w => w.ToDto());
+                foreach (var p in parents)
+                {
+                    if (byId.TryAdd(p.Id, p) && p.ParentId.HasValue && !byId.ContainsKey(p.ParentId.Value))
+                        toFetch.Enqueue(p.ParentId.Value);
+                }
+            }
+
+            return byId;
+        }
+
+        /// <summary>Fetches one level of children (User Stories/Bugs) for the given parent ids,
+        /// excluding Tasks - the Refinement board never shows task-level detail.</summary>
+        private async Task<Dictionary<int, WorkItemDto>> ExpandChildrenAsync(
+            Dictionary<int, WorkItemDto> byId,
+            IEnumerable<int> parentIds,
+            CancellationToken ct)
+        {
+            var childIds = parentIds
+                .SelectMany(pid => byId.TryGetValue(pid, out var p) ? p.ChildIds : Enumerable.Empty<int>())
+                .Distinct()
+                .Where(id => !byId.ContainsKey(id))
+                .ToList();
+            if (childIds.Count == 0)
+                return byId;
+
+            var children = (await GetWorkItemsInternalAsync(childIds, WorkItemFieldProfile.Full, expandRelations: true, ct)
+                    .ConfigureAwait(false))
+                .Select(w => w.ToDto())
+                .Where(c => !string.Equals(c.Type, "Task", StringComparison.OrdinalIgnoreCase));
+            foreach (var c in children)
+                byId.TryAdd(c.Id, c);
+
+            return byId;
+        }
+
+        #endregion
+
         #region Revisioner & updates
 
         public async Task<IReadOnlyList<WorkItemRevision>> GetRevisionsAsync(
@@ -588,6 +973,58 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             }));
 
             var response = await _rest.PostJsonPatchAsync(AzureUrlHelper.GetCreateWorkItemUrl("User Story"), patch, ct);
+            using var document = JsonDocument.Parse(response.Body);
+            return document.RootElement.GetProperty("id").GetInt32();
+        }
+
+        /// <summary>
+        /// Creates a Task in a different project (<paramref name="targetProject"/>), parented under
+        /// <paramref name="parentStoryId"/> there, with a Related link back to
+        /// <paramref name="relatedWorkItemId"/> in *this* client's own project. Read/update/query
+        /// calls work across projects in the same Azure DevOps org regardless of which project's URL
+        /// they're addressed through - only creation is genuinely project-scoped (it decides the new
+        /// item's area path, iteration and process template), which is why this is the one operation
+        /// that needs its own explicit project rather than reusing <see cref="_absoluteBaseUrl"/>.
+        /// </summary>
+        public async Task<int> CreateCrossProjectHelpTextTaskAsync(
+            string targetProject,
+            int parentStoryId,
+            string title,
+            string? descriptionHtml,
+            string? assignedTo,
+            int relatedWorkItemId,
+            CancellationToken ct = default)
+        {
+            var projectSegment = Uri.EscapeDataString(targetProject);
+            var targetAbsoluteBaseUrl = $"{_organizationBaseUrl}{projectSegment}/";
+
+            var patch = new List<WorkItemPatchOperation>
+            {
+                new("add", "/fields/System.Title", title),
+                new("add", "/fields/Microsoft.VSTS.Common.Activity", "Documentation"),
+            };
+            if (!string.IsNullOrWhiteSpace(descriptionHtml))
+                patch.Add(new WorkItemPatchOperation("add", "/fields/System.Description", descriptionHtml));
+            if (!string.IsNullOrWhiteSpace(assignedTo))
+                patch.Add(new WorkItemPatchOperation("add", "/fields/System.AssignedTo", assignedTo));
+
+            // Parent: the fixed bucket story (BESTÄLLNING) that already lives in the target project.
+            patch.Add(new WorkItemPatchOperation("add", "/relations/-", new
+            {
+                rel = "System.LinkTypes.Hierarchy-Reverse",
+                url = $"{targetAbsoluteBaseUrl}_apis/wit/workitems/{parentStoryId}"
+            }));
+            // Related, not Child - the card this text belongs to stays in its own project, and this
+            // link is the only write that touches it (Azure mirrors it onto that card automatically,
+            // so it never needs a separate PATCH here).
+            patch.Add(new WorkItemPatchOperation("add", "/relations/-", new
+            {
+                rel = "System.LinkTypes.Related",
+                url = $"{_absoluteBaseUrl}_apis/wit/workitems/{relatedWorkItemId}"
+            }));
+
+            var createUrl = $"{_organization}/{projectSegment}/_apis/wit/workitems/$Task?api-version=7.1";
+            var response = await _rest.PostJsonPatchAsync(createUrl, patch, ct);
             using var document = JsonDocument.Parse(response.Body);
             return document.RootElement.GetProperty("id").GetInt32();
         }

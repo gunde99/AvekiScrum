@@ -34,6 +34,21 @@
   color: rgba(255, 255, 255, 0.8);
 }
 
+.wi-section__head--collapsible {
+  cursor: pointer;
+  user-select: none;
+}
+
+.wi-section__chevron {
+  display: inline-block;
+  margin-right: var(--space-2);
+  transition: transform 0.15s ease;
+}
+
+.wi-section__chevron--collapsed {
+  transform: rotate(-90deg);
+}
+
 .wi-section__hint {
   font-size: 0.65rem;
   font-weight: 400;

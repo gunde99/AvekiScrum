@@ -1,0 +1,253 @@
+.rf-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.rf-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-bg) 60%, transparent);
+}
+
+.rf-filters__field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.rf-filters__field > span {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+.rf-filters__field input,
+.rf-filters__field select {
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.85rem;
+  min-width: 140px;
+}
+
+.rf-filters__summary {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.rf-search {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.85rem;
+  min-width: 260px;
+}
+
+/* Was a bare, browser-default <select> - matches the search box next to it now instead of
+   standing out as unstyled. */
+.rf-status-select {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rf-status-select:hover {
+  border-color: var(--color-primary);
+}
+
+.rf-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rf-section {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+
+.rf-section__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #fff;
+  /* Rows carry their own Azure colour via inline style; Icebox/Closed (no colour) fall back to a
+     neutral dark bar so every section still reads as a header. */
+  background: var(--aveki-grey-700);
+}
+
+.rf-section__chevron {
+  width: 1em;
+}
+
+.rf-section__label {
+  flex: 1;
+  text-align: left;
+}
+
+.rf-section__count {
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.rf-section__body {
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background: var(--color-bg-subtle);
+}
+
+.rf-section__empty {
+  margin: 0;
+  padding: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+/* A row's own board columns (Gemensamt/myCarta/...), side by side - each with a bounded height and
+   its own scroll, matching the Planeringsboard: the row's height doesn't grow with the biggest
+   lane, and the whole board doesn't get taller than the page. */
+.rf-lanes {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-bg-subtle);
+  overflow-x: auto;
+}
+
+.rf-lane {
+  flex: 0 0 300px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  max-height: 520px;
+  min-height: 80px;
+}
+
+.rf-lane__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  font-weight: 700;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.rf-lane__count {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.rf-lane__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rf-lane__empty {
+  margin: var(--space-3) 0;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.rf-feature {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+}
+
+.rf-feature__children {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-left: var(--space-3);
+  padding-left: var(--space-2);
+  border-left: 2px solid var(--color-border);
+}
+
+.rf-feature__no-parent {
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.rf-chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 0 var(--space-2);
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.rf-chain__hop {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.rf-chain__sep {
+  margin: 0 2px;
+  opacity: 0.6;
+}
+
+.rf-chain__link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+.rf-chain__link:hover {
+  color: var(--color-primary);
+}

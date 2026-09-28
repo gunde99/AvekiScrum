@@ -1,11 +1,20 @@
+import { useState } from "react";
 import { PersonAvatar } from "../PersonAvatar";
-import { FIELD, fieldOptionsFor, type ClassificationOptions, type WorkItemDetail, type WorkItemFieldUpdate } from "../../api/workitems";
+import {
+  FIELD,
+  fieldOptionsFor,
+  updateWorkItemFields,
+  type ClassificationOptions,
+  type WorkItemDetail,
+  type WorkItemFieldUpdate,
+} from "../../api/workitems";
 import type { PersonOption } from "../../api/people";
 import { fullPersonName } from "../../lib/personNames";
 import { RichText } from "../RichText";
 import { RichTextEditor } from "./RichTextEditor";
 import { TagEditor } from "./TagEditor";
 import { Section } from "./Section";
+import { StatePill } from "./StatePill";
 import { ACTIVITIES, ASSIGNED_TEAMS, commonStates, getWorkItemTypeConfig, SEVERITIES, SOURCES, VALUE_AREAS } from "./workItemTypeConfig";
 import "./WorkItemOverviewTab.css";
 
@@ -17,6 +26,9 @@ interface WorkItemOverviewTabProps {
   /** Area paths, iteration paths and known tags - null while still loading. */
   classification: ClassificationOptions | null;
   people: PersonOption[];
+  /** Written straight away by the Blocked quick-toggle (see BlockedToggle below) - the one field
+   *  on this tab that isn't part of the batched edit/Spara flow. */
+  onChanged: (detail: WorkItemDetail) => void;
 }
 
 function fmt(date: string | null): string {
@@ -61,7 +73,42 @@ function NumberField({ value, onChange, min = 0 }: { value: number | undefined; 
   );
 }
 
-export function WorkItemOverviewTab({ detail, editing, draft, onDraftChange, classification, people }: WorkItemOverviewTabProps) {
+/** Microsoft.VSTS.CMMI.Blocked, toggled straight from view mode - see the field's own doc comment
+ *  on WorkItemOverviewTabProps.onChanged for why this writes immediately instead of joining the
+ *  batched Spara flow the rest of the tab uses. */
+function BlockedToggle({ detail, onChanged }: { detail: WorkItemDetail; onChanged: (d: WorkItemDetail) => void }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function toggle() {
+    setSaving(true);
+    setError(null);
+    try {
+      onChanged(await updateWorkItemFields(detail.id, { isBlocked: !detail.isBlocked }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kunde inte ändra blockerad-status.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="wi-field__value">
+      <button
+        type="button"
+        className={"wi-blocked-toggle" + (detail.isBlocked ? " wi-blocked-toggle--blocked" : "")}
+        onClick={toggle}
+        disabled={saving}
+        title="Klicka för att ändra"
+      >
+        {saving ? "Sparar…" : detail.isBlocked ? "Blockerad" : "Ej blockerad"}
+      </button>
+      {error && <span className="wi-field__error">{error}</span>}
+    </div>
+  );
+}
+
+export function WorkItemOverviewTab({ detail, editing, draft, onDraftChange, classification, people, onChanged }: WorkItemOverviewTabProps) {
   const config = getWorkItemTypeConfig(detail.type);
   // Prefer what the process template says this type allows; the constants are only a fallback for
   // when that lookup came back empty (a type the project doesn't define, or a failed fetch).
@@ -106,7 +153,7 @@ export function WorkItemOverviewTab({ detail, editing, draft, onDraftChange, cla
               </select>
             ) : (
               <div className="wi-field__value">
-                {detail.state}
+                <StatePill state={detail.state} size="sm" />
                 {detail.reason && <span className="wi-field__sub"> · {detail.reason}</span>}
               </div>
             )}
@@ -173,6 +220,23 @@ export function WorkItemOverviewTab({ detail, editing, draft, onDraftChange, cla
                 <PickList value={draft.activity ?? ""} options={opts(FIELD.activity, ACTIVITIES)} onChange={(activity) => onDraftChange({ activity })} />
               ) : (
                 <div className="wi-field__value">{detail.activity ?? "–"}</div>
+              )}
+            </div>
+          )}
+
+          {config.showBlocked && (
+            <div className="wi-field">
+              <label>Blockerad</label>
+              {editing ? (
+                <select
+                  value={draft.isBlocked ? "true" : "false"}
+                  onChange={(e) => onDraftChange({ isBlocked: e.target.value === "true" })}
+                >
+                  <option value="false">Nej</option>
+                  <option value="true">Ja</option>
+                </select>
+              ) : (
+                <BlockedToggle detail={detail} onChanged={onChanged} />
               )}
             </div>
           )}
@@ -308,7 +372,7 @@ export function WorkItemOverviewTab({ detail, editing, draft, onDraftChange, cla
         </div>
       </Section>
 
-      <Section title={config.descriptionLabel}>
+      <Section title={config.descriptionLabel} collapsible>
         {editing ? (
           <RichTextEditor
             minRows={14}

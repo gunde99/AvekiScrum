@@ -1,0 +1,137 @@
+.kb-card {
+  display: block;
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+  border: 1px solid transparent;
+  border-left: 3px solid var(--color-border);
+  text-decoration: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.75rem;
+  text-align: left;
+  cursor: pointer;
+}
+.kb-card:hover { background: var(--color-border); }
+.kb-card--draggable { cursor: grab; }
+.kb-card--draggable:active { cursor: grabbing; }
+.kb-card--new { border-left-color: var(--aveki-grey-500); }
+.kb-card--active { border-left-color: var(--cat-dev); }
+.kb-card--resolved { border-left-color: var(--aveki-blue-tint-2); }
+.kb-card--done { border-left-color: var(--color-success); }
+.kb-card--test { border-left-color: var(--cat-test-bg); }
+.kb-card--doc { border-left-color: var(--cat-doc); }
+.kb-card--notok { border-left-color: var(--color-danger); }
+.kb-card--default { border-left-color: var(--color-border); }
+
+/* Blocked wins over every tone's own colour - a dashed red outline on all four sides marks a state
+   that sits above whatever step the task is nominally on, not just a variant of it. */
+.kb-card--blocked {
+  border: 3px dashed var(--color-danger);
+  border-left: 3px dashed var(--color-danger);
+  /* The extra border width eats into the card's own padding - compensate so blocked and
+     non-blocked cards in the same lane still line up instead of the content visibly shifting. */
+  padding: calc(var(--space-1) - 2px) calc(var(--space-2) - 2px);
+}
+
+.kbc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  /* Reserved so the status pill sits at the same height whether or not the card is blocked - see
+     the fixed-heights note on .kbc-title. */
+  min-height: 1.5em;
+}
+
+.kbc-key {
+  font-weight: 600;
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+}
+
+/* Bigger and coloured by tone (not just outlined) - at the old size/weight this and the id above it
+   blended into one grey smear at a glance. */
+.kbc-status {
+  display: inline-block;
+  padding: 1px var(--space-2);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+  background: var(--color-border);
+  color: var(--color-text-muted);
+}
+.kbc-status--new { background: var(--color-border); color: var(--color-text-muted); }
+.kbc-status--active { background: var(--cat-dev); color: #fff; }
+.kbc-status--resolved { background: var(--aveki-blue-tint-2); color: #fff; }
+.kbc-status--done { background: var(--color-success); color: #fff; }
+.kbc-status--test { background: var(--cat-test-bg); color: var(--cat-test); }
+.kbc-status--doc { background: var(--cat-doc); color: #fff; }
+.kbc-status--notok { background: var(--color-danger); color: #fff; }
+.kbc-status--default { background: var(--color-border); color: var(--color-text); }
+
+/* Fixed to two lines' worth of height regardless of the actual title length, so a row of one-line
+   titles doesn't sit at a different height than its neighbours - which is what made stacked cards
+   look ragged. */
+.kbc-title {
+  font-weight: 600;
+  min-height: 2.4em;
+  line-height: 1.2;
+  margin: 2px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.kbc-blocked {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  width: fit-content;
+  margin-bottom: 2px;
+  color: var(--color-danger);
+  font-weight: 600;
+  font-size: 0.66rem;
+}
+
+.kbc-foot {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: 0.66rem;
+  min-width: 0;
+}
+
+.kbc-foot__who {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kbc-activity {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.9;
+}
+
+.kbc-age {
+  white-space: nowrap;
+}
+
+/* A visible boundary between footer fields instead of bare whitespace, which is what made the
+   assignee/activity/age run together into one string. */
+.kbc-foot > * + *::before {
+  content: "·";
+  margin-right: var(--space-2);
+  color: var(--color-border);
+}

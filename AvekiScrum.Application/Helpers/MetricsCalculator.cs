@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -56,17 +56,17 @@ namespace AvekiScrum.Application.Helpers
 
             // pickup latency = when AssignedTo first becomes non-null
             DateTimeOffset? firstAssignedAt = updates
-                .Where(u => u.Fields?.AssignedTo?.NewValue is not null)
-                .OrderBy(u => u.RevisedDate)
-                .Select(u => (DateTimeOffset?)u.RevisedDate)
+                .Where(u => u.Fields?.AssignedTo?.NewValue is not null && u.EffectiveChangedDate.HasValue)
+                .OrderBy(u => u.EffectiveChangedDate)
+                .Select(u => u.EffectiveChangedDate)
                 .FirstOrDefault();
 
             // CompletedAt = first time state enters one of Done/Closed/Resolved
             var doneStates = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Done", "Closed", "Resolved" };
             DateTimeOffset? completedAt = updates
-                .Where(u => doneStates.Contains(u.Fields?.State?.NewValue ?? ""))
-                .OrderBy(u => u.RevisedDate)
-                .Select(u => (DateTimeOffset?)u.RevisedDate)
+                .Where(u => doneStates.Contains(u.Fields?.State?.NewValue ?? "") && u.EffectiveChangedDate.HasValue)
+                .OrderBy(u => u.EffectiveChangedDate)
+                .Select(u => u.EffectiveChangedDate)
                 .FirstOrDefault();
 
             // ActiveTestingDuration = summa intervall där State = "Active" eller "In Progress"
@@ -77,11 +77,17 @@ namespace AvekiScrum.Application.Helpers
             var initialState = wi.State ?? "New";
             timeline.Add((created, initialState));
 
-            foreach (var u in updates.Where(u => u.Fields?.State is not null).OrderBy(u => u.RevisedDate))
-                timeline.Add((u.RevisedDate, u.Fields!.State!.NewValue!));
+            foreach (var u in updates
+                         .Where(u => u.Fields?.State is not null && u.EffectiveChangedDate.HasValue)
+                         .OrderBy(u => u.EffectiveChangedDate))
+                timeline.Add((u.EffectiveChangedDate!.Value, u.Fields!.State!.NewValue!));
 
-            // Stäng tidslinjen vid CompletedAt eller nu
-            var end = completedAt ?? (updates.LastOrDefault()?.RevisedDate ?? DateTimeOffset.UtcNow);
+            // Stäng tidslinjen vid CompletedAt eller senast verifierade revisionsdatum.
+            var end = completedAt ?? updates
+                .Select(update => update.EffectiveChangedDate)
+                .Where(date => date.HasValue)
+                .OrderBy(date => date)
+                .LastOrDefault() ?? DateTimeOffset.UtcNow;
             TimeSpan activeSum = TimeSpan.Zero;
             for (int i = 0; i < timeline.Count; i++)
             {

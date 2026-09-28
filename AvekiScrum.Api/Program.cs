@@ -1,8 +1,10 @@
 using AvekiScrum.Application.Abstractions;
+using AvekiScrum.Application.Abstractions.Repositories;
 using AvekiScrum.Application.Abstractions.Services;
 using AvekiScrum.Application.Boards.Dailys;
 using AvekiScrum.Application.Configuration;
 using AvekiScrum.Application.Models.DTOs.Scrum;
+using AvekiScrum.Application.Models.DTOs.Scrum.TestPlans;
 using AvekiScrum.Application.Models.Enums;
 using AvekiScrum.Domain.Entities.Scrum;
 using AvekiScrum.Infrastructure.AzureDevOps;
@@ -38,6 +40,7 @@ var azureSettings = builder.Configuration.GetSection("AzureDevOps").Get<AzureSet
 builder.Services.Configure<AzureSettings>(builder.Configuration.GetSection("AzureDevOps"));
 builder.Services.Configure<TeamRoleConfig>(builder.Configuration.GetSection("TeamRoleConfig"));
 builder.Services.Configure<DailyFlowConfig>(builder.Configuration.GetSection("DailyFlow"));
+builder.Services.Configure<DailyCheckInSettings>(builder.Configuration.GetSection("DailyCheckIns"));
 // Plain outbound client for the Teams webhook - no Azure DevOps auth on this one.
 builder.Services.AddHttpClient();
 
@@ -370,9 +373,124 @@ app.MapGet("/api/me", (HttpContext http, IOptions<TeamRoleConfig> teamRoles, ICo
 
 app.MapGet("/api/dailys", async (
     string team,
+    // The sprint picker's explicit choice - takes priority over everything else below, since
+    // picking a sprint by hand is a more specific instruction than either the date-based default
+    // or the sandbox's date-independent override.
+    string? iteration,
     IAzureDevOpsService azureDevOpsService,
     ITeamRoleProvider teamRoleProvider,
     DailyDashboardDataBuilder builder,
+    IConfiguration configuration,
+    CancellationToken ct) =>
+{
+    var (scoped, error) = await ResolveScopedTeamDataAsync(team, iteration, azureDevOpsService, teamRoleProvider, configuration, ct);
+    if (error is not null) return error;
+
+    var backlogByTeam = new Dictionary<DeveloperTeam, IReadOnlyList<AvekiScrum.Application.Models.DTOs.Scrum.WorkItemDto>>
+    {
+        [scoped!.Team] = scoped.ScopedWorkItems
+    };
+
+    var json = await builder.BuildJsonAsync(scoped.Sprint, backlogByTeam, scoped.ProductOwnerStoryIds);
+    return Results.Content(json, "application/json");
+})
+.WithName("GetDailys");
+
+// Refreshes just one person's cards instead of the whole team's board: skips the PR-detail and
+// test-timeline Azure calls for every story that isn't theirs (see the comment on
+// DailyDashboardDataBuilder.BuildPersonJsonAsync), so this comes back much faster than /api/dailys
+// during a running standup. The client merges the returned stories into its existing board state
+// rather than replacing it.
+app.MapGet("/api/dailys/person", async (
+    string team,
+    string person,
+    string? iteration,
+    IAzureDevOpsService azureDevOpsService,
+    ITeamRoleProvider teamRoleProvider,
+    DailyDashboardDataBuilder builder,
+    IConfiguration configuration,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(person))
+        return Results.BadRequest("Missing 'person'.");
+
+    var (scoped, error) = await ResolveScopedTeamDataAsync(team, iteration, azureDevOpsService, teamRoleProvider, configuration, ct);
+    if (error is not null) return error;
+
+    var json = await builder.BuildPersonJsonAsync(
+        scoped!.Sprint,
+        scoped.Team,
+        scoped.ScopedWorkItems,
+        person,
+        scoped.ProductOwnerStoryIds);
+    return Results.Content(json, "application/json");
+})
+.WithName("GetDailyPersonRefresh");
+
+// Saves the daily flow's own incheckningssiffror (developer energy, sprint-goal confidence, the
+// PO/test-lead closing turns) once a round finishes - see DailyFlow.tsx's persistCheckIns, which is
+// the only caller. Upserting (see IDailyCheckInRepository) is what makes a practice run of the
+// flow before the real daily harmless: the real run's save for the same calendar day simply
+// overwrites it instead of leaving a duplicate behind.
+app.MapPost("/api/dailys/checkins", async (
+    SaveDailyCheckInsRequest request,
+    IDailyCheckInRepository repository,
+    CancellationToken ct) =>
+{
+    if (!Enum.TryParse<DeveloperTeam>(request.Team, ignoreCase: true, out _))
+        return Results.BadRequest($"Unknown team '{request.Team}'. Expected 'Nord' or 'Syd'.");
+    if (string.IsNullOrWhiteSpace(request.SprintPath))
+        return Results.BadRequest("Missing 'sprintPath'.");
+    if (!DateOnly.TryParse(request.Date, out var date))
+        return Results.BadRequest($"Unparseable 'date': '{request.Date}'. Expected yyyy-MM-dd.");
+    if (request.Entries is null || request.Entries.Count == 0)
+        return Results.Ok(); // Nothing checked in this round - not an error, just nothing to save.
+
+    var entries = request.Entries
+        .Select(e => new DailyCheckIn
+        {
+            Team = request.Team,
+            SprintPath = request.SprintPath,
+            SprintName = request.SprintName,
+            Date = date,
+            Kind = e.Kind,
+            Key = e.Key,
+            Label = e.Label,
+            Score = e.Score,
+        })
+        .ToList();
+
+    await repository.UpsertAsync(entries, ct);
+    return Results.Ok();
+})
+.WithName("SaveDailyCheckIns");
+
+// Reads back what's been saved so far - not wired into any UI yet (the retro-facing view is still
+// being designed), but useful to inspect what a few sprints' worth of data actually looks like.
+app.MapGet("/api/dailys/checkins", async (
+    string team,
+    IDailyCheckInRepository repository,
+    CancellationToken ct) =>
+{
+    if (!Enum.TryParse<DeveloperTeam>(team, ignoreCase: true, out var developerTeam))
+        return Results.BadRequest($"Unknown team '{team}'. Expected 'Nord' or 'Syd'.");
+
+    var entries = await repository.GetByTeamAsync(developerTeam, ct);
+    return Results.Ok(entries);
+})
+.WithName("GetDailyCheckIns");
+
+// Feeds the sprint picker (the "sp1 · 2026-08-17 – 2026-09-04" text on the daily board, made
+// clickable). Rather than every iteration ever created, this is a window of three releases - the
+// one `around` sits in, the one before it and the one after - so the list stays short and someone
+// can still page a whole release's worth of sprints forwards or backwards from wherever they are.
+app.MapGet("/api/sprints", async (
+    string team,
+    // The iteration to center the window on - normally the sprint currently on screen, so paging
+    // from an already-picked sprint slides the window rather than snapping back to today's. Falls
+    // back to the same date-based/override pick /api/dailys uses when omitted (the first load).
+    string? around,
+    IAzureDevOpsService azureDevOpsService,
     IConfiguration configuration,
     CancellationToken ct) =>
 {
@@ -380,110 +498,156 @@ app.MapGet("/api/dailys", async (
         return Results.BadRequest($"Unknown team '{team}'. Expected 'Nord' or 'Syd'.");
 
     var iterations = await azureDevOpsService.GetIterationsAsync(developerTeam, ct);
+    if (iterations.Count == 0)
+        return Results.Ok(Array.Empty<object>());
 
-    // Local testing override: pin the board to a specific iteration instead of the
-    // date-based "current sprint" pick, useful in a sandbox project whose sprint dates
-    // don't line up with today. Empty/unset falls back to the normal auto-detection.
-    var iterationOverride = configuration["Testing:IterationPathOverride"];
-    Sprint? selectedSprint;
-    if (!string.IsNullOrWhiteSpace(iterationOverride))
+    // The release a sprint belongs to is its iteration path's parent folder - sprints are always
+    // one level under it ("Utveckling\27.1\Sprint 1" -> release folder "Utveckling\27.1").
+    static string ReleaseFolderOf(string path)
     {
-        selectedSprint = iterations.FirstOrDefault(
-            sprint => string.Equals(sprint.Path, iterationOverride, StringComparison.OrdinalIgnoreCase));
-        if (selectedSprint is null)
-            return Results.NotFound(
-                $"Configured Testing:IterationPathOverride '{iterationOverride}' was not found among team '{team}''s iterations.");
+        var idx = path.LastIndexOf('\\');
+        return idx < 0 ? path : path[..idx];
     }
-    else
+
+    var releases = iterations
+        .GroupBy(s => ReleaseFolderOf(s.Path), StringComparer.OrdinalIgnoreCase)
+        .Select(g => new { Folder = g.Key, Sprints = g.OrderBy(s => s.StartDate).ToList() })
+        // Ordered by the release's earliest sprint - release folder *names* don't reliably sort
+        // chronologically ("26.10" vs "26.2"), but the dates inside always do.
+        .OrderBy(r => r.Sprints.Min(s => s.StartDate))
+        .ToList();
+
+    var anchor =
+        (!string.IsNullOrWhiteSpace(around)
+            ? iterations.FirstOrDefault(s => string.Equals(s.Path, around, StringComparison.OrdinalIgnoreCase))
+            : null)
+        ?? ResolveDefaultSprint(iterations, configuration);
+
+    var anchorIndex = anchor is null ? -1 : releases.FindIndex(r => string.Equals(r.Folder, ReleaseFolderOf(anchor.Path), StringComparison.OrdinalIgnoreCase));
+    if (anchorIndex < 0) anchorIndex = 0;
+
+    var windowStart = Math.Max(0, anchorIndex - 1);
+    var windowEnd = Math.Min(releases.Count - 1, anchorIndex + 1);
+
+    var result = releases
+        .Skip(windowStart)
+        .Take(windowEnd - windowStart + 1)
+        .SelectMany(r => r.Sprints)
+        .Select(s => new
+        {
+            path = s.Path,
+            name = s.Name,
+            startDate = s.StartDate.ToString("yyyy-MM-dd"),
+            endDate = s.EndDate.ToString("yyyy-MM-dd"),
+            isCurrent = s.IsCurrent,
+            releaseFolder = ReleaseFolderOf(s.Path),
+        })
+        .ToList();
+
+    return Results.Ok(result);
+
+    static Sprint? ResolveDefaultSprint(IReadOnlyList<Sprint> iterations, IConfiguration configuration)
     {
+        var iterationOverride = configuration["Testing:IterationPathOverride"];
+        if (!string.IsNullOrWhiteSpace(iterationOverride))
+        {
+            var overridden = iterations.FirstOrDefault(
+                s => string.Equals(s.Path, iterationOverride, StringComparison.OrdinalIgnoreCase));
+            if (overridden is not null) return overridden;
+        }
+
         var today = DateTime.UtcNow.Date;
-        selectedSprint =
-            iterations.FirstOrDefault(sprint => sprint.StartDate.Date <= today && today <= sprint.EndDate.Date)
-            ?? iterations.OrderBy(sprint => sprint.EndDate).FirstOrDefault(sprint => sprint.EndDate.Date >= today)
+        return iterations.FirstOrDefault(s => s.StartDate.Date <= today && today <= s.EndDate.Date)
+            ?? iterations.OrderBy(s => s.EndDate).FirstOrDefault(s => s.EndDate.Date >= today)
             ?? iterations.LastOrDefault();
     }
-
-    if (selectedSprint is null)
-        return Results.NotFound($"No iterations found for team '{team}'.");
-
-    var workItems = await azureDevOpsService.GetAllWorkItemsWithDetailsAsync(selectedSprint.Path, developerTeam, ct);
-
-    // Area paths are shared across teams (POs plan together there), but a daily should only
-    // show cards owned by this team's own developers - not colleagues from the other team who
-    // happen to have a card filed under a shared area path. Unassigned cards stay visible since
-    // they can't be attributed to either team yet.
-    // Only story/bug cards are checked against this list - a Task always stays with its parent
-    // story regardless of who it's assigned to, otherwise tasks handed off to a QA engineer (who
-    // isn't in the Developers role group) silently vanish from an otherwise-included story.
-    var teamDeveloperEmails = new HashSet<string>(
-        teamRoleProvider.GetTeamMembersForRoleGroup(TeamRoleType.Developers, $"Team{developerTeam}"),
-        StringComparer.OrdinalIgnoreCase);
-
-    // Cards owned by the team's own PO don't belong on the developer-focused board either, but
-    // the daily-flow's PO turn still needs them - so they're kept (marked via
-    // ownedByProductOwner) instead of dropped outright, and the client hides them from the normal
-    // board view.
-    var teamProductOwnerEmails = new HashSet<string>(
-        teamRoleProvider.GetTeamMembersForRoleGroup(TeamRoleType.ProductOwners, $"Team{developerTeam}"),
-        StringComparer.OrdinalIgnoreCase);
-
-    // The Assigned Team field is the one place someone states outright which team owns a card, so
-    // when it is set it decides - over the assignee, and over an unassigned card's habit of
-    // showing up on both boards. It's rarely filled in, which is exactly why it matters when it is.
-    // Returns null when the field is empty or holds something that isn't a team name.
-    static DeveloperTeam? ExplicitTeam(AvekiScrum.Application.Models.DTOs.Scrum.WorkItemDto wi) =>
-        string.IsNullOrWhiteSpace(wi.AssignedTeam) ? null : DeveloperTeamExtensions.FromAzureDevOpsName(wi.AssignedTeam.Trim());
-
-    bool IsOwnedByTeam(AvekiScrum.Application.Models.DTOs.Scrum.WorkItemDto wi)
-    {
-        var explicitTeam = ExplicitTeam(wi);
-        if (explicitTeam.HasValue)
-            return explicitTeam.Value == developerTeam;
-        return string.IsNullOrWhiteSpace(wi.AssignedToEmail) || teamDeveloperEmails.Contains(wi.AssignedToEmail);
-    }
-
-    bool IsOwnedByProductOwner(AvekiScrum.Application.Models.DTOs.Scrum.WorkItemDto wi)
-    {
-        if (string.IsNullOrWhiteSpace(wi.AssignedToEmail) || !teamProductOwnerEmails.Contains(wi.AssignedToEmail))
-            return false;
-        var explicitTeam = ExplicitTeam(wi);
-        return !explicitTeam.HasValue || explicitTeam.Value == developerTeam;
-    }
-
-    List<AvekiScrum.Application.Models.DTOs.Scrum.WorkItemDto> scopedWorkItems;
-    HashSet<int> productOwnerStoryIds;
-    if (teamDeveloperEmails.Count == 0 && teamProductOwnerEmails.Count == 0)
-    {
-        scopedWorkItems = workItems.ToList();
-        productOwnerStoryIds = new HashSet<int>();
-    }
-    else
-    {
-        var developerOwnedStoryIds = workItems
-            .Where(wi => wi.TypeEnum != WorkItemType.Task && IsOwnedByTeam(wi))
-            .Select(wi => wi.Id)
-            .ToHashSet();
-        productOwnerStoryIds = workItems
-            .Where(wi => wi.TypeEnum != WorkItemType.Task && IsOwnedByProductOwner(wi))
-            .Select(wi => wi.Id)
-            .ToHashSet();
-        var visibleStoryIds = developerOwnedStoryIds.Union(productOwnerStoryIds).ToHashSet();
-        scopedWorkItems = workItems
-            .Where(wi => wi.TypeEnum == WorkItemType.Task
-                ? wi.ParentId.HasValue && visibleStoryIds.Contains(wi.ParentId.Value)
-                : visibleStoryIds.Contains(wi.Id))
-            .ToList();
-    }
-
-    var backlogByTeam = new Dictionary<DeveloperTeam, IReadOnlyList<AvekiScrum.Application.Models.DTOs.Scrum.WorkItemDto>>
-    {
-        [developerTeam] = scopedWorkItems
-    };
-
-    var json = await builder.BuildJsonAsync(selectedSprint, backlogByTeam, productOwnerStoryIds);
-    return Results.Content(json, "application/json");
 })
-.WithName("GetDailys");
+.WithName("GetSprints");
+
+// The Refinement board's product-backlog team picker - every Azure DevOps team in the project,
+// not just the two Scrum teams (Nord/Syd) the rest of the app is scoped to.
+app.MapGet("/api/refinement/teams", async (
+    IAzureDevOpsService azureDevOpsService,
+    CancellationToken ct) =>
+{
+    var teams = await azureDevOpsService.GetProjectTeamsAsync(ct);
+    return Results.Ok(teams);
+})
+.WithName("GetRefinementTeams");
+
+app.MapGet("/api/refinement/productbacklog", async (
+    string? boardTeam,
+    string? tag,
+    string? iteration,
+    string? areaPath,
+    IAzureDevOpsService azureDevOpsService,
+    IConfiguration configuration,
+    CancellationToken ct) =>
+{
+    var team = string.IsNullOrWhiteSpace(boardTeam)
+        ? configuration["Refinement:ProductBacklogTeam"] ?? "PO produktstyrning"
+        : boardTeam;
+    try
+    {
+        var backlog = await azureDevOpsService.GetProductBacklogAsync(team, tag, iteration, areaPath, ct);
+        return Results.Ok(backlog);
+    }
+    catch (InvalidOperationException ex)
+    {
+        // "team has no Features board" - a config problem, not a server error.
+        return Results.BadRequest(ex.Message);
+    }
+})
+.WithName("GetProductBacklog");
+
+// The Refinement board's other source: a single sprint, refined as a flat Feature/User
+// Story/Bug hierarchy rather than the product backlog's swimlanes.
+app.MapGet("/api/refinement/sprint", async (
+    string team,
+    string iteration,
+    IAzureDevOpsService azureDevOpsService,
+    CancellationToken ct) =>
+{
+    if (!Enum.TryParse<DeveloperTeam>(team, ignoreCase: true, out var developerTeam))
+        return Results.BadRequest($"Unknown team '{team}'. Expected 'Nord' or 'Syd'.");
+
+    var areaPaths = await azureDevOpsService.GetTeamAreaPathsAsync(developerTeam, ct);
+    var backlog = await azureDevOpsService.GetRefinementSprintAsync(iteration, areaPaths, ct);
+    return Results.Ok(backlog);
+})
+.WithName("GetRefinementSprint");
+
+// The Refinement board's third source: every card tagged "Refinement" under the team's area
+// paths and under one whole release's iteration tree (e.g. "Utveckling\27.1"), not just one
+// exact sprint - a tagged card can sit in any sprint under the release, or in none yet.
+app.MapGet("/api/refinement/tagged", async (
+    string team,
+    string release,
+    IAzureDevOpsService azureDevOpsService,
+    CancellationToken ct) =>
+{
+    if (!Enum.TryParse<DeveloperTeam>(team, ignoreCase: true, out var developerTeam))
+        return Results.BadRequest($"Unknown team '{team}'. Expected 'Nord' or 'Syd'.");
+
+    var areaPaths = await azureDevOpsService.GetTeamAreaPathsAsync(developerTeam, ct);
+    var backlog = await azureDevOpsService.GetTaggedRefinementItemsAsync(release, areaPaths, "Refinement", ct);
+    return Results.Ok(backlog);
+})
+.WithName("GetRefinementTagged");
+
+// The Refinement board's fourth source: free-text id/title search across the whole project,
+// regardless of team/area/iteration - same lookup as the "länka befintligt kort" picker
+// (/api/workitems/search), just mapped to the richer ProductBacklogDto shape the Refinement
+// board's cards render from.
+app.MapGet("/api/refinement/search", async (
+    string q,
+    IAzureDevOpsService azureDevOpsService,
+    CancellationToken ct) =>
+{
+    var backlog = await azureDevOpsService.SearchRefinementItemsAsync(q, ct);
+    return Results.Ok(backlog);
+})
+.WithName("SearchRefinementItems");
 
 app.MapGet("/api/sprint-goals", async (
     string team,
@@ -626,6 +790,7 @@ app.MapPatch("/api/workitems/{id:int}", async (
     if (request.Priority.HasValue) fields["Microsoft.VSTS.Common.Priority"] = request.Priority.Value;
     if (request.Severity != null) fields["Microsoft.VSTS.Common.Severity"] = request.Severity;
     if (request.Activity != null) fields["Microsoft.VSTS.Common.Activity"] = request.Activity;
+    if (request.IsBlocked.HasValue) fields["Microsoft.VSTS.CMMI.Blocked"] = request.IsBlocked.Value ? "Yes" : "No";
     if (request.RemainingWork.HasValue) fields["Microsoft.VSTS.Scheduling.RemainingWork"] = request.RemainingWork.Value;
     if (request.CompletedWork.HasValue) fields["Microsoft.VSTS.Scheduling.CompletedWork"] = request.CompletedWork.Value;
     if (request.OriginalEstimate.HasValue) fields["Microsoft.VSTS.Scheduling.OriginalEstimate"] = request.OriginalEstimate.Value;
@@ -637,6 +802,16 @@ app.MapPatch("/api/workitems/{id:int}", async (
     // a municipality, a note), so it goes through as-is. An empty string is handled downstream
     // as "clear this field".
     if (request.Stakeholders != null) fields["Custom.Stakeholders"] = request.Stakeholders;
+    if (request.DoRStatus != null) fields["Custom.DoRStatus"] = request.DoRStatus;
+    if (request.DoRDecision != null) fields["Custom.DoRDecision"] = request.DoRDecision;
+    if (request.DoRApprovedBy != null) fields["Custom.DoRApprovedBy"] = request.DoRApprovedBy;
+    if (request.DoRApprovedDate.HasValue) fields["Custom.DoRApprovedDate"] = request.DoRApprovedDate.Value;
+    if (request.DoRRevision.HasValue) fields["Custom.DoRRevision"] = request.DoRRevision.Value;
+    // Identity fields - same null-to-clear rule as DevelopmentPartner above.
+    if (request.Kandidat1 != null) fields["Custom.Kandidat1"] = string.IsNullOrEmpty(request.Kandidat1) ? null : request.Kandidat1;
+    if (request.Kandidat2 != null) fields["Custom.Kandidat2"] = string.IsNullOrEmpty(request.Kandidat2) ? null : request.Kandidat2;
+    if (request.Kandidat3 != null) fields["Custom.Kandidat3"] = string.IsNullOrEmpty(request.Kandidat3) ? null : request.Kandidat3;
+    if (request.SakkunnigInfo != null) fields["Custom.SakkunnigInfo"] = request.SakkunnigInfo;
 
     if (fields.Count == 0)
         return Results.BadRequest("No fields to update.");
@@ -680,6 +855,61 @@ app.MapPost("/api/workitems/{id:int}/tasks", async (
     return Results.Ok(new { created = createdIds.Count, ids = createdIds });
 })
 .WithName("CreateWorkItemTasks");
+
+// "Utse Sakkunnig" on a User Story: a new Story that carries the expert assignment, kept separate
+// from the originating card (Related, not Child) so appointing someone doesn't sit on the card's
+// own workflow. Title/Area/Iteration are inherited; the checklist becomes that many Task children.
+app.MapPost("/api/workitems/{id:int}/sakkunnig", async (
+    int id,
+    CreateSakkunnigRequest request,
+    IAzureDevOpsService azureDevOpsService,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(request.AssignedTo))
+        return Results.BadRequest("Välj en sakkunnig först.");
+
+    var source = await azureDevOpsService.GetWorkItemDetailAsync(id, ct);
+    if (source is null)
+        return Results.NotFound();
+
+    var fields = new Dictionary<string, object?>
+    {
+        ["System.Title"] = $"Sakkunnig_{source.Title}",
+        ["System.AreaPath"] = source.AreaPath,
+        ["System.IterationPath"] = source.IterationPath,
+        ["System.AssignedTo"] = request.AssignedTo,
+        ["System.Description"] = request.InfoHtml ?? "",
+        ["System.Tags"] = "Sakkunnig",
+    };
+
+    var newId = await azureDevOpsService.CreateWorkItemAsync("User Story", fields, id, "System.LinkTypes.Related", ct);
+
+    foreach (var title in request.TaskTitles ?? new List<string>())
+    {
+        await azureDevOpsService.CreateTaskAsync(
+            newId,
+            title,
+            SakkunnigTaskActivity(title),
+            request.AssignedTo,
+            "New",
+            source.AreaPath,
+            source.IterationPath,
+            ct);
+    }
+
+    return Results.Ok(new { id = newId });
+
+    // The checklist is fixed (see AppointSakkunnigModal), so the Activity mapping can be too -
+    // same idea as Behovsbedömning's need-category -> Activity mapping elsewhere in this file.
+    static string? SakkunnigTaskActivity(string taskTitle) => taskTitle switch
+    {
+        "Acceptanstester" => "Testing",
+        "Hjälptextkort" => "Documentation",
+        "Script vid nyinstallation" => "Deployment",
+        _ => null,
+    };
+})
+.WithName("CreateSakkunnigStory");
 
 // Creating a work item from an open card: "child" from the taskboard, "related" from the
 // relations tab. Area/iteration default to the card's own, so a new item lands in the same sprint
@@ -730,6 +960,7 @@ app.MapPost("/api/workitems/{id:int}/children", async (
     };
     if (!string.IsNullOrWhiteSpace(request.AssignedTo)) fields["System.AssignedTo"] = request.AssignedTo;
     if (!string.IsNullOrWhiteSpace(request.Activity)) fields["Microsoft.VSTS.Common.Activity"] = request.Activity;
+    if (request.StoryPoints.HasValue) fields["Microsoft.VSTS.Scheduling.StoryPoints"] = request.StoryPoints.Value;
     if (request.Tags is { Count: > 0 }) fields["System.Tags"] = string.Join("; ", request.Tags);
     if (!string.IsNullOrWhiteSpace(request.Description))
     {
@@ -1005,6 +1236,164 @@ app.MapPost("/api/workitems/{id:int}/helptext-story", async (
 })
 .WithName("CreateHelptextStory");
 
+// "Bryt ut hjälptext" on the Relationer/Taskboard tabs: unlike CreateHelptextStory above, this
+// doesn't invent a new Documentation task - it moves the story's *existing* one. The client has
+// already identified (or the user has picked, when more than one Documentation task was active)
+// which child Task this is; when there wasn't one at all, the client asks first and then posts
+// with taskId null so a fresh one gets created directly under the new story, same shape as
+// CreateHelptextStory. Either way the new story is assigned to the Task's own owner, not the
+// story's developer - whoever already had the documentation work keeps it.
+app.MapPost("/api/workitems/{id:int}/helptext-breakout", async (
+    int id,
+    BreakoutHelpTextRequest request,
+    IAzureDevOpsService azureDevOpsService,
+    CancellationToken ct) =>
+{
+    var source = await azureDevOpsService.GetWorkItemDetailAsync(id, ct);
+    if (source is null)
+        return Results.NotFound();
+
+    if (request.TaskId is int existingTaskId)
+    {
+        var task = await azureDevOpsService.GetWorkItemDetailAsync(existingTaskId, ct);
+        if (task is null)
+            return Results.NotFound($"Hittade inte task #{existingTaskId}.");
+        if (!string.Equals(task.Type, "Task", StringComparison.OrdinalIgnoreCase))
+            return Results.BadRequest($"#{existingTaskId} är inte en Task.");
+        if (task.Parent?.Id != id)
+            return Results.BadRequest($"#{existingTaskId} är inte en task under #{id}.");
+
+        var storyId = await azureDevOpsService.CreateRelatedUserStoryAsync(
+            id,
+            $"Hjälptext – {source.Title}",
+            task.AssignedTo,
+            source.AreaPath,
+            source.IterationPath,
+            ct);
+
+        await azureDevOpsService.RemoveWorkItemRelationAsync(existingTaskId, id, "System.LinkTypes.Hierarchy-Reverse", ct);
+        await azureDevOpsService.AddWorkItemRelationAsync(existingTaskId, storyId, "System.LinkTypes.Hierarchy-Reverse", ct);
+
+        return Results.Ok(new { storyId, taskId = existingTaskId });
+    }
+    else
+    {
+        var storyId = await azureDevOpsService.CreateRelatedUserStoryAsync(
+            id,
+            $"Hjälptext – {source.Title}",
+            null,
+            source.AreaPath,
+            source.IterationPath,
+            ct);
+        var taskId = await azureDevOpsService.CreateTaskAsync(
+            storyId,
+            $"Hjälptext - {source.Title}",
+            "Documentation",
+            null,
+            "New",
+            source.AreaPath,
+            source.IterationPath,
+            ct);
+
+        return Results.Ok(new { storyId, taskId });
+    }
+})
+.WithName("BreakoutHelptext");
+
+// AvekiDokumentation: additive alternative to the "helptext-story" endpoint above. Instead of a
+// satellite User Story cluttering this project's board, the card is created directly in the
+// Dokumentation project - parented under BESTÄLLNING, exactly like TD already does by hand per the
+// wiki's rutin - and Related-linked back here. The source card is never written to beyond that
+// mirrored link, so nothing about closing it changes.
+app.MapPost("/api/documentation/helptext-tasks", async (
+    CreateDocumentationHelpTextTaskRequest request,
+    IAzureDevOpsService azureDevOpsService,
+    IConfiguration configuration,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Title))
+        return Results.BadRequest("Hjälptextkortet behöver en titel.");
+    if (request.RelatedWorkItemId <= 0)
+        return Results.BadRequest("Saknar kortet som hjälptexten hör till.");
+
+    var source = await azureDevOpsService.GetWorkItemDetailAsync(request.RelatedWorkItemId, ct);
+    if (source is null)
+        return Results.NotFound($"Hittade inte #{request.RelatedWorkItemId}.");
+
+    var project = configuration["Documentation:ProjectName"];
+    var parentStoryId = configuration.GetValue<int?>("Documentation:BestallningStoryId");
+    if (string.IsNullOrWhiteSpace(project) || parentStoryId is null or <= 0)
+        return Results.Problem("Documentation:ProjectName/BestallningStoryId saknas i konfigurationen.");
+
+    // Same "Hjälptext - " prefix the wiki's rutin already uses - it's what makes a card
+    // recognisable as hjälptext at a glance, and what the list below matches on.
+    var title = request.Title.Trim();
+    if (!title.StartsWith("Hjälptext", StringComparison.OrdinalIgnoreCase))
+        title = $"Hjälptext - {title}";
+
+    var taskId = await azureDevOpsService.CreateCrossProjectHelpTextTaskAsync(
+        project,
+        parentStoryId.Value,
+        title,
+        request.DescriptionHtml,
+        request.AssignedTo,
+        request.RelatedWorkItemId,
+        ct);
+
+    var organization = configuration["AzureDevOps:Organization"];
+    var webUrl = $"https://dev.azure.com/{organization}/{Uri.EscapeDataString(project)}/_workitems/edit/{taskId}";
+    return Results.Ok(new { id = taskId, url = webUrl });
+})
+.WithName("CreateDocumentationHelpTextTask");
+
+// The list both AvekiDokumentation views read: every hjälptext-Task in the Dokumentation project,
+// wherever it came from - the button above, or TD's existing by-hand rutin. Konsult sees the ones
+// still open; Dokumentatör sees the ones a konsult closed to mark "klart" - closing the card *is*
+// the hand-off, so both views share this one list and split it client-side by state.
+app.MapGet("/api/documentation/helptext-tasks", async (
+    IAzureDevOpsService azureDevOpsService,
+    IConfiguration configuration,
+    CancellationToken ct) =>
+{
+    var project = configuration["Documentation:ProjectName"];
+    if (string.IsNullOrWhiteSpace(project))
+        return Results.Problem("Documentation:ProjectName saknas i konfigurationen.");
+
+    var safeProject = project.Replace("'", "''");
+    var wiql =
+        $"SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{safeProject}' " +
+        "AND [System.WorkItemType] = 'Task' AND [System.Title] CONTAINS 'Hjälptext' " +
+        "AND [System.State] <> 'Removed' " +
+        // Closed included, but only recent ones - years of cards TD already finished and closed
+        // long ago (the pre-existing, by-hand rutin) shouldn't flood the "ready for TD" queue.
+        "AND ([System.State] <> 'Closed' OR [System.ChangedDate] >= @Today - 120) " +
+        "ORDER BY [System.ChangedDate] DESC";
+
+    var ids = await azureDevOpsService.RunWiqlIdsAsync(wiql, ct);
+    if (ids.Count == 0)
+        return Results.Ok(Array.Empty<object>());
+
+    // The lighter batched shape (WorkItemDto), not a per-row detail fetch: the list only needs to
+    // render a row, and a detail fetch (with its Related link) happens once, when a row is opened.
+    var items = await azureDevOpsService.GetWorkItemsDetailsAsync(ids.Take(200).ToList(), ct);
+    var org = configuration["AzureDevOps:Organization"];
+    return Results.Ok(items
+        .Select(i => new
+        {
+            id = i.Id,
+            title = i.Title,
+            state = i.State,
+            tags = i.Tags,
+            assignedTo = i.AssignedTo,
+            createdDate = i.CreatedDate,
+            changedDate = i.ChangedDate,
+            webUrl = $"https://dev.azure.com/{org}/{Uri.EscapeDataString(project)}/_workitems/edit/{i.Id}",
+        })
+        .OrderByDescending(i => i.changedDate)
+        .ToList());
+})
+.WithName("GetDocumentationHelpTextTasks");
+
 app.MapGet("/api/attachments/{id:guid}", async (
     Guid id,
     string? fileName,
@@ -1263,9 +1652,198 @@ app.MapGet("/api/support/bugs", async (
 // would leave the user staring at a 401.
 app.MapFallbackToFile("index.html").AllowAnonymous();
 
+// Azure Test Plans. The service keeps all Azure URLs and response mapping outside the web layer;
+// these project-scoped endpoints expose the same operations to the React app in PAT and Entra modes.
+var testPlans = app.MapGroup("/api/test-plans");
+testPlans.MapGet("/", async (ITestPlansService service, CancellationToken ct) =>
+    Results.Ok(await service.GetPlansAsync(ct)));
+testPlans.MapPost("/", async (TestPlanWrite request, ITestPlansService service, CancellationToken ct) =>
+    Results.Ok(await service.CreatePlanAsync(request, ct)));
+testPlans.MapPatch("/{planId:int}", async (int planId, TestPlanWrite request, ITestPlansService service, CancellationToken ct) =>
+    Results.Ok(await service.UpdatePlanAsync(planId, request, ct)));
+testPlans.MapGet("/{planId:int}/suites", async (int planId, ITestPlansService service, CancellationToken ct) =>
+    Results.Ok(await service.GetSuitesAsync(planId, ct)));
+testPlans.MapPost("/{planId:int}/suites", async (int planId, TestSuiteWrite request, ITestPlansService service, CancellationToken ct) =>
+    Results.Ok(await service.CreateSuiteAsync(planId, request, ct)));
+testPlans.MapPatch("/{planId:int}/suites/{suiteId:int}", async (int planId, int suiteId, TestSuiteWrite request, ITestPlansService service, CancellationToken ct) =>
+    Results.Ok(await service.UpdateSuiteAsync(planId, suiteId, request, ct)));
+testPlans.MapGet("/{planId:int}/suites/{suiteId:int}/cases", async (int planId, int suiteId, ITestPlansService service, CancellationToken ct) =>
+    Results.Ok(await service.GetSuiteCasesAsync(planId, suiteId, ct)));
+testPlans.MapPost("/{planId:int}/suites/{suiteId:int}/cases", async (int planId, int suiteId, TestCaseMembership request, ITestPlansService service, CancellationToken ct) =>
+{
+    await service.AddCasesAsync(planId, suiteId, request, ct);
+    return Results.NoContent();
+});
+testPlans.MapDelete("/{planId:int}/suites/{suiteId:int}/cases/{caseId:int}", async (int planId, int suiteId, int caseId, ITestPlansService service, CancellationToken ct) =>
+{
+    await service.RemoveCasesAsync(planId, suiteId, new[] { caseId }, ct);
+    return Results.NoContent();
+});
+testPlans.MapGet("/{planId:int}/suites/{suiteId:int}/points", async (int planId, int suiteId, ITestPlansService service, CancellationToken ct) =>
+    Results.Ok(await service.GetPointsAsync(planId, suiteId, ct)));
+testPlans.MapPatch("/{planId:int}/suites/{suiteId:int}/points/{pointId:int}/tester", async (int planId, int suiteId, int pointId, AssignTesterRequest request, ITestPlansService service, CancellationToken ct) =>
+{
+    await service.AssignTesterAsync(planId, suiteId, pointId, request.TesterId, ct);
+    return Results.NoContent();
+});
+testPlans.MapPost("/cases/batch", async (IReadOnlyList<int> caseIds, ITestPlansService service, CancellationToken ct) =>
+    Results.Ok(await service.GetCasesAsync(caseIds, ct)));
+testPlans.MapGet("/cases/{caseId:int}/execution", async (int caseId, int? revision, ITestPlansService service, CancellationToken ct) =>
+    Results.Ok(await service.GetExecutionCaseAsync(caseId, revision, ct)));
+testPlans.MapGet("/cases/{caseId:int}", async (int caseId, ITestPlansService service, CancellationToken ct) =>
+    Results.Ok(await service.GetCaseAsync(caseId, ct)));
+testPlans.MapPost("/cases", async (TestCaseWrite request, ITestPlansService service, CancellationToken ct) =>
+    Results.Ok(await service.CreateCaseAsync(request, ct)));
+testPlans.MapPatch("/cases/{caseId:int}", async (int caseId, TestCaseWrite request, ITestPlansService service, CancellationToken ct) =>
+    Results.Ok(await service.UpdateCaseAsync(caseId, request, ct)));
+testPlans.MapGet("/configurations", async (ITestPlansService service, CancellationToken ct) =>
+    Results.Ok(await service.GetConfigurationsAsync(ct)));
+testPlans.MapPost("/configurations", async (TestConfigurationWrite request, ITestPlansService service, CancellationToken ct) =>
+    Results.Ok(await service.CreateConfigurationAsync(request, ct)));
+testPlans.MapPatch("/configurations/{configurationId:int}", async (int configurationId, TestConfigurationWrite request, ITestPlansService service, CancellationToken ct) =>
+    Results.Ok(await service.UpdateConfigurationAsync(configurationId, request, ct)));
+testPlans.MapPost("/runs", async (TestRunWrite request, ITestPlansService service, CancellationToken ct) =>
+    Results.Ok(await service.CreateRunAsync(request, ct)));
+testPlans.MapGet("/runs/{runId:int}", async (int runId, ITestPlansService service, CancellationToken ct) =>
+    Results.Ok(await service.GetRunAsync(runId, ct)));
+testPlans.MapGet("/runs/{runId:int}/results", async (int runId, ITestPlansService service, CancellationToken ct) =>
+    Results.Ok(await service.GetResultsAsync(runId, ct)));
+testPlans.MapPatch("/runs/{runId:int}/results", async (int runId, IReadOnlyList<TestResultWrite> request, ITestPlansService service, CancellationToken ct) =>
+{
+    await service.UpdateResultsAsync(runId, request, ct);
+    return Results.NoContent();
+});
+testPlans.MapPost("/runs/{runId:int}/complete", async (int runId, ITestPlansService service, CancellationToken ct) =>
+    Results.Ok(await service.CompleteRunAsync(runId, ct)));
 app.Run();
 
 static string FormatDisplayName(string email) => PersonNames.Format(email);
+
+/// <summary>
+/// Shared by /api/dailys and /api/dailys/person: resolves the sprint (explicit iteration, sandbox
+/// override, or today's date) and applies the same team/PO ownership scoping to the team's work
+/// items. Factored out so the person-scoped refresh endpoint can't silently drift from what the
+/// full board shows - both call this exact same resolution.
+/// </summary>
+static async Task<(ScopedTeamData? Data, IResult? Error)> ResolveScopedTeamDataAsync(
+    string team,
+    string? iteration,
+    IAzureDevOpsService azureDevOpsService,
+    ITeamRoleProvider teamRoleProvider,
+    IConfiguration configuration,
+    CancellationToken ct)
+{
+    if (!Enum.TryParse<DeveloperTeam>(team, ignoreCase: true, out var developerTeam))
+        return (null, Results.BadRequest($"Unknown team '{team}'. Expected 'Nord' or 'Syd'."));
+
+    var iterations = await azureDevOpsService.GetIterationsAsync(developerTeam, ct);
+
+    Sprint? selectedSprint;
+    if (!string.IsNullOrWhiteSpace(iteration))
+    {
+        selectedSprint = iterations.FirstOrDefault(
+            sprint => string.Equals(sprint.Path, iteration, StringComparison.OrdinalIgnoreCase));
+        if (selectedSprint is null)
+            return (null, Results.NotFound($"Iteration '{iteration}' was not found among team '{team}''s iterations."));
+    }
+    else
+    {
+        // Local testing override: pin the board to a specific iteration instead of the
+        // date-based "current sprint" pick, useful in a sandbox project whose sprint dates
+        // don't line up with today. Empty/unset falls back to the normal auto-detection.
+        var iterationOverride = configuration["Testing:IterationPathOverride"];
+        if (!string.IsNullOrWhiteSpace(iterationOverride))
+        {
+            selectedSprint = iterations.FirstOrDefault(
+                sprint => string.Equals(sprint.Path, iterationOverride, StringComparison.OrdinalIgnoreCase));
+            if (selectedSprint is null)
+                return (null, Results.NotFound(
+                    $"Configured Testing:IterationPathOverride '{iterationOverride}' was not found among team '{team}''s iterations."));
+        }
+        else
+        {
+            var today = DateTime.UtcNow.Date;
+            selectedSprint =
+                iterations.FirstOrDefault(sprint => sprint.StartDate.Date <= today && today <= sprint.EndDate.Date)
+                ?? iterations.OrderBy(sprint => sprint.EndDate).FirstOrDefault(sprint => sprint.EndDate.Date >= today)
+                ?? iterations.LastOrDefault();
+        }
+    }
+
+    if (selectedSprint is null)
+        return (null, Results.NotFound($"No iterations found for team '{team}'."));
+
+    var workItems = await azureDevOpsService.GetAllWorkItemsWithDetailsAsync(selectedSprint.Path, developerTeam, ct);
+
+    // Area paths are shared across teams (POs plan together there), but a daily should only
+    // show cards owned by this team's own developers - not colleagues from the other team who
+    // happen to have a card filed under a shared area path. Unassigned cards stay visible since
+    // they can't be attributed to either team yet.
+    // Only story/bug cards are checked against this list - a Task always stays with its parent
+    // story regardless of who it's assigned to, otherwise tasks handed off to a QA engineer (who
+    // isn't in the Developers role group) silently vanish from an otherwise-included story.
+    var teamDeveloperEmails = new HashSet<string>(
+        teamRoleProvider.GetTeamMembersForRoleGroup(TeamRoleType.Developers, $"Team{developerTeam}"),
+        StringComparer.OrdinalIgnoreCase);
+
+    // Cards owned by the team's own PO don't belong on the developer-focused board either, but
+    // the daily-flow's PO turn still needs them - so they're kept (marked via
+    // ownedByProductOwner) instead of dropped outright, and the client hides them from the normal
+    // board view.
+    var teamProductOwnerEmails = new HashSet<string>(
+        teamRoleProvider.GetTeamMembersForRoleGroup(TeamRoleType.ProductOwners, $"Team{developerTeam}"),
+        StringComparer.OrdinalIgnoreCase);
+
+    // The Assigned Team field is the one place someone states outright which team owns a card, so
+    // when it is set it decides - over the assignee, and over an unassigned card's habit of
+    // showing up on both boards. It's rarely filled in, which is exactly why it matters when it is.
+    // Returns null when the field is empty or holds something that isn't a team name.
+    static DeveloperTeam? ExplicitTeam(AvekiScrum.Application.Models.DTOs.Scrum.WorkItemDto wi) =>
+        string.IsNullOrWhiteSpace(wi.AssignedTeam) ? null : DeveloperTeamExtensions.FromAzureDevOpsName(wi.AssignedTeam.Trim());
+
+    bool IsOwnedByTeam(AvekiScrum.Application.Models.DTOs.Scrum.WorkItemDto wi)
+    {
+        var explicitTeam = ExplicitTeam(wi);
+        if (explicitTeam.HasValue)
+            return explicitTeam.Value == developerTeam;
+        return string.IsNullOrWhiteSpace(wi.AssignedToEmail) || teamDeveloperEmails.Contains(wi.AssignedToEmail);
+    }
+
+    bool IsOwnedByProductOwner(AvekiScrum.Application.Models.DTOs.Scrum.WorkItemDto wi)
+    {
+        if (string.IsNullOrWhiteSpace(wi.AssignedToEmail) || !teamProductOwnerEmails.Contains(wi.AssignedToEmail))
+            return false;
+        var explicitTeam = ExplicitTeam(wi);
+        return !explicitTeam.HasValue || explicitTeam.Value == developerTeam;
+    }
+
+    List<AvekiScrum.Application.Models.DTOs.Scrum.WorkItemDto> scopedWorkItems;
+    HashSet<int> productOwnerStoryIds;
+    if (teamDeveloperEmails.Count == 0 && teamProductOwnerEmails.Count == 0)
+    {
+        scopedWorkItems = workItems.ToList();
+        productOwnerStoryIds = new HashSet<int>();
+    }
+    else
+    {
+        var developerOwnedStoryIds = workItems
+            .Where(wi => wi.TypeEnum != WorkItemType.Task && IsOwnedByTeam(wi))
+            .Select(wi => wi.Id)
+            .ToHashSet();
+        productOwnerStoryIds = workItems
+            .Where(wi => wi.TypeEnum != WorkItemType.Task && IsOwnedByProductOwner(wi))
+            .Select(wi => wi.Id)
+            .ToHashSet();
+        var visibleStoryIds = developerOwnedStoryIds.Union(productOwnerStoryIds).ToHashSet();
+        scopedWorkItems = workItems
+            .Where(wi => wi.TypeEnum == WorkItemType.Task
+                ? wi.ParentId.HasValue && visibleStoryIds.Contains(wi.ParentId.Value)
+                : visibleStoryIds.Contains(wi.Id))
+            .ToList();
+    }
+
+    return (new ScopedTeamData(developerTeam, selectedSprint, scopedWorkItems, productOwnerStoryIds), null);
+}
 
 /// <summary>Config value, or the given default when the key is missing or blank.</summary>
 static string Fallback(string? value, string fallback) => string.IsNullOrWhiteSpace(value) ? fallback : value;
@@ -1325,6 +1903,25 @@ internal static class PersonNames
 
 internal sealed record PersonOption(string Email, string DisplayName);
 
+internal sealed record ScopedTeamData(
+    DeveloperTeam Team,
+    Sprint Sprint,
+    List<AvekiScrum.Application.Models.DTOs.Scrum.WorkItemDto> ScopedWorkItems,
+    HashSet<int> ProductOwnerStoryIds);
+
+internal sealed record SaveDailyCheckInsRequest(
+    string Team,
+    string SprintPath,
+    string SprintName,
+    string Date,
+    List<DailyCheckInEntryRequest> Entries);
+
+internal sealed record DailyCheckInEntryRequest(
+    string Kind,
+    string Key,
+    string Label,
+    double Score);
+
 internal sealed record WorkItemFieldUpdateRequest(
     string? Title,
     string? State,
@@ -1342,6 +1939,7 @@ internal sealed record WorkItemFieldUpdateRequest(
     string? Severity,
     string? Source,
     string? Activity,
+    bool? IsBlocked,
     double? RemainingWork,
     double? CompletedWork,
     double? OriginalEstimate,
@@ -1349,7 +1947,20 @@ internal sealed record WorkItemFieldUpdateRequest(
     string? ValueArea,
     string? AssignedTeam,
     string? Stakeholders,
-    string? Reason);
+    string? Reason,
+    // The Godkännande-tab's "Godkänn DoR": written together in one save, same as every other
+    // field here - see WorkItemReadyCheckTab. ApprovedDate/Revision come from the client rather
+    // than being stamped server-side, same pattern as everything else in this endpoint.
+    string? DoRStatus,
+    string? DoRDecision,
+    string? DoRApprovedBy,
+    DateTime? DoRApprovedDate,
+    int? DoRRevision,
+    // Sakkunnig-kandidater (Feature) - same null-to-clear identity-field rule as DevelopmentPartner.
+    string? Kandidat1,
+    string? Kandidat2,
+    string? Kandidat3,
+    string? SakkunnigInfo);
 
 internal sealed record CreateWorkItemRequest(
     string Type,
@@ -1361,11 +1972,21 @@ internal sealed record CreateWorkItemRequest(
     string? Activity,
     string? AreaPath,
     string? IterationPath,
-    List<string>? Tags);
+    List<string>? Tags,
+    double? StoryPoints);
 
 internal sealed record AddCommentRequest(string Text);
 
 internal sealed record RelationRequest(int TargetId, string LinkKind);
+
+/// <summary>AvekiDokumentation's "Beställ hjälptext" form - see the two /api/documentation/... endpoints.</summary>
+internal sealed record CreateDocumentationHelpTextTaskRequest(
+    /// <summary>The card in Utveckling this help text belongs to. Never modified beyond the
+    /// Related link Azure mirrors onto it automatically.</summary>
+    int RelatedWorkItemId,
+    string Title,
+    string? DescriptionHtml,
+    string? AssignedTo);
 
 /// <summary>
 /// The backlog hierarchy this project actually uses: Epic → Feature → User Story/Bug → Task.
@@ -1378,9 +1999,8 @@ internal static class WorkItemHierarchy
     private static readonly Dictionary<string, string[]> AllowedChildren = new(StringComparer.OrdinalIgnoreCase)
     {
         ["Epic"] = new[] { "Feature" },
-        ["Feature"] = new[] { "User Story", "Product Backlog Item", "Bug" },
+        ["Feature"] = new[] { "User Story", "Bug" },
         ["User Story"] = new[] { "Task" },
-        ["Product Backlog Item"] = new[] { "Task" },
         ["Bug"] = new[] { "Task" },
         ["Task"] = Array.Empty<string>(),
     };
@@ -1410,3 +2030,10 @@ internal static class WorkItemHierarchy
 internal sealed record NewTaskRequest(string Title, string? Activity, string? AssignedTo, string? State);
 
 internal sealed record CreateTasksRequest(List<NewTaskRequest> Tasks);
+
+internal sealed record CreateSakkunnigRequest(string AssignedTo, string? InfoHtml, List<string>? TaskTitles);
+
+/// <summary>Null TaskId means "create a new Documentation task" - see the helptext-breakout endpoint.</summary>
+internal sealed record BreakoutHelpTextRequest(int? TaskId);
+
+public sealed record AssignTesterRequest(string TesterId);

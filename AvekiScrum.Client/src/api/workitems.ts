@@ -5,6 +5,13 @@ export interface WorkItemRelationRef {
   title: string;
   state: string;
   activity: string | null;
+  /** So a Task shown as a relation or on a Taskboard can use the same card look as one on the
+   *  sprint board - see TaskCardVisual.tsx. */
+  assignedTo: string | null;
+  createdDate: string | null;
+  isBlocked: boolean;
+  /** Set for User Story/Bug - null for every other type. */
+  storyPoints: number | null;
 }
 
 export interface WorkItemComment {
@@ -37,7 +44,9 @@ export interface WorkItemPullRequest {
 }
 
 export interface WorkItemHistoryEntry {
-  when: string;
+  when: string | null;
+  revision: number;
+  changedBy: string | null;
   field: string;
   oldValue: string | null;
   newValue: string | null;
@@ -68,6 +77,9 @@ export interface WorkItemDetail {
   stakeholders: string | null;
   /** The Lime case a support-reported bug came from. Free text on older cards. */
   externalLink: string | null;
+  /** The build a fix shipped in ("BETA #20260913.3") - Azure's own "Integrated in Build" field,
+   *  set by the build pipeline. Null until the fix has actually been built. */
+  integrationBuild: string | null;
   tags: string[];
   descriptionHtml: string;
   acceptanceCriteriaHtml: string;
@@ -80,6 +92,22 @@ export interface WorkItemDetail {
   comments: WorkItemComment[];
   pullRequests: WorkItemPullRequest[];
   history: WorkItemHistoryEntry[];
+  rev: number | null;
+  /** Microsoft.VSTS.CMMI.Blocked - Task-only in this process template, see workItemTypeConfig's
+   *  showBlocked. */
+  isBlocked: boolean;
+  /** "Ready" / "Ready with risk" / "Needs refinement" / "Not assessed" - see WorkItemReadyCheckTab. */
+  doRStatus: string | null;
+  /** The INVEST checklist + ready-check answers + comment, composed - see dorDecisionLogic.ts. */
+  doRDecisionHtml: string;
+  doRApprovedBy: string | null;
+  doRApprovedDate: string | null;
+  doRRevision: number | null;
+  /** Sakkunnig-kandidater - set on a Feature, null everywhere else. */
+  kandidat1: string | null;
+  kandidat2: string | null;
+  kandidat3: string | null;
+  sakkunnigInfoHtml: string;
 }
 
 export interface WorkItemFieldUpdate {
@@ -98,6 +126,7 @@ export interface WorkItemFieldUpdate {
   severity?: string;
   source?: string;
   activity?: string;
+  isBlocked?: boolean;
   remainingWork?: number;
   completedWork?: number;
   originalEstimate?: number;
@@ -105,6 +134,15 @@ export interface WorkItemFieldUpdate {
   valueArea?: string;
   assignedTeam?: string;
   stakeholders?: string;
+  doRStatus?: string;
+  doRDecision?: string;
+  doRApprovedBy?: string;
+  doRApprovedDate?: string;
+  doRRevision?: number;
+  kandidat1?: string;
+  kandidat2?: string;
+  kandidat3?: string;
+  sakkunnigInfo?: string;
 }
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:5273";
@@ -161,6 +199,42 @@ export async function createHelptextStory(parentId: number): Promise<{ storyId: 
   return (await response.json()) as { storyId: number; taskId: number };
 }
 
+/** "Bryt ut hjälptext": creates a related User Story and moves the given Documentation-activity
+ *  Task under it - assigned to the Task's own owner, not the story's developer. Pass `taskId: null`
+ *  to have the API create a fresh Documentation task under the new story instead, for when the
+ *  card doesn't have one yet. */
+export async function breakoutHelpText(parentId: number, taskId: number | null): Promise<{ storyId: number; taskId: number }> {
+  const response = await apiFetch(`${API_BASE_URL}/api/workitems/${parentId}/helptext-breakout`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ taskId }),
+  });
+  if (!response.ok) {
+    throw new Error(await describeFailure(response, "Kunde inte bryta ut hjälptexten"));
+  }
+  return (await response.json()) as { storyId: number; taskId: number };
+}
+
+export interface CreateSakkunnigRequest {
+  assignedTo: string;
+  infoHtml?: string;
+  taskTitles?: string[];
+}
+
+/** "Utse Sakkunnig": creates the Sakkunnig_-prefixed User Story, Related-linked to `storyId`, with
+ *  one Task per checked checklist item. See AppointSakkunnigModal. */
+export async function createSakkunnigStory(storyId: number, request: CreateSakkunnigRequest): Promise<{ id: number }> {
+  const response = await apiFetch(`${API_BASE_URL}/api/workitems/${storyId}/sakkunnig`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  if (!response.ok) {
+    throw new Error(await describeFailure(response, "Kunde inte utse sakkunnig"));
+  }
+  return (await response.json()) as { id: number };
+}
+
 export type LinkKind = "parent" | "child" | "related";
 
 export interface CreateLinkedWorkItemRequest {
@@ -174,6 +248,7 @@ export interface CreateLinkedWorkItemRequest {
   areaPath?: string | null;
   iterationPath?: string | null;
   tags?: string[];
+  storyPoints?: number | null;
 }
 
 /** Creates a work item linked to `id`. Area and iteration default to the source card's. */

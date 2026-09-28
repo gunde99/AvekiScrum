@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createLinkedWorkItem, fetchWorkItemDetail, type LinkKind, type WorkItemDetail } from "../../api/workitems";
 import type { PersonOption } from "../../api/people";
-import { ACTIVITIES, CREATABLE_TYPES } from "./workItemTypeConfig";
+import { ACTIVITIES, CREATABLE_TYPES, getWorkItemTypeConfig } from "./workItemTypeConfig";
 import "./NewWorkItemForm.css";
 
 interface NewWorkItemFormProps {
@@ -27,13 +27,16 @@ export function NewWorkItemForm({ source, linkKind, types = CREATABLE_TYPES, peo
   const [title, setTitle] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
   const [activity, setActivity] = useState("");
+  const [storyPoints, setStoryPoints] = useState<number | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const showStoryPoints = getWorkItemTypeConfig(type).showStoryPoints;
 
   function reset() {
     setTitle("");
     setAssignedTo("");
     setActivity("");
+    setStoryPoints(undefined);
     setError(null);
   }
 
@@ -48,6 +51,7 @@ export function NewWorkItemForm({ source, linkKind, types = CREATABLE_TYPES, peo
         linkKind,
         assignedTo: assignedTo || null,
         activity: type === "Task" ? activity || null : null,
+        storyPoints: showStoryPoints ? storyPoints ?? null : null,
       });
       reset();
       setOpen(false);
@@ -117,6 +121,17 @@ export function NewWorkItemForm({ source, linkKind, types = CREATABLE_TYPES, peo
                 </option>
               ))}
             </select>
+          </label>
+        )}
+        {showStoryPoints && (
+          <label className="wi-new-item__field wi-new-item__field--sp">
+            <span>SP</span>
+            <input
+              type="number"
+              min={0}
+              value={storyPoints ?? ""}
+              onChange={(e) => setStoryPoints(e.target.value === "" ? undefined : Number(e.target.value))}
+            />
           </label>
         )}
       </div>

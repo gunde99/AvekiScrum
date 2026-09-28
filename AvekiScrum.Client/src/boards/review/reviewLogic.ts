@@ -1,4 +1,5 @@
 import type { DailyStoryDto } from "../../api/dailys";
+import { fullPersonName } from "../../lib/personNames";
 
 /**
  * The three ways a card can be presented at sprint review. Every card the team worked on gets
@@ -70,4 +71,61 @@ export function laneOf(story: DailyStoryDto): ReviewLaneKey | null {
 export function tagsForLane(story: DailyStoryDto, lane: ReviewLane | null): string[] {
   const withoutReview = (story.tags ?? []).filter((t) => !REVIEW_TAGS.some((r) => normalize(r) === normalize(t)));
   return lane ? [...withoutReview, lane.tag] : withoutReview;
+}
+
+// Closed/Done first (nothing left to decide about them), New last (furthest from ready) - matches
+// how the daily board's own status filter orders things.
+const STATUS_PRIORITY = ["Closed", "Done", "Resolved", "Active", "New"];
+
+function statusPriority(status: string): number {
+  const index = STATUS_PRIORITY.indexOf(status);
+  return index < 0 ? STATUS_PRIORITY.length : index;
+}
+
+export interface StatusGroup {
+  status: string;
+  stories: DailyStoryDto[];
+}
+
+/** Cards with no sprint goal, grouped by Azure status - Closed first, New last. Used for the
+ *  "(Inget sprintmål)" catch-all group, which otherwise has nothing else in common to sort by. */
+export function groupByStatus(stories: DailyStoryDto[]): StatusGroup[] {
+  const byStatus = new Map<string, DailyStoryDto[]>();
+  for (const story of stories) {
+    const key = story.azureStatus || "Okänd";
+    const list = byStatus.get(key);
+    if (list) list.push(story);
+    else byStatus.set(key, [story]);
+  }
+  return [...byStatus.entries()]
+    .sort(([a], [b]) => statusPriority(a) - statusPriority(b))
+    .map(([status, groupStories]) => ({ status, stories: groupStories }));
+}
+
+export const UNASSIGNED_DEV_LABEL = "Ej tilldelad";
+
+export interface DeveloperGroup {
+  label: string;
+  stories: DailyStoryDto[];
+}
+
+/**
+ * Groups a panel's already-sorted cards by developer, alphabetically with "Ej tilldelad" last.
+ * Deliberately simpler than dailysLogic's buildGroups("developer", ...): that one also surfaces
+ * task/PR participants for the sprint-wide list, which isn't the question here - a panel just
+ * needs "whose card is this."
+ */
+export function groupByDeveloper(stories: DailyStoryDto[]): DeveloperGroup[] {
+  const byDev = new Map<string, DailyStoryDto[]>();
+  for (const story of stories) {
+    const key = fullPersonName(story.developer) || UNASSIGNED_DEV_LABEL;
+    const list = byDev.get(key);
+    if (list) list.push(story);
+    else byDev.set(key, [story]);
+  }
+  const names = [...byDev.keys()].filter((k) => k !== UNASSIGNED_DEV_LABEL).sort((a, b) => a.localeCompare(b, "sv"));
+  const groups = names.map((label) => ({ label, stories: byDev.get(label)! }));
+  const unassigned = byDev.get(UNASSIGNED_DEV_LABEL);
+  if (unassigned) groups.push({ label: UNASSIGNED_DEV_LABEL, stories: unassigned });
+  return groups;
 }

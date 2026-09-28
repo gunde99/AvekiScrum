@@ -1,10 +1,11 @@
-﻿using MediatR;
+using MediatR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using AvekiScrum.Application.Abstractions;
@@ -97,6 +98,21 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
         public Task<IReadOnlyList<int>> RunWiqlIdsAsync(string wiql, CancellationToken ct = default)
             => _boards.RunWiqlIdsAsync(wiql, ct);
 
+        public Task<IReadOnlyList<AzureTeamDto>> GetProjectTeamsAsync(CancellationToken ct = default)
+            => _boards.GetProjectTeamsAsync(ct);
+
+        public Task<ProductBacklogDto> GetProductBacklogAsync(string boardTeam, string? tag, string? iterationPath, string? areaPath, CancellationToken ct = default)
+            => _boards.GetProductBacklogAsync(boardTeam, tag, iterationPath, areaPath, ct);
+
+        public Task<ProductBacklogDto> GetRefinementSprintAsync(string iterationPath, IEnumerable<string> areaPaths, CancellationToken ct = default)
+            => _boards.GetRefinementSprintAsync(iterationPath, areaPaths, ct);
+
+        public Task<ProductBacklogDto> GetTaggedRefinementItemsAsync(string iterationPathPrefix, IEnumerable<string> areaPaths, string tag, CancellationToken ct = default)
+            => _boards.GetTaggedRefinementItemsAsync(iterationPathPrefix, areaPaths, tag, ct);
+
+        public Task<ProductBacklogDto> SearchRefinementItemsAsync(string query, CancellationToken ct = default)
+            => _boards.SearchRefinementItemsAsync(query, ct);
+
         public Task UpdateWorkItemFieldsAsync(int workItemId, IReadOnlyDictionary<string, object?> fields, CancellationToken ct = default)
             => _boards.UpdateWorkItemFieldsAsync(workItemId, fields, ct);
 
@@ -108,6 +124,9 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
 
         public Task<int> CreateWorkItemAsync(string workItemType, IReadOnlyDictionary<string, object?> fields, int? linkToId, string? linkRel, CancellationToken ct = default)
             => _boards.CreateWorkItemAsync(workItemType, fields, linkToId, linkRel, ct);
+
+        public Task<int> CreateCrossProjectHelpTextTaskAsync(string targetProject, int parentStoryId, string title, string? descriptionHtml, string? assignedTo, int relatedWorkItemId, CancellationToken ct = default)
+            => _boards.CreateCrossProjectHelpTextTaskAsync(targetProject, parentStoryId, title, descriptionHtml, assignedTo, relatedWorkItemId, ct);
 
         public Task AddWorkItemCommentAsync(int workItemId, string text, CancellationToken ct = default)
             => _boards.AddWorkItemCommentAsync(workItemId, text, ct);
@@ -514,7 +533,11 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
                 Type = s.Type,
                 Title = s.Title,
                 State = s.State,
-                Activity = s.Activity
+                Activity = s.Activity,
+                AssignedTo = s.AssignedTo,
+                CreatedDate = s.CreatedDate,
+                IsBlocked = s.IsBlocked,
+                StoryPoints = s.StoryPoints
             };
 
             var comments = await _boards.GetWorkItemCommentsAsync(workItemId, ct);
@@ -601,35 +624,7 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             }
 
             var updates = await _boards.GetWorkItemUpdatesAsync(workItemId, ct);
-            var history = new List<WorkItemHistoryEntryDto>();
-            foreach (var update in updates.Value)
-            {
-                if (update.Fields?.State != null)
-                    history.Add(new WorkItemHistoryEntryDto
-                    {
-                        When = update.RevisedDate,
-                        Field = "Status",
-                        OldValue = update.Fields.State.OldValue,
-                        NewValue = update.Fields.State.NewValue
-                    });
-                if (update.Fields?.AssignedTo != null)
-                    history.Add(new WorkItemHistoryEntryDto
-                    {
-                        When = update.RevisedDate,
-                        Field = "Tilldelad",
-                        OldValue = update.Fields.AssignedTo.OldValue?.DisplayName,
-                        NewValue = update.Fields.AssignedTo.NewValue?.DisplayName
-                    });
-                if (update.Fields?.Tags != null)
-                    history.Add(new WorkItemHistoryEntryDto
-                    {
-                        When = update.RevisedDate,
-                        Field = "Taggar",
-                        OldValue = update.Fields.Tags.OldValue,
-                        NewValue = update.Fields.Tags.NewValue
-                    });
-            }
-            history = history.OrderByDescending(h => h.When).ToList();
+            var history = BuildWorkItemHistory(updates.Value);
 
             var fields = raw.Fields;
             return new WorkItemDetailDto
@@ -657,6 +652,7 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
                 AssignedTeam = fields.AssignedTeam,
                 Stakeholders = fields.Stakeholders,
                 ExternalLink = fields.ExternalLink,
+                IntegrationBuild = fields.IntegrationBuild,
                 Tags = string.IsNullOrWhiteSpace(fields.Tags)
                     ? new List<string>()
                     : fields.Tags.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
@@ -687,8 +683,166 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
                     CreatedDate = c.CreatedDate
                 }).ToList(),
                 PullRequests = pullRequests,
-                History = history
+                History = history,
+                Rev = fields.Rev,
+                IsBlocked = string.Equals(fields.Blocked, "Yes", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(fields.Blocked, "True", StringComparison.OrdinalIgnoreCase),
+                DoRStatus = fields.DoRStatus,
+                DoRDecisionHtml = fields.DoRDecision ?? "",
+                DoRApprovedBy = fields.DoRApprovedBy?.DisplayName,
+                DoRApprovedDate = fields.DoRApprovedDate,
+                DoRRevision = fields.DoRRevision,
+                Kandidat1 = fields.Kandidat1?.DisplayName,
+                Kandidat2 = fields.Kandidat2?.DisplayName,
+                Kandidat3 = fields.Kandidat3?.DisplayName,
+                SakkunnigInfoHtml = fields.SakkunnigInfo ?? ""
             };
+        }
+
+        private static readonly HashSet<string> HiddenHistoryFields = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "System.Id",
+            "System.AreaId",
+            "System.NodeName",
+            "System.AreaLevel1",
+            "System.AreaLevel2",
+            "System.AreaLevel3",
+            "System.AreaLevel4",
+            "System.Rev",
+            "System.AuthorizedDate",
+            "System.RevisedDate",
+            "System.ChangedDate",
+            "System.ChangedBy",
+            "System.AuthorizedAs",
+            "System.PersonId",
+            "System.Watermark",
+            "System.IsDeleted",
+            "System.CommentCount",
+            "System.CreatedDate",
+            "System.CreatedBy",
+            "System.TeamProject",
+            "System.WorkItemType",
+            "System.IterationId",
+            "System.IterationLevel1",
+            "System.IterationLevel2",
+            "System.IterationLevel3",
+            "System.IterationLevel4",
+            "Microsoft.VSTS.Common.StateChangeDate"
+        };
+
+        private static readonly Dictionary<string, string> HistoryFieldLabels = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["System.Title"] = "Titel",
+            ["System.State"] = "Status",
+            ["System.Reason"] = "Orsak",
+            ["System.AssignedTo"] = "Tilldelad",
+            ["System.AreaPath"] = "Område",
+            ["System.IterationPath"] = "Iteration",
+            ["System.Tags"] = "Taggar",
+            ["System.Description"] = "Beskrivning",
+            ["System.History"] = "Kommentar",
+            ["System.Parent"] = "Huvudkort",
+            ["Microsoft.VSTS.TCM.ReproSteps"] = "Beskrivning",
+            ["Microsoft.VSTS.Common.AcceptanceCriteria"] = "Acceptanskriterier",
+            ["Microsoft.VSTS.Common.Priority"] = "Prioritet",
+            ["Microsoft.VSTS.Common.Severity"] = "Allvarlighetsgrad",
+            ["Microsoft.VSTS.Common.ValueArea"] = "Värdeområde",
+            ["Microsoft.VSTS.Common.BusinessValue"] = "Affärsvärde",
+            ["Microsoft.VSTS.Common.Activity"] = "Aktivitet",
+            ["Microsoft.VSTS.CMMI.Blocked"] = "Blockerad",
+            ["Microsoft.VSTS.Scheduling.StoryPoints"] = "Story points",
+            ["Microsoft.VSTS.Scheduling.OriginalEstimate"] = "Ursprunglig uppskattning",
+            ["Microsoft.VSTS.Scheduling.RemainingWork"] = "Återstående arbete",
+            ["Microsoft.VSTS.Scheduling.CompletedWork"] = "Slutfört arbete",
+            ["Microsoft.VSTS.Build.IntegrationBuild"] = "Integrationsbygge",
+            ["Custom.AssignedTeam"] = "Team",
+            ["Custom.Source"] = "Källa",
+            ["Custom.Stakeholders"] = "Intressenter",
+            ["Custom.Externallink"] = "Extern länk",
+            ["Custom.DevelopmentPartner"] = "Utvecklingspartner"
+        };
+
+        private static List<WorkItemHistoryEntryDto> BuildWorkItemHistory(IReadOnlyList<WorkItemUpdate> updates)
+        {
+            var history = new List<WorkItemHistoryEntryDto>();
+
+            foreach (var update in updates)
+            {
+                if (update.Fields == null) continue;
+
+                AddHistoryEntry(history, update, "System.State", update.Fields.State?.OldValue, update.Fields.State?.NewValue);
+                AddHistoryEntry(
+                    history,
+                    update,
+                    "System.AssignedTo",
+                    update.Fields.AssignedTo?.OldValue?.DisplayName,
+                    update.Fields.AssignedTo?.NewValue?.DisplayName);
+                AddHistoryEntry(history, update, "System.Tags", update.Fields.Tags?.OldValue, update.Fields.Tags?.NewValue);
+
+                foreach (var (field, delta) in update.Fields.AdditionalFields)
+                {
+                    if (HiddenHistoryFields.Contains(field) || delta.ValueKind != JsonValueKind.Object) continue;
+                    delta.TryGetProperty("oldValue", out var oldElement);
+                    delta.TryGetProperty("newValue", out var newElement);
+                    AddHistoryEntry(history, update, field, HistoryValue(oldElement), HistoryValue(newElement));
+                }
+            }
+
+            return history
+                .OrderByDescending(entry => entry.When ?? DateTimeOffset.MinValue)
+                .ThenByDescending(entry => entry.Revision)
+                .ToList();
+        }
+
+        private static void AddHistoryEntry(
+            ICollection<WorkItemHistoryEntryDto> history,
+            WorkItemUpdate update,
+            string field,
+            string? oldValue,
+            string? newValue)
+        {
+            if (HiddenHistoryFields.Contains(field)) return;
+            if (string.IsNullOrWhiteSpace(oldValue) && string.IsNullOrWhiteSpace(newValue)) return;
+            if (string.Equals(oldValue, newValue, StringComparison.Ordinal)) return;
+
+            // Description/ReproSteps/AcceptanceCriteria used to come through as a generic "Tidigare
+            // innehåll" -> "Ändrad" placeholder rather than the real HTML - now that a revision's
+            // detail only renders once its row is expanded (see WorkItemHistoryTab.tsx), there's no
+            // reason to hide what actually changed.
+
+            history.Add(new WorkItemHistoryEntryDto
+            {
+                When = update.EffectiveChangedDate,
+                Revision = update.Rev,
+                ChangedBy = update.RevisedBy?.DisplayName,
+                Field = HistoryFieldLabels.TryGetValue(field, out var label) ? label : field,
+                OldValue = oldValue,
+                NewValue = newValue
+            });
+        }
+
+        private static string? HistoryValue(JsonElement value)
+        {
+            switch (value.ValueKind)
+            {
+                case JsonValueKind.Undefined:
+                case JsonValueKind.Null:
+                    return null;
+                case JsonValueKind.String:
+                    return value.GetString();
+                case JsonValueKind.Number:
+                case JsonValueKind.True:
+                case JsonValueKind.False:
+                    return value.GetRawText();
+                case JsonValueKind.Object:
+                    if (value.TryGetProperty("displayName", out var displayName)) return displayName.GetString();
+                    if (value.TryGetProperty("name", out var name)) return name.GetString();
+                    return value.GetRawText();
+                case JsonValueKind.Array:
+                    return string.Join(", ", value.EnumerateArray().Select(HistoryValue).Where(v => !string.IsNullOrWhiteSpace(v)));
+                default:
+                    return value.GetRawText();
+            }
         }
 
         public Task<(byte[] Bytes, string ContentType)> GetWorkItemAttachmentAsync(

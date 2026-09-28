@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState, type ClipboardEvent } from "react";
+import { useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { uploadAttachment } from "../../api/attachments";
+import { fetchAllPeople, type PersonOption } from "../../api/people";
 import { isAttachmentUrl, toAttachmentBlobUrl } from "../../lib/apiFetch";
 import "./RichTextEditor.css";
 
@@ -11,6 +13,41 @@ interface RichTextEditorProps {
   onChange: (html: string) => void;
   placeholder?: string;
   minRows?: number;
+  /** Opt-in: typing "@" opens a name picker from the people roster - used by the Discussion tab's
+   *  composer. Off everywhere else, so every other field this editor is used for is unaffected. */
+  enableMentions?: boolean;
+}
+
+/** Where the "@query" the picker is currently open for sits in the editor - both to position the
+ *  dropdown and to know exactly what text to replace once a name is picked. */
+interface MentionState {
+  query: string;
+  rect: DOMRect;
+  range: Range;
+}
+
+/** The text right before the caret, if it looks like an in-progress "@name" - null once a space
+ *  ends the mention (finished) or nothing is being typed at all. */
+function detectMention(): MentionState | null {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return null;
+  const liveRange = sel.getRangeAt(0);
+  const node = liveRange.startContainer;
+  if (node.nodeType !== Node.TEXT_NODE) return null;
+  const text = node.textContent || "";
+  const offset = liveRange.startOffset;
+  const upToCaret = text.slice(0, offset);
+  // Starts at the beginning of the text node or after whitespace, so "email@work.se" doesn't
+  // trigger it - only an "@" someone actually meant as a mention does.
+  const match = /(?:^|\s)@([^\s@]*)$/.exec(upToCaret);
+  if (!match) return null;
+
+  const query = match[1];
+  const atIndex = upToCaret.length - query.length - 1;
+  const range = document.createRange();
+  range.setStart(node, atIndex);
+  range.setEnd(node, offset);
+  return { query, rect: range.getBoundingClientRect(), range };
 }
 
 /**
@@ -26,10 +63,12 @@ interface RichTextEditorProps {
  * and it's the real one that gets written back. Nothing that leaves this component ever contains a
  * blob URL.
  */
-export function RichTextEditor({ value, onChange, placeholder, minRows = 4 }: RichTextEditorProps) {
+export function RichTextEditor({ value, onChange, placeholder, minRows = 4, enableMentions }: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [people, setPeople] = useState<PersonOption[]>([]);
+  const [mention, setMention] = useState<MentionState | null>(null);
   // What we last handed upward. Comparing against it stops the caret from jumping to the start on
   // every keystroke, which is what happens if innerHTML is rewritten from a value we just emitted.
   const lastEmitted = useRef<string | null>(null);
@@ -44,12 +83,58 @@ export function RichTextEditor({ value, onChange, placeholder, minRows = 4 }: Ri
     void resolveImages(editor);
   }, [value]);
 
+  useEffect(() => {
+    if (!enableMentions) return;
+    let cancelled = false;
+    fetchAllPeople()
+      .then((p) => !cancelled && setPeople(p))
+      .catch(() => !cancelled && setPeople([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [enableMentions]);
+
   function emit() {
     const editor = editorRef.current;
     if (!editor) return;
     const html = toStorageHtml(editor);
     lastEmitted.current = html;
     onChange(html);
+  }
+
+  function handleInput() {
+    emit();
+    setMention(enableMentions ? detectMention() : null);
+  }
+
+  const filteredPeople = mention
+    ? people.filter((p) => p.displayName.toLowerCase().includes(mention.query.toLowerCase())).slice(0, 8)
+    : [];
+
+  function chooseMention(person: PersonOption) {
+    if (!mention) return;
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(mention.range);
+    // Not Azure's own mention link (that needs the identity's descriptor, which the people list
+    // doesn't carry) - just the name, visibly marked so it still reads as a mention.
+    insertHtmlAtCaret(`<strong class="rte-mention">@${escapeAttribute(person.displayName)}</strong>&nbsp;`);
+    emit();
+    setMention(null);
+    editorRef.current?.focus();
+  }
+
+  function handleKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (!mention) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setMention(null);
+      return;
+    }
+    if ((e.key === "Enter" || e.key === "Tab") && filteredPeople.length > 0) {
+      e.preventDefault();
+      chooseMention(filteredPeople[0]);
+    }
   }
 
   async function handlePaste(e: ClipboardEvent<HTMLDivElement>) {
@@ -104,10 +189,33 @@ export function RichTextEditor({ value, onChange, placeholder, minRows = 4 }: Ri
         aria-multiline="true"
         data-placeholder={placeholder}
         style={{ minHeight: `${minRows * 1.6 + 1}em` }}
-        onInput={emit}
+        onInput={handleInput}
         onBlur={emit}
         onPaste={handlePaste}
+        onKeyDown={handleKeyDown}
       />
+      {mention &&
+        filteredPeople.length > 0 &&
+        createPortal(
+          <div className="rte-mentions" style={{ top: mention.rect.bottom + window.scrollY, left: mention.rect.left + window.scrollX }}>
+            {filteredPeople.map((p) => (
+              <button
+                key={p.email}
+                type="button"
+                className="rte-mentions__item"
+                // mousedown, not click: a click fires after the editor's own blur, by which point
+                // the browser may already have collapsed the selection this needs to replace.
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  chooseMention(p);
+                }}
+              >
+                {p.displayName}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
       {/* Only speaks up when it has something to say. Pasting an image shows the image, which
           explains itself better than a line of text under every box on the page did. */}
       {(uploading || error) && (

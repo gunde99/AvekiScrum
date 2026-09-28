@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { BoardShell } from "../../components/BoardShell";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
 import { useToast } from "../../components/Toast";
-import { fetchDailys, type DailyStoryDto, type DailysResponse, type DeveloperTeamId } from "../../api/dailys";
+import { fetchDailys, fetchDailyPerson, TEAM_OPTIONS, type DailyStoryDto, type DailysResponse, type DeveloperTeamId } from "../../api/dailys";
 import { fetchSprintGoals, type SprintGoal } from "../../api/sprintGoals";
 import { fetchTeamRoles } from "../../api/people";
 import { updateWorkItemFields } from "../../api/workitems";
@@ -11,10 +11,12 @@ import { FilterPanel, WORK_ITEM_TYPES, type TagFilterState, type WorkItemTypeKey
 import { GroupCard } from "./GroupCard";
 import { KpiStrip } from "./KpiStrip";
 import { SprintGoalModal } from "./SprintGoalModal";
-import { WorkItemModal } from "../../components/workitem/WorkItemModal";
-import { WorkItemValidationModal } from "../../components/workitem/WorkItemValidationModal";
+import { SprintPicker } from "./SprintPicker";
+import { useWorkItemModals } from "../../components/workitem/useWorkItemModals";
 import { FlowParticipants } from "./FlowParticipants";
 import {
+  applyPersonRefresh,
+  applyWorkItemSave,
   buildFlowParticipants,
   buildGroups,
   DOD_TAG,
@@ -52,11 +54,6 @@ const LANE_LABEL: Record<FlowLaneStage, string> = {
   Done: "Klar",
 };
 
-const TEAMS: { id: DeveloperTeamId; label: string }[] = [
-  { id: "Nord", label: "Team Nord" },
-  { id: "Syd", label: "Team Syd" },
-];
-
 // Kept in localStorage rather than on the server: who is at today's standup is this person's
 // running-the-meeting state, not a fact about the team that everyone else should inherit.
 const PARTICIPANTS_STORAGE_PREFIX = "avekiscrum.dailyflow.participants.";
@@ -85,16 +82,21 @@ function writeParticipantChoices(team: DeveloperTeamId, choices: Record<string, 
 }
 
 interface DailysBoardProps {
-  onNavigate?: (board: "dailys" | "review") => void;
+  onNavigate?: (board: "refinement" | "dailys" | "review" | "test") => void;
   /** Back to the start page, where AvekiSupport lives. */
   onHome?: () => void;
-  /** Which team's board to open, chosen on the start page. The toggle still switches freely. */
-  initialTeam?: DeveloperTeamId;
+  /** Owned by App - see BoardShell's header, which is where this is actually chosen now. */
+  team: DeveloperTeamId;
+  onTeamChange: (team: DeveloperTeamId) => void;
 }
 
-export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysBoardProps) {
+export function DailysBoard({ onNavigate, onHome, team, onTeamChange }: DailysBoardProps) {
   const { showToast } = useToast();
-  const [team, setTeam] = useState<DeveloperTeamId>(initialTeam);
+  // Set by the sprint picker - undefined means "today's sprint", /api/dailys' own default.
+  const [selectedIteration, setSelectedIteration] = useState<string | undefined>(undefined);
+  // A manually-picked sprint is specific to the team it was picked for - Nord and Syd's sprints
+  // share no path, so carrying it over to a freshly switched team would just 404.
+  useEffect(() => setSelectedIteration(undefined), [team]);
   const [mode, setMode] = useState<GroupMode>("goals");
   const [data, setData] = useState<DailysResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -109,8 +111,6 @@ export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysB
   const [selectedTypes, setSelectedTypes] = useState<Set<WorkItemTypeKey>>(new Set(["story", "bug"]));
   // Empty means "no test constraint" - any selected key narrows to cards matching at least one.
   const [testFilters, setTestFilters] = useState<Set<TestFilterKey>>(new Set());
-  const [openWorkItemId, setOpenWorkItemId] = useState<number | null>(null);
-  const [openValidationId, setOpenValidationId] = useState<number | null>(null);
   const [sprintGoals, setSprintGoals] = useState<SprintGoal[]>([]);
   const [developerRoster, setDeveloperRoster] = useState<PersonOption[]>([]);
   const [flowExcludedByDefault, setFlowExcludedByDefault] = useState<PersonOption[]>([]);
@@ -127,7 +127,7 @@ export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysB
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    fetchDailys(team, controller.signal)
+    fetchDailys(team, controller.signal, selectedIteration)
       .then((response) => {
         setData(response);
         setOpenGroups(new Set());
@@ -147,7 +147,7 @@ export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysB
         setLoading(false);
       });
     return () => controller.abort();
-  }, [team]);
+  }, [team, selectedIteration]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -196,7 +196,10 @@ export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysB
     setRefreshing(true);
     setError(null);
     try {
-      const [dailysResponse, goals] = await Promise.all([fetchDailys(team), fetchSprintGoals(team).catch(() => sprintGoals)]);
+      const [dailysResponse, goals] = await Promise.all([
+        fetchDailys(team, undefined, selectedIteration),
+        fetchSprintGoals(team).catch(() => sprintGoals),
+      ]);
       setData(dailysResponse);
       setSprintGoals(goals);
     } catch (err) {
@@ -204,6 +207,17 @@ export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysB
     } finally {
       setRefreshing(false);
     }
+  }
+
+  // The daily flow's own "Uppdatera korten" button (developer turns only): re-fetches just this
+  // one person's cards - much cheaper than refreshBoard's full-team fetch, see fetchDailyPerson -
+  // and splices them into the existing board state. Left uncaught on purpose: DailyFlow wraps the
+  // call and reports failure itself, so this stays a plain data operation.
+  async function refreshPerson(person: string) {
+    const teamId = data?.teams[0]?.id;
+    if (!teamId) return;
+    const response = await fetchDailyPerson(team, person, undefined, selectedIteration);
+    setData((prev) => (prev ? applyPersonRefresh(prev, teamId, person, response.stories) : prev));
   }
 
   const sprintGoalsByNumber = useMemo(() => new Map(sprintGoals.map((g) => [g.number, g])), [sprintGoals]);
@@ -227,12 +241,15 @@ export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysB
     return [...present].sort((a, b) => a.localeCompare(b, "sv"));
   }, [stories]);
 
+  // Deliberately does NOT apply hideStaleClosed - see dailyFlowStories below for why that filter
+  // is scoped to the daily flow only. Everything the board itself renders (groups, KpiStrip) comes
+  // from filteredStories/boardStories, so a long-closed card still counts toward "hur mycket är
+  // faktiskt klart" instead of quietly skewing the sprint's own statistics.
   const filteredStories = useMemo(() => {
     const query = searchText.trim().toLowerCase();
     const includeTags = [...tagFilters.entries()].filter(([, state]) => state === "include").map(([t]) => t);
     const excludeTags = [...tagFilters.entries()].filter(([, state]) => state === "exclude").map(([t]) => t);
     return stories.filter((s) => {
-      if (hideStaleClosed && isStaleClosed(s)) return false;
       if (!selectedTypes.has(s.type === "Bug" ? "bug" : "story")) return false;
       // Selected test filters are OR-ed: show cards matching at least one of them.
       if (testFilters.size > 0 && ![...testFilters].some((key) => matchesTestFilter(s, key))) return false;
@@ -243,14 +260,24 @@ export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysB
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stories, searchText, selectedStatuses, tagFilters, hideStaleClosed, selectedTypes, testFilters]);
+  }, [stories, searchText, selectedStatuses, tagFilters, selectedTypes, testFilters]);
 
-  // Counts what this filter actually removes from view. PO-owned cards are excluded because the
-  // board never shows them anyway - counting them made the label claim more hidden cards than
-  // visibly disappeared when toggling.
+  // Counts what this filter would remove from the daily flow. PO-owned cards are excluded because
+  // the board never shows them anyway - counting them made the label claim more hidden cards than
+  // it actually affects.
   const staleClosedCount = useMemo(
     () => stories.filter((s) => !s.ownedByProductOwner && isStaleClosed(s)).length,
     [stories],
+  );
+
+  // hideStaleClosed only trims what the daily flow steps through - a card closed days ago is
+  // exactly the noise you don't want taking up a turn, but it's still real, recent work that
+  // should count in the board's own KPIs and status groups above. Applied on top of the other
+  // filters (search/tags/status/type/test), not instead of them, so the flow still respects
+  // whatever the person running it is deliberately looking at.
+  const dailyFlowStories = useMemo(
+    () => (hideStaleClosed ? filteredStories.filter((s) => !isStaleClosed(s)) : filteredStories),
+    [filteredStories, hideStaleClosed],
   );
 
   // PO-owned cards are intentionally excluded from the developer-focused board (they're not
@@ -302,31 +329,47 @@ export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysB
     [flowParticipants, updateParticipantChoices],
   );
 
-  const groups = useMemo(() => {
-    const built = buildGroups(boardStories, mode, developerRoster.map((d) => d.displayName));
-    if (mode !== "goals") return built;
-    // Sprint goals with zero cards right now still deserve a row - otherwise a goal nobody has
-    // started work on yet would just silently never appear on the board.
-    const presentNumbers = new Set(
-      built.map((g) => Number(g.label.match(/\d+/)?.[0])).filter((n) => !Number.isNaN(n)),
-    );
-    const missingGoals = sprintGoals
-      .filter((g) => !presentNumbers.has(g.number))
-      .map((g) => ({
-        id: `g-empty-${g.number}`,
-        label: `Sprintmål ${g.number} - ${g.title}`,
-        mode: "goals" as const,
-        stories: [],
-      }));
-    // Every numbered goal (real or empty) sorted together by its number - the order stories
-    // happened to appear in the API response isn't a meaningful sort key. The "(Inget
-    // sprintmål)" catch-all - if present - always stays last.
-    const catchAll = built.filter((g) => g.label === "(Inget sprintmål)");
-    const numbered = [...built.filter((g) => g.label !== "(Inget sprintmål)"), ...missingGoals].sort(
-      (a, b) => (Number(a.label.match(/\d+/)?.[0]) || 0) - (Number(b.label.match(/\d+/)?.[0]) || 0),
-    );
-    return [...numbered, ...catchAll];
-  }, [boardStories, mode, sprintGoals, developerRoster]);
+  // Shared by the board's own groups and the daily flow's own (see dailyFlowGroups below) - the
+  // only difference between the two is which story set goes in, not how it's grouped.
+  const buildBoardGroups = useCallback(
+    (storiesForGroups: DailyStoryDto[]) => {
+      const built = buildGroups(storiesForGroups, mode, developerRoster.map((d) => d.displayName));
+      if (mode !== "goals") return built;
+      // Sprint goals with zero cards right now still deserve a row - otherwise a goal nobody has
+      // started work on yet would just silently never appear on the board.
+      const presentNumbers = new Set(
+        built.map((g) => Number(g.label.match(/\d+/)?.[0])).filter((n) => !Number.isNaN(n)),
+      );
+      const missingGoals = sprintGoals
+        .filter((g) => !presentNumbers.has(g.number))
+        .map((g) => ({
+          id: `g-empty-${g.number}`,
+          label: `Sprintmål ${g.number} - ${g.title}`,
+          mode: "goals" as const,
+          stories: [],
+        }));
+      // Every numbered goal (real or empty) sorted together by its number - the order stories
+      // happened to appear in the API response isn't a meaningful sort key. The "(Inget
+      // sprintmål)" catch-all - if present - always stays last.
+      const catchAll = built.filter((g) => g.label === "(Inget sprintmål)");
+      const numbered = [...built.filter((g) => g.label !== "(Inget sprintmål)"), ...missingGoals].sort(
+        (a, b) => (Number(a.label.match(/\d+/)?.[0]) || 0) - (Number(b.label.match(/\d+/)?.[0]) || 0),
+      );
+      return [...numbered, ...catchAll];
+    },
+    [mode, sprintGoals, developerRoster],
+  );
+
+  const groups = useMemo(() => buildBoardGroups(boardStories), [buildBoardGroups, boardStories]);
+
+  // The daily flow's own groups, built from dailyFlowStories (hideStaleClosed applied) rather than
+  // boardStories - so a card the flow is skipping over doesn't still pad out its "X kort, Y klara"
+  // turn stats. The board above (groups, just above) is intentionally left out of this.
+  const dailyFlowBoardStories = useMemo(() => dailyFlowStories.filter((s) => !s.ownedByProductOwner), [dailyFlowStories]);
+  const dailyFlowGroups = useMemo(
+    () => buildBoardGroups(dailyFlowBoardStories),
+    [buildBoardGroups, dailyFlowBoardStories],
+  );
 
   function toggleGroup(id: string) {
     setOpenGroups((prev) => {
@@ -379,47 +422,50 @@ export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysB
    * Patched locally rather than refetched: the whole point is a one-click change during a standup,
    * and a full reload would collapse the groups you were looking at. Closed is never offered here -
    * see OPEN_STATES in StoryTable.
+   *
+   * Plain function, not useCallback: this component never remounts on a team switch (App.tsx holds
+   * no `key`), so a memoized version whose deps didn't list every closed-over value (refreshBoard,
+   * and through it team/selectedIteration) would keep calling a stale refreshBoard from whichever
+   * team was active when it was first created - silently overwriting the *current* team's board
+   * with the *other* team's data the next time this ran. That's exactly what happened here.
    */
-  const quickSetState = useCallback(
-    async (story: DailyStoryDto, state: string) => {
-      const previous = story.azureStatus;
+  async function quickSetState(story: DailyStoryDto, state: string) {
+    const previous = story.azureStatus;
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            teams: prev.teams.map((t) => ({
+              ...t,
+              stories: t.stories.map((s) => (s.id === story.id ? { ...s, azureStatus: state } : s)),
+            })),
+          }
+        : prev,
+    );
+    try {
+      await updateWorkItemFields(story.id, { state });
+      showToast(`#${story.id} satt till "${state}".`, "success");
+      // Varningarna räknas ut på servern utifrån kortets status, så en lokal patch lämnar dem
+      // kvar och säger emot pillret bredvid - "Test väntar på att huvudkortet blir Resolved" på
+      // ett kort som just blev Resolved. Hämtar om boarden; openGroups rörs inte, så det man
+      // hade uppfällt förblir uppfällt.
+      void refreshBoard();
+    } catch (err) {
+      // Put it back: an optimistic move that failed must not leave the board claiming otherwise.
       setData((prev) =>
         prev
           ? {
               ...prev,
               teams: prev.teams.map((t) => ({
                 ...t,
-                stories: t.stories.map((s) => (s.id === story.id ? { ...s, azureStatus: state } : s)),
+                stories: t.stories.map((s) => (s.id === story.id ? { ...s, azureStatus: previous } : s)),
               })),
             }
           : prev,
       );
-      try {
-        await updateWorkItemFields(story.id, { state });
-        showToast(`#${story.id} satt till "${state}".`, "success");
-        // Varningarna räknas ut på servern utifrån kortets status, så en lokal patch lämnar dem
-        // kvar och säger emot pillret bredvid - "Test väntar på att huvudkortet blir Resolved" på
-        // ett kort som just blev Resolved. Hämtar om boarden; openGroups rörs inte, så det man
-        // hade uppfällt förblir uppfällt.
-        void refreshBoard();
-      } catch (err) {
-        // Put it back: an optimistic move that failed must not leave the board claiming otherwise.
-        setData((prev) =>
-          prev
-            ? {
-                ...prev,
-                teams: prev.teams.map((t) => ({
-                  ...t,
-                  stories: t.stories.map((s) => (s.id === story.id ? { ...s, azureStatus: previous } : s)),
-                })),
-              }
-            : prev,
-        );
-        showToast(`Kunde inte ändra #${story.id}: ${err instanceof Error ? err.message : "Okänt fel"}`, "error");
-      }
-    },
-    [showToast],
-  );
+      showToast(`Kunde inte ändra #${story.id}: ${err instanceof Error ? err.message : "Okänt fel"}`, "error");
+    }
+  }
 
   /** Adds the DoD tag to the board's local copy, so the card's warnings clear immediately. */
   const markDodApproved = useCallback((storyId: number) => {
@@ -591,30 +637,38 @@ export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysB
     }
   }
 
+  const { setOpenWorkItemId, setOpenValidationId, modals: workItemModals } = useWorkItemModals({
+    team,
+    onApproved: refreshBoard,
+    getStory: (id) => stories.find((s) => s.id === id),
+    onDodApproved: markDodApproved,
+    // Backs both the board's own card list and DailyFlow's embedded test-lead turn (they share
+    // this one hook call) - a "Spara" from either place shows up in both without a refetch.
+    onWorkItemSaved: (updated) => setData((prev) => (prev ? applyWorkItemSave(prev, updated) : prev)),
+  });
+
   return (
     <BoardShell
       activeBoard="dailys"
       onNavigate={onNavigate}
       onHome={onHome}
+      team={team}
+      onTeamChange={onTeamChange}
       title="Dailys"
-      subtitle={data ? `${data.meta.sprint} · ${data.meta.sprintStart} – ${data.meta.sprintEnd}` : undefined}
+      subtitle={
+        data && (
+          <SprintPicker
+            team={team}
+            sprint={data.meta.sprint}
+            sprintStart={data.meta.sprintStart}
+            sprintEnd={data.meta.sprintEnd}
+            sprintPath={data.meta.sprintPath}
+            onSelect={setSelectedIteration}
+          />
+        )
+      }
     >
       <div className="dailys-board__toolbar">
-        <div className="dailys-board__group" role="group" aria-label="Team">
-          <span className="dailys-board__group-label">Team</span>
-          <div className="dailys-board__group-body">
-            {TEAMS.map((t) => (
-              <button
-                key={t.id}
-                className={"dailys-board__tab" + (t.id === team ? " dailys-board__tab--active" : "")}
-                onClick={() => setTeam(t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
         <div className="dailys-board__group" role="group" aria-label="Gruppering">
           <span className="dailys-board__group-label">Gruppera på</span>
           <div className="dailys-board__group-body">
@@ -700,7 +754,7 @@ export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysB
       {loading && (
         <LoadingOverlay
           message="Hämtar data från Azure DevOps…"
-          sub={data === null ? "Det här kan ta några sekunder första gången." : `Byter till ${TEAMS.find((t) => t.id === team)?.label ?? team}…`}
+          sub={data === null ? "Det här kan ta några sekunder första gången." : `Byter till ${TEAM_OPTIONS.find((t) => t.id === team)?.label ?? team}…`}
         />
       )}
       {error && <p className="dailys-board__status dailys-board__status--error">Fel: {error}</p>}
@@ -711,11 +765,13 @@ export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysB
             <DailyFlow
               team={team}
               mode={mode}
-              groups={groups}
-              allStories={filteredStories}
+              groups={dailyFlowGroups}
+              allStories={dailyFlowStories}
               unfilteredStories={stories}
+              currentIteration={data ? { path: data.meta.sprintPath, label: data.meta.sprint } : undefined}
               onHighlightChange={handleFlowHighlightChange}
               onOpenWorkItem={setOpenWorkItemId}
+              onRefreshPerson={refreshPerson}
               onTaskAssigned={handleTaskAssigned}
               onCardsLinked={handleCardsLinked}
               sprintGoalsByNumber={sprintGoalsByNumber}
@@ -748,28 +804,12 @@ export function DailysBoard({ onNavigate, onHome, initialTeam = "Syd" }: DailysB
         </>
       )}
 
-      {openWorkItemId !== null && (
-        <WorkItemModal workItemId={openWorkItemId} onClose={() => setOpenWorkItemId(null)} onOpenValidation={setOpenValidationId} />
-      )}
+      {workItemModals}
       {openSprintGoal && (
         <SprintGoalModal
           goal={openSprintGoal}
           onClose={() => setOpenSprintGoalNumber(null)}
           onOpenWorkItem={setOpenWorkItemId}
-        />
-      )}
-      {openValidationId !== null && (
-        <WorkItemValidationModal
-          workItemId={openValidationId}
-          team={team}
-          onClose={() => setOpenValidationId(null)}
-          onApproved={refreshBoard}
-          story={stories.find((s) => s.id === openValidationId)}
-          onDodApproved={markDodApproved}
-          onOpenRelation={(item) => {
-            setOpenValidationId(null);
-            setOpenWorkItemId(item.id);
-          }}
         />
       )}
     </BoardShell>

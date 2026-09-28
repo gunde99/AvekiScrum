@@ -131,3 +131,10 @@
 .kh-hint--error {
   color: var(--color-danger);
 }
+
+/* Overrides RichTextEditor's shared 460px cap - this copy of the description is a confirmation,
+   not the reading copy (the card's own pane already shows the full text), so ~3 lines with a
+   scrollbar for the rest is enough. */
+.kh-description-editor .rte__editor {
+  max-height: 100px;
+}

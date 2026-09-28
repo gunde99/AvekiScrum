@@ -67,3 +67,41 @@
   color: var(--color-danger);
   font-weight: 600;
 }
+
+/* The @-mention someone typed, once picked - kept visually distinct so it still reads as a
+   mention even though it isn't Azure's own clickable/notifying link (see RichTextEditor.tsx). */
+.rte__editor .rte-mention {
+  color: var(--color-primary);
+}
+
+/* Positioned via createPortal (fixed, escapes any ancestor's overflow: hidden) at the caret. */
+.rte-mentions {
+  position: fixed;
+  z-index: 1000;
+  min-width: 160px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-1);
+}
+
+.rte-mentions__item {
+  display: block;
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rte-mentions__item:hover {
+  background: var(--color-bg-subtle);
+}

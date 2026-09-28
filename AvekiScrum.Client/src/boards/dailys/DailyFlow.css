@@ -74,6 +74,122 @@
   opacity: 1;
 }
 
+.daily-flow__timer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-bg-subtle);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.daily-flow__timer--off {
+  justify-content: space-between;
+  padding-block: var(--space-1);
+}
+
+.daily-flow__timer-off-note {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.daily-flow__timer-clock {
+  font-variant-numeric: tabular-nums;
+  font-size: 2.2rem;
+  font-weight: 800;
+  line-height: 1;
+  min-width: 84px;
+  text-align: center;
+  color: var(--color-text);
+  transition: color 0.3s;
+}
+
+.daily-flow__timer-clock--warn {
+  color: var(--aveki-yellow);
+}
+
+.daily-flow__timer-clock--crit {
+  color: var(--color-danger);
+  animation: daily-flow-timer-pulse 1s ease-in-out infinite;
+}
+
+@keyframes daily-flow-timer-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.daily-flow__timer-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.daily-flow__timer-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--progress-track);
+  overflow: hidden;
+  margin-bottom: var(--space-1);
+}
+
+.daily-flow__timer-fill {
+  height: 100%;
+  background: var(--progress-active);
+  transition: width 1s linear, background 0.3s;
+}
+
+.daily-flow__timer-fill--warn {
+  background: var(--aveki-yellow);
+}
+
+.daily-flow__timer-fill--crit {
+  background: var(--color-danger);
+}
+
+.daily-flow__timer-speaker {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  min-height: 1em;
+}
+
+/* Escalates the longer someone runs over: yellow under a minute, orange past a minute, red past
+   two - see the overSeconds thresholds in DailyTimerBar. */
+.daily-flow__timer-speaker--over {
+  color: var(--aveki-yellow);
+  font-weight: 700;
+}
+
+.daily-flow__timer-speaker--over-orange {
+  color: var(--aveki-orange);
+  font-weight: 700;
+}
+
+.daily-flow__timer-speaker--over-red {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+.daily-flow__timer-toggle {
+  border: 1px solid var(--color-border);
+  background: none;
+  color: var(--color-text-muted);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-3);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.daily-flow__timer-toggle:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
 .daily-flow__body {
   display: flex;
   gap: var(--space-5);
@@ -275,7 +391,7 @@
   color: #fff;
 }
 
-.daily-flow__list-status--active {
+.daily-flow__list-status--inprogress {
   background: var(--color-info);
   color: #fff;
 }
@@ -296,6 +412,13 @@
   background: transparent;
   border: 1px solid var(--color-success);
   color: var(--color-success);
+}
+
+/* Microsoft.VSTS.CMMI.Blocked=True on the test task itself - a warning colour distinct from the
+   green/red verdict pair, since "blocked" isn't a verdict at all. */
+.daily-flow__list-status--blocked {
+  background: var(--aveki-yellow);
+  color: #1c1a17;
 }
 
 .daily-flow__list--tall {
@@ -419,6 +542,10 @@
   font: inherit;
   color: inherit;
   cursor: pointer;
+  /* Buttons default to centre-aligned text in every browser's UA stylesheet - inherited down into
+     the "Testare"/name stack, which otherwise centres itself instead of lining up under the
+     avatar on the left. */
+  text-align: left;
 }
 
 .df-assign:hover {

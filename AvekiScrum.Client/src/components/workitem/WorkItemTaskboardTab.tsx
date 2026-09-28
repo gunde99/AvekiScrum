@@ -9,7 +9,7 @@ import {
 import type { PersonOption } from "../../api/people";
 import { useToast } from "../Toast";
 import { NewWorkItemForm } from "./NewWorkItemForm";
-import { WorkItemRefCard } from "./WorkItemRefCard";
+import { TaskCardVisual, toneFromAzureState } from "./TaskCardVisual";
 import "./WorkItemTaskboardTab.css";
 
 interface WorkItemTaskboardTabProps {
@@ -129,7 +129,17 @@ export function WorkItemTaskboardTab({
                       e.dataTransfer.effectAllowed = "move";
                     }}
                   >
-                    <WorkItemRefCard item={task} onOpen={() => onOpenRelation(task, "Task")} />
+                    <TaskCardVisual
+                      id={task.id}
+                      title={task.title}
+                      statusLabel={task.state}
+                      tone={toneFromAzureState(task.state)}
+                      assignedTo={task.assignedTo}
+                      activity={task.activity}
+                      createdDate={task.createdDate}
+                      isBlocked={task.isBlocked}
+                      onOpen={() => onOpenRelation(task, "Task")}
+                    />
                   </div>
                 ))}
                 {inState.length === 0 && <span className="wi-taskboard__empty">–</span>}

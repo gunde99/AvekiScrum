@@ -38,7 +38,13 @@ interface FilterPanelProps {
   onToggleType: (type: WorkItemTypeKey) => void;
   testFilters: Set<TestFilterKey>;
   onToggleTestFilter: (key: TestFilterKey) => void;
+  /** Opt-in: only the Review board passes these, so the group only shows up there. */
+  sources?: string[];
+  selectedSources?: Set<string>;
+  onToggleSource?: (source: string) => void;
 }
+
+const SOURCE_LABELS: Record<string, string> = { Unset: "Ospecificerad" };
 
 export function FilterPanel({
   searchText,
@@ -59,6 +65,9 @@ export function FilterPanel({
   onToggleType,
   testFilters,
   onToggleTestFilter,
+  sources,
+  selectedSources,
+  onToggleSource,
 }: FilterPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -70,7 +79,8 @@ export function FilterPanel({
     tagFilters.size +
     (hideStaleClosed ? 0 : 1) +
     (selectedTypes.size < WORK_ITEM_TYPES.length ? 1 : 0) +
-    testFilters.size;
+    testFilters.size +
+    (sources && selectedSources && selectedSources.size < sources.length ? 1 : 0);
 
   if (!isOpen) {
     return (
@@ -136,6 +146,21 @@ export function FilterPanel({
         ))}
       </FilterGroup>
 
+      {sources && sources.length > 0 && selectedSources && onToggleSource && (
+        <FilterGroup label="Source" hint="Buggens ursprung (Azure DevOps-fältet Source)">
+          {sources.map((source) => (
+            <button
+              key={source}
+              type="button"
+              className={"status-pill" + (selectedSources.has(source) ? " status-pill--active" : "")}
+              onClick={() => onToggleSource(source)}
+            >
+              {SOURCE_LABELS[source] ?? source}
+            </button>
+          ))}
+        </FilterGroup>
+      )}
+
       <FilterGroup label="Tester" hint="Kort med testkort som…">
         {(Object.keys(TEST_FILTER_LABELS) as TestFilterKey[]).map((key) => (
           <button
@@ -149,11 +174,11 @@ export function FilterPanel({
         ))}
       </FilterGroup>
 
-      <FilterGroup label="Stängda kort">
+      <FilterGroup label="Stängda kort" hint="Gäller bara daily-flödet - listan och statistiken ovan påverkas inte">
         <label className="filter-panel__stale">
           <input type="checkbox" checked={hideStaleClosed} onChange={onToggleStaleClosed} />
           <span>
-            Dölj kort stängda mer än {CLOSED_STALE_WORKING_DAYS} arbetsdagar
+            Uteslut ur daily-flödet: kort stängda mer än {CLOSED_STALE_WORKING_DAYS} arbetsdagar
             {staleClosedCount > 0 && <span className="filter-panel__stale-count"> ({staleClosedCount} st)</span>}
           </span>
         </label>

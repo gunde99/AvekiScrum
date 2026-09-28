@@ -61,29 +61,23 @@
 .wi-modal__subline {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  margin-top: 2px;
+  /* Wider than the header's other gaps - this line packs the id, status, iteration and DoR/INVEST
+     checks tightly enough that they used to read as one run-on string. */
+  gap: var(--space-3);
+  margin-top: 4px;
 }
 
+/* Same size as its neighbours on the line (iteration path, checks) - at 0.85rem it read as the
+   most important thing in the header, ahead of the title above it. */
 .wi-modal__id-link {
   font-weight: 700;
   color: var(--color-primary);
   text-decoration: none;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
 }
 
 .wi-modal__id-link:hover {
   text-decoration: underline;
-}
-
-.wi-modal__state-badge {
-  font-size: 0.7rem;
-  font-weight: 600;
-  padding: 1px var(--space-2);
-  border-radius: 999px;
-  background: var(--color-bg-subtle);
-  border: 1px solid var(--color-border);
-  color: var(--color-text-muted);
 }
 
 .wi-modal__iteration {
@@ -101,11 +95,6 @@
 
 .wi-modal__footer-spacer {
   flex: 1;
-}
-
-.wi-validation-btn {
-  color: var(--color-primary);
-  border-color: var(--color-primary);
 }
 
 .wi-modal__close {
@@ -181,10 +170,35 @@
 
 .wi-modal__footer {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--color-border);
+}
+
+/* Groups the tab-specific action buttons (Redigera, Validering, hjälptext, and Avbryt/Spara once
+   editing starts) so they read as one set rather than loose buttons - runs the full width of the
+   footer, with the label pinned left and every button pushed to the right via its own auto
+   margin, and a border in the same orange as the buttons inside so the group is easy to spot even
+   before reading any label. */
+.wi-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+}
+
+.wi-actions__label {
+  margin-right: auto;
+  color: var(--color-primary);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .wi-btn {

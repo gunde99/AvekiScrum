@@ -56,6 +56,9 @@ namespace AvekiScrum.Application.Boards.Dailys
                     sprint = selectedSprint.Name,
                     sprintStart = selectedSprint.StartDate.ToString("yyyy-MM-dd"),
                     sprintEnd = selectedSprint.EndDate.ToString("yyyy-MM-dd"),
+                    // The iteration path, so the client can round-trip it back as ?iteration=... when
+                    // switching sprints via the picker, and so it knows which entry to highlight there.
+                    sprintPath = selectedSprint.Path,
                     generatedAt = DateTime.Now.ToString("o")
                 },
                 teams
@@ -67,12 +70,92 @@ namespace AvekiScrum.Application.Boards.Dailys
             });
         }
 
+        /// <summary>
+        /// Bygger om korten för en enskild person inom ett team, utan att röra resten av boarden.
+        /// Personfiltreringen sker innan PR- och testtidslinjeanropen mot Azure DevOps (se
+        /// storyFilter-parametern på BuildStoriesAsync), så bara de kort som faktiskt ska visas
+        /// kostar nätverksanrop - det är det som gör detta snabbare än en full refresh av teamet.
+        /// PR-granskare kan inte vara med i filtret: den listan kommer först från just de anrop vi
+        /// hoppar över för kort som filtreras bort, så matchningen begränsas till korthets
+        /// huvudansvarig, development partner och tasktilldelning.
+        /// </summary>
+        public async Task<string> BuildPersonJsonAsync(
+            Sprint selectedSprint,
+            DeveloperTeam team,
+            IReadOnlyList<WorkItemDto> teamBacklog,
+            string person,
+            IReadOnlySet<int>? productOwnerOwnedStoryIds = null)
+        {
+            var stories = await BuildStoriesAsync(
+                teamBacklog,
+                selectedSprint,
+                productOwnerOwnedStoryIds,
+                (story, source) => StoryHasPerson(story, source, person));
+
+            var data = new
+            {
+                team = TeamId(team),
+                person,
+                generatedAt = DateTime.Now.ToString("o"),
+                stories
+            };
+
+            return JsonSerializer.Serialize(data, new JsonSerializerOptions
+            {
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+            });
+        }
+
+        private static bool StoryHasPerson(StoryVm story, WorkItemDto? source, string person)
+            => SamePerson(story.Developer, person) ||
+               SamePerson(source?.DevelopmentPartner, person) ||
+               (story.Tasks?.Any(task => SamePerson(task.AssignedTo, person)) ?? false);
+
+        /// <summary>Mirrors personKey/samePerson in the client's lib/personNames.ts - matches on the
+        /// first name token only (case- and diacritic-insensitive), same as the board's own grouping,
+        /// so a person-scoped refresh always returns exactly the stories that group already shows.</summary>
+        private static string PersonMatchKey(string? value)
+        {
+            var raw = (value ?? string.Empty).Trim();
+            if (raw.Length == 0) return string.Empty;
+
+            var atIndex = raw.IndexOf('@');
+            var local = atIndex >= 0 ? raw[..atIndex] : raw;
+            var firstToken = local
+                .Replace('.', ' ').Replace('_', ' ').Replace('-', ' ')
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .FirstOrDefault() ?? string.Empty;
+
+            var decomposed = firstToken.Normalize(System.Text.NormalizationForm.FormD);
+            var builder = new System.Text.StringBuilder(decomposed.Length);
+            foreach (var ch in decomposed)
+            {
+                if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch) == System.Globalization.UnicodeCategory.NonSpacingMark)
+                    continue;
+                builder.Append(char.ToLowerInvariant(ch));
+            }
+
+            return builder.ToString();
+        }
+
+        private static bool SamePerson(string? a, string? b)
+        {
+            var ak = PersonMatchKey(a);
+            var bk = PersonMatchKey(b);
+            return ak.Length > 0 && ak == bk;
+        }
+
         private async Task<List<object>> BuildStoriesAsync(
             IReadOnlyList<WorkItemDto> sprintBacklog,
             Sprint selectedSprint,
-            IReadOnlySet<int>? productOwnerOwnedStoryIds = null)
+            IReadOnlySet<int>? productOwnerOwnedStoryIds = null,
+            Func<StoryVm, WorkItemDto?, bool>? storyFilter = null)
         {
-            var stories = SprintBacklogMapper.MapToStories(
+            var workItemsById = sprintBacklog
+                .GroupBy(item => item.Id)
+                .ToDictionary(group => group.Key, group => group.First());
+
+            List<StoryVm> stories = SprintBacklogMapper.MapToStories(
                     sprintBacklog,
                     SprintBacklogMapper.MapOptions.Default(item => item.ParentId))
                 // Hjälptext satellite stories (created via the DoR "Hjälptext" category) are
@@ -82,9 +165,8 @@ namespace AvekiScrum.Application.Boards.Dailys
                 .Where(story => !IsHelptextSatelliteTitle(story.Title))
                 .ToList();
 
-            var workItemsById = sprintBacklog
-                .GroupBy(item => item.Id)
-                .ToDictionary(group => group.Key, group => group.First());
+            if (storyFilter != null)
+                stories = stories.Where(story => storyFilter(story, workItemsById.GetValueOrDefault(story.Id))).ToList();
 
             var pullRequestDetails = await LoadPullRequestDetailsAsync(stories.SelectMany(story => story.PullRequests));
             var testTaskTimelines = await LoadTestTaskTimelinesAsync(stories.SelectMany(story => story.Tasks));
@@ -123,6 +205,7 @@ namespace AvekiScrum.Application.Boards.Dailys
                     developmentPartner = source?.DevelopmentPartner,
                     assignedTeam = source?.AssignedTeam,
                     areaPath = source?.AreaPath,
+                    source = source?.SourceEnum.ToString(),
                     // Underlaget för korthygienvarningarna på raden. Bara det boarden behöver för
                     // att ställa samma frågor som valideringsdialogen, utan att skicka med hela
                     // beskrivningen för varje kort.
@@ -168,6 +251,7 @@ namespace AvekiScrum.Application.Boards.Dailys
                 activity = task.Activity,
                 isBlocked = task.IsBlocked,
                 tags = task.Tags,
+                priority = task.Priority,
                 createdDate = FormatDate(task.CreatedDate),
                 completedDate = FormatDate(task.CompletedDate),
                 statusChangedDate = FormatDateTime(task.StatusChangedDate),
@@ -340,12 +424,13 @@ namespace AvekiScrum.Application.Boards.Dailys
             IReadOnlyList<WorkItemUpdate> updates)
         {
             var orderedUpdates = updates
-                .OrderBy(update => update.RevisedDate)
+                .Where(update => update.EffectiveChangedDate.HasValue)
+                .OrderBy(update => update.EffectiveChangedDate)
                 .ToList();
 
             var assignedDate = orderedUpdates
                 .Where(update => !IsEmptyIdentity(update.Fields?.AssignedTo?.NewValue))
-                .Select(update => (DateTime?)update.RevisedDate.LocalDateTime)
+                .Select(update => (DateTime?)update.EffectiveChangedDate!.Value.LocalDateTime)
                 .FirstOrDefault();
 
             if (!assignedDate.HasValue && !string.IsNullOrWhiteSpace(task.AssignedTo))
@@ -363,7 +448,7 @@ namespace AvekiScrum.Application.Boards.Dailys
             var completedDate = task.CompletedDate ??
                 orderedUpdates
                     .Where(update => doneStates.Contains(update.Fields?.State?.NewValue ?? string.Empty))
-                    .Select(update => (DateTime?)update.RevisedDate.LocalDateTime)
+                    .Select(update => (DateTime?)update.EffectiveChangedDate!.Value.LocalDateTime)
                     .FirstOrDefault();
 
             if (!assignedDate.HasValue || !completedDate.HasValue)
@@ -404,8 +489,8 @@ namespace AvekiScrum.Application.Boards.Dailys
                 return 0;
 
             var tagUpdates = updates
-                .Where(update => update.Fields?.Tags != null)
-                .OrderBy(update => update.RevisedDate)
+                .Where(update => update.Fields?.Tags != null && update.EffectiveChangedDate.HasValue)
+                .OrderBy(update => update.EffectiveChangedDate)
                 .ToList();
 
             if (tagUpdates.Count == 0)
@@ -421,7 +506,7 @@ namespace AvekiScrum.Application.Boards.Dailys
 
             foreach (var update in tagUpdates)
             {
-                var at = update.RevisedDate.LocalDateTime;
+                var at = update.EffectiveChangedDate!.Value.LocalDateTime;
                 if (isTagged)
                 {
                     total += OverlapDays(cursor, at, start, end);

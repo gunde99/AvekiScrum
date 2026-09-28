@@ -4,7 +4,7 @@ import { Diagnostics } from "../components/Diagnostics";
 import { UserChip } from "../components/UserChip";
 import "./LandingPage.css";
 
-export type AppKey = "scrum" | "support";
+export type AppKey = "scrum" | "support" | "documentation" | "testing";
 export type TeamKey = "Nord" | "Syd";
 
 interface LandingPageProps {
@@ -78,6 +78,36 @@ const ENTRANCES: Entrance[] = [
     bullets: ["Färdig mall för repro steps", "Kunder och kontakter formateras alltid lika", "Se var ärendet ligger i flödet"],
     cta: "Öppna AvekiSupport",
   },
+  {
+    key: "testing",
+    brandPrefix: "Aveki",
+    brandSuffix: "Test",
+    image: "/startbilder/test.jpg",
+    imageAlt: "Två personer granskar programkod tillsammans vid en bärbar dator",
+    tagline: "För testteamet",
+    body: "Se vad som måste testas inför releasen och kör testfallen i ett lugnt, tydligt flöde.",
+    bullets: [
+      "Release, område och prioritet i samma översikt",
+      "Teststeg och förväntat resultat sida vid sida",
+      "Resultatet sparas direkt i Azure DevOps",
+    ],
+    cta: "Öppna AvekiTest",
+  },
+  {
+    key: "documentation",
+    brandPrefix: "Aveki",
+    brandSuffix: "Dokumentation",
+    image: "/startbilder/dokumentation.jpg",
+    imageAlt: "Person som skriver och signerar dokument vid ett skrivbord",
+    tagline: "För dokumentatörer",
+    body: "Beställ, skriv och granska hjälptexter utan att de blockerar utvecklingskorten – kortet lever i Dokumentationsprojektet från start.",
+    bullets: [
+      "Skriv hjälptexten med källkortet öppet bredvid",
+      "En gemensam lista, ingen dubbeldokumentation",
+      "Rör aldrig utvecklingskortets egna flöde",
+    ],
+    cta: "Öppna AvekiDokumentation",
+  },
 ];
 
 /**
@@ -146,7 +176,7 @@ export function LandingPage({ onPick }: LandingPageProps) {
           ))}
         </div>
       ) : (
-        <div className="landing__cards">
+        <div className="landing__cards landing__cards--entrances">
           {ENTRANCES.map((entrance) => (
             <button
               key={entrance.key}

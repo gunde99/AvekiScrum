@@ -1,8 +1,7 @@
 .rv-card {
-  display: grid;
-  grid-template-columns: 62px minmax(0, 1fr) 92px 150px 52px auto;
+  display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -28,82 +27,94 @@
 }
 
 .rv-card__id {
+  flex-shrink: 0;
   background: none;
   border: none;
   padding: 0;
   font: inherit;
   font-weight: 700;
+  font-size: 0.75rem;
   color: var(--color-primary);
   cursor: pointer;
-  text-align: left;
 }
 
 .rv-card__id:hover {
   text-decoration: underline;
 }
 
-.rv-card__title {
+/* "Stor och tydlig" - big enough to tell User Story and Bug apart at a glance, and centred against
+   the full height of the two text rows beside it rather than pinned to just the first line. */
+.rv-card__icon {
+  flex-shrink: 0;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.rv-card__lines {
+  flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.rv-card__state {
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  text-align: center;
-  padding: 1px var(--space-2);
-  border-radius: 999px;
-  border: 1px solid var(--color-border);
-  color: var(--color-text-muted);
-}
-
-.rv-card__dev {
+.rv-card__line1 {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
-  color: var(--color-text-muted);
 }
 
-.rv-card__dev > span {
+.rv-card__title {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 600;
 }
 
 .rv-card__sp {
-  text-align: right;
+  flex-shrink: 0;
   font-weight: 700;
+  font-size: 0.72rem;
   color: var(--color-primary);
 }
 
-.rv-card__remove {
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-subtle);
-  color: var(--color-text-muted);
+.rv-card__line2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow: hidden;
   font-size: 0.7rem;
-  line-height: 1;
-  cursor: pointer;
+  color: var(--color-text-muted);
 }
 
-.rv-card__remove:hover:not(:disabled) {
-  border-color: var(--color-danger);
-  color: var(--color-danger);
+.rv-card__area {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: "Cascadia Code", Consolas, monospace;
 }
 
-/* Panel cards are narrower - drop the developer column rather than squeezing every column. */
-.rv-panel .rv-card {
-  grid-template-columns: 62px minmax(0, 1fr) 52px auto;
+/* Same blue as everywhere else tags show up (WorkItemOverviewTab's .wi-tag) - one tag look
+   across the app, theme-safe via color-mix against --color-info-text. */
+.rv-card__tag {
+  flex-shrink: 0;
+  padding: 1px var(--space-2);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-info-text) 16%, var(--color-bg-subtle));
+  border: 1px solid color-mix(in srgb, var(--color-info-text) 40%, transparent);
+  color: var(--color-info-text);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-.rv-panel .rv-card__state,
-.rv-panel .rv-card__dev {
-  display: none;
+.rv-card__dev {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
 }

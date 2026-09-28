@@ -1,0 +1,14 @@
+.dor-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.dor-tab__decision {
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.dor-tab__decision div {
+  margin-bottom: 2px;
+}

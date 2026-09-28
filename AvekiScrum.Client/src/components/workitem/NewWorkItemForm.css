@@ -53,6 +53,14 @@
   flex: 0 0 auto;
 }
 
+.wi-new-item__field--sp {
+  flex: 0 0 64px;
+}
+
+.wi-new-item__field--sp input {
+  width: 100%;
+}
+
 .wi-new-item__actions {
   display: flex;
   align-items: center;

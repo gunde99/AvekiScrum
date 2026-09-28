@@ -195,7 +195,10 @@ namespace AvekiScrum.Application.Mappers
                     completed = ToLocalSafe(t.ResolvedDate.Value);
             }
 
-            var statusChanged = t.ChangedDate.HasValue ? ToLocalSafe(t.ChangedDate.Value) : (DateTime?)null;
+            // Azure's State Change Date is stable while someone edits title, assignment or
+            // comments. Older work items can lack it, so Changed Date remains a safe fallback.
+            var stateChangedSource = t.StateChangeDate ?? t.ChangedDate;
+            var statusChanged = stateChangedSource.HasValue ? ToLocalSafe(stateChangedSource.Value) : (DateTime?)null;
 
             return new TaskVm
             {
@@ -209,6 +212,7 @@ namespace AvekiScrum.Application.Mappers
                 Activity = t.Activity ?? "",
                 IsBlocked = t.IsBlocked,
                 Tags = (t.Tags ?? new List<string>()).ToList(),
+                Priority = t.Priority,
                 IsPlaceholder = false,
                 CreatedDate = ToLocalSafe(t.CreatedDate),
                 CompletedDate = completed,

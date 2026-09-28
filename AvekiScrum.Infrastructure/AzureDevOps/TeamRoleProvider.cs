@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using AvekiScrum.Application.Configuration;
 using AvekiScrum.Application.Abstractions.Services;
+using AvekiScrum.Application.Helpers;
 using AvekiScrum.Shared.Enums;
 
 namespace AvekiScrum.Infrastructure.AzureDevOps
@@ -32,11 +33,8 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
                 .GroupBy(entry => entry.Role)
                 .ToDictionary(
                     group => group.Key,
-                    group => group
-                        .SelectMany(entry => entry.Members)
-                        .Where(member => !string.IsNullOrWhiteSpace(member))
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToList());
+                    group => DistinctByIdentity(group.SelectMany(entry => entry.Members)
+                        .Where(member => !string.IsNullOrWhiteSpace(member))));
 
             _memberToRole = entries
                 .SelectMany(entry => entry.Members
@@ -53,12 +51,29 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
                 .GroupBy(entry => RoleGroupKey(entry.Role, entry.Group))
                 .ToDictionary(
                     group => group.Key,
-                    group => group
-                        .SelectMany(entry => entry.Members)
-                        .Where(member => !string.IsNullOrWhiteSpace(member))
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToList(),
+                    group => DistinctByIdentity(group.SelectMany(entry => entry.Members)
+                        .Where(member => !string.IsNullOrWhiteSpace(member))),
                     StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Collapses two roster entries for the same real person (e.g. an old and a new email
+        /// address after a domain change - same local-part, different domain) into one, keeping
+        /// whichever occurrence appears first. This only affects roster/display lists built here;
+        /// it never removes an identity from anywhere assignee-matching still needs exact strings
+        /// (see PersonIdentityMatcher.IsMatch, used separately for that).
+        /// </summary>
+        private static List<string> DistinctByIdentity(IEnumerable<string> members)
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var result = new List<string>();
+            foreach (var member in members)
+            {
+                if (seen.Add(PersonIdentityMatcher.CanonicalKey(member)))
+                    result.Add(member);
+            }
+
+            return result;
         }
 
         public List<string> GetAllTeamMembersForRole(TeamRoleType roleType)

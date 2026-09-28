@@ -1,10 +1,13 @@
 import type { ReactNode } from "react";
 import { AppShell } from "./AppShell";
+import type { DeveloperTeamId } from "../api/dailys";
 
 const BOARDS = [
   { id: "planering", label: "Planering", enabled: false },
+  { id: "refinement", label: "Refinement", enabled: true },
   { id: "dailys", label: "Dailys", enabled: true },
   { id: "review", label: "Review", enabled: true },
+  { id: "test", label: "Test", enabled: true },
   { id: "retro", label: "Retro", enabled: false },
 ] as const;
 
@@ -12,23 +15,28 @@ export type BoardId = (typeof BOARDS)[number]["id"];
 
 /** The boards that actually exist. The others are shown in the nav but disabled, so navigation
  *  can only ever emit one of these - which is what lets the boards themselves narrow their prop. */
-export type NavigableBoardId = Extract<BoardId, "dailys" | "review">;
+export type NavigableBoardId = Extract<BoardId, "refinement" | "dailys" | "review" | "test">;
 
 interface BoardShellProps {
   activeBoard: BoardId;
   title: string;
-  subtitle?: string;
+  /** Usually a plain string, but the sprint line is interactive (see SprintPicker), hence ReactNode. */
+  subtitle?: ReactNode;
   /** Switches board. Only the enabled ones are clickable. */
   onNavigate?: (board: NavigableBoardId) => void;
   /** Back to the start page, where the other app lives. */
   onHome?: () => void;
+  /** The team every board tab now shares - see AppShell's own doc comment on why this lives here
+   *  rather than on each board. */
+  team?: DeveloperTeamId;
+  onTeamChange?: (team: DeveloperTeamId) => void;
   children: ReactNode;
 }
 
 // AvekiScrum's four boards, in the shell both apps share. No AvekiScrum wordmark/logo asset is
 // available yet (see docs/Grafisk profil.pdf) - using a styled text placeholder until the real
 // logotype files are sourced.
-export function BoardShell({ activeBoard, title, subtitle, onNavigate, onHome, children }: BoardShellProps) {
+export function BoardShell({ activeBoard, title, subtitle, onNavigate, onHome, team, onTeamChange, children }: BoardShellProps) {
   return (
     <AppShell
       brandPrefix="Aveki"
@@ -39,6 +47,8 @@ export function BoardShell({ activeBoard, title, subtitle, onNavigate, onHome, c
       onHome={onHome}
       title={title}
       subtitle={subtitle}
+      team={team}
+      onTeamChange={onTeamChange}
     >
       {children}
     </AppShell>

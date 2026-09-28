@@ -248,6 +248,32 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             return $"{BaseUrl}/_apis/teams/{encodedTeamName}/members?{_apiVersion}";
         }
 
+        /// <summary>Every Azure DevOps team in the project - the Refinement board's product-backlog
+        /// team picker offers whichever of these has a "Features" board (e.g. "PO produktstyrning"),
+        /// not just the two Scrum teams (Nord/Syd) the rest of the app is scoped to.</summary>
+        public static string GetProjectTeamsUrl()
+        {
+            // BaseUrl is "{org}/{project}/" - team listing is org-scoped with the project as a path
+            // segment after _apis rather than before it, so it can't just prepend BaseUrl like every
+            // other helper here.
+            var parts = BaseUrl.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var organization = parts[0];
+            var project = parts[1];
+            return $"{organization}/_apis/projects/{Uri.EscapeDataString(project)}/teams?$top=200&{_apiVersion}";
+        }
+
+        /// <summary>A team's Kanban boards (one per backlog level - "Features", "Stories", ...).</summary>
+        public static string GetTeamBoardsUrl(string teamName)
+        {
+            return $"{BaseUrl}{Uri.EscapeDataString(teamName)}/_apis/work/boards?{_apiVersion}";
+        }
+
+        /// <summary>One board's row/column configuration and lane/column field names.</summary>
+        public static string GetTeamBoardUrl(string teamName, string boardId)
+        {
+            return $"{BaseUrl}{Uri.EscapeDataString(teamName)}/_apis/work/boards/{Uri.EscapeDataString(boardId)}?{_apiVersion}";
+        }
+
         public static string GetWorkItemAttachmentUrl(Guid attachmentId, string? fileName)
         {
             var fn = string.IsNullOrWhiteSpace(fileName) ? "" : $"&fileName={Uri.EscapeDataString(fileName)}";

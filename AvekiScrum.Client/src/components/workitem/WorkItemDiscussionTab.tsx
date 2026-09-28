@@ -50,7 +50,8 @@ export function WorkItemDiscussionTab({ detail, onPosted }: WorkItemDiscussionTa
           minRows={2}
           value={text}
           onChange={setText}
-          placeholder="Skriv en kommentar. Klistra in en bild för att bifoga den."
+          placeholder="Skriv en kommentar. Klistra in en bild för att bifoga den. Skriv @ för att nämna någon."
+          enableMentions
         />
         {error && <p className="wi-discussion__error">{error}</p>}
         <div className="wi-discussion__composer-actions">

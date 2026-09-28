@@ -1,6 +1,13 @@
 import { apiFetch, describeFailure } from "../lib/apiFetch";
 export type DeveloperTeamId = "Nord" | "Syd";
 
+/** The two teams, everywhere a page needs to offer a switcher - see BoardShell's header, which is
+ *  the one place team is actually chosen now that every board tab shares it. */
+export const TEAM_OPTIONS: { id: DeveloperTeamId; label: string }[] = [
+  { id: "Nord", label: "Team Nord" },
+  { id: "Syd", label: "Team Syd" },
+];
+
 export interface DailyTaskDto {
   id: number;
   key: number;
@@ -12,9 +19,14 @@ export interface DailyTaskDto {
   activity: string | null;
   isBlocked: boolean;
   tags: string[];
+  priority: number | null;
   createdDate: string | null;
   completedDate: string | null;
   statusChangedDate: string | null;
+  /** When the task first got an owner - used instead of statusChangedDate for "time in status" on
+   *  an assigned-but-not-started test task, where what matters is how long it's sat with someone
+   *  rather than how long since its Azure state last changed. */
+  assignedDate: string | null;
   webUrl: string;
 }
 
@@ -46,6 +58,9 @@ export interface DailyStoryDto {
   developmentPartner: string | null;
   assignedTeam: string | null;
   areaPath: string | null;
+  /** Azure DevOps "Source" på buggar: Customer | Development | Internal | Test | Unset. Tomt/null
+   *  för korttyper som inte har fältet (t.ex. stories). */
+  source: string | null;
   /** Underlaget för korthygienvarningarna på raden - se korthygienWarnings i dailysLogic. */
   hasParent: boolean;
   hasDescription: boolean;
@@ -82,9 +97,24 @@ export interface DailysResponse {
     sprint: string;
     sprintStart: string;
     sprintEnd: string;
+    /** The iteration path - round-tripped back as ?iteration=... when switching sprints via the
+     *  picker, and used to anchor the picker's own list on whichever sprint is on screen. */
+    sprintPath: string;
     generatedAt: string;
   };
   teams: DailyTeamDto[];
+}
+
+/** One entry in the sprint picker's list - see SprintPicker.tsx. */
+export interface SprintOption {
+  path: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  isCurrent: boolean;
+  /** Iteration path of the release folder this sprint belongs to - sprints from the same release
+   *  are grouped under one heading in the picker. */
+  releaseFolder: string;
 }
 
 const API_BASE_URL =
@@ -110,10 +140,89 @@ async function fetchWithRetry(url: string, signal: AbortSignal | undefined, atte
   }
 }
 
-export async function fetchDailys(team: DeveloperTeamId, signal?: AbortSignal): Promise<DailysResponse> {
-  const response = await fetchWithRetry(`${API_BASE_URL}/api/dailys?team=${team}`, signal);
+/** `iteration` pins the board to that sprint instead of the date-based default - the sprint
+ *  picker's job. Omit it for the normal "today's sprint" behaviour. */
+export async function fetchDailys(team: DeveloperTeamId, signal?: AbortSignal, iteration?: string): Promise<DailysResponse> {
+  const params = new URLSearchParams({ team });
+  if (iteration) params.set("iteration", iteration);
+  const response = await fetchWithRetry(`${API_BASE_URL}/api/dailys?${params}`, signal);
   if (!response.ok) {
     throw new Error(await describeFailure(response, `Kunde inte hämta dailys för team ${team}`));
   }
   return (await response.json()) as DailysResponse;
+}
+
+/** One person's stories, freshly rebuilt - the response shape from /api/dailys/person. */
+export interface DailyPersonResponse {
+  team: string;
+  person: string;
+  generatedAt: string;
+  stories: DailyStoryDto[];
+}
+
+/** Refreshes just one person's cards instead of the whole team's board - see the comment on
+ *  DailyDashboardDataBuilder.BuildPersonJsonAsync for why this comes back faster than fetchDailys.
+ *  Used by the daily-flow's "Uppdatera korten" button so a card that just changed under someone's
+ *  turn can be re-checked without waiting out a full-team refresh. */
+export async function fetchDailyPerson(
+  team: DeveloperTeamId,
+  person: string,
+  signal?: AbortSignal,
+  iteration?: string,
+): Promise<DailyPersonResponse> {
+  const params = new URLSearchParams({ team, person });
+  if (iteration) params.set("iteration", iteration);
+  const response = await apiFetch(`${API_BASE_URL}/api/dailys/person?${params}`, { signal });
+  if (!response.ok) {
+    throw new Error(await describeFailure(response, `Kunde inte uppdatera kort för ${person}`));
+  }
+  return (await response.json()) as DailyPersonResponse;
+}
+
+/** One incheckningssiffra from a finished daily-flow round - see DailyFlow.tsx's persistCheckIns. */
+export interface DailyCheckInEntry {
+  /** "developer" | "goal" | "po" | "testlead" - which flow turn this came from. */
+  kind: string;
+  /** The flow step's own key - a developer/goal group id, or "po"/"testlead". */
+  key: string;
+  /** Display label at the time of check-in (person name, goal title, "Product Owner", …). */
+  label: string;
+  score: number;
+}
+
+/**
+ * Saves a finished daily flow's check-in numbers. Upserted server-side by (team, sprintPath, date,
+ * kind, key) - a repeated save for the same calendar day (a practice run of the flow before the
+ * real daily, say) overwrites that day's numbers rather than piling up a duplicate, so this is
+ * safe to call every time the flow completes without tracking whether it already ran today.
+ */
+export async function saveDailyCheckIns(request: {
+  team: DeveloperTeamId;
+  sprintPath: string;
+  sprintName: string;
+  /** yyyy-MM-dd, the local calendar day the daily was run. */
+  date: string;
+  entries: DailyCheckInEntry[];
+}): Promise<void> {
+  const response = await apiFetch(`${API_BASE_URL}/api/dailys/checkins`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  if (!response.ok) {
+    throw new Error(await describeFailure(response, "Kunde inte spara incheckningssiffrorna"));
+  }
+}
+
+/** The sprints the picker offers: the release the sprint at `around` belongs to, plus the release
+ *  before and after it (only the ones that actually have iterations created yet). Omit `around` to
+ *  center on whichever sprint /api/dailys would pick by default. */
+export async function fetchSprints(team: DeveloperTeamId, around?: string, signal?: AbortSignal): Promise<SprintOption[]> {
+  const params = new URLSearchParams({ team });
+  if (around) params.set("around", around);
+  const response = await apiFetch(`${API_BASE_URL}/api/sprints?${params}`, { signal });
+  if (!response.ok) {
+    throw new Error(await describeFailure(response, "Kunde inte hämta sprintlistan"));
+  }
+  return (await response.json()) as SprintOption[];
 }

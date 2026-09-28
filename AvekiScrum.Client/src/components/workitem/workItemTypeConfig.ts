@@ -5,6 +5,8 @@ export interface WorkItemTypeConfig {
   showSeverityPriority: boolean;
   showSource: boolean;
   showActivity: boolean;
+  /** Microsoft.VSTS.CMMI.Blocked - only offered on Task in this process template. */
+  showBlocked: boolean;
   showEstimates: boolean;
   showAcceptanceCriteria: boolean;
   showBusinessValue: boolean;
@@ -21,6 +23,7 @@ const DEFAULT_CONFIG: WorkItemTypeConfig = {
   showSeverityPriority: false,
   showSource: false,
   showActivity: false,
+  showBlocked: false,
   showEstimates: false,
   showAcceptanceCriteria: false,
   showBusinessValue: false,
@@ -37,20 +40,7 @@ const CONFIG_BY_TYPE: Record<string, WorkItemTypeConfig> = {
     showSeverityPriority: false,
     showSource: false,
     showActivity: false,
-    showEstimates: false,
-    showAcceptanceCriteria: true,
-    showBusinessValue: false,
-    showValueArea: true,
-    showTaskboard: true,
-    descriptionLabel: "Beskrivning",
-  },
-  "Product Backlog Item": {
-    icon: "📖",
-    color: "var(--cat-dev)",
-    showStoryPoints: true,
-    showSeverityPriority: false,
-    showSource: false,
-    showActivity: false,
+    showBlocked: false,
     showEstimates: false,
     showAcceptanceCriteria: true,
     showBusinessValue: false,
@@ -65,6 +55,7 @@ const CONFIG_BY_TYPE: Record<string, WorkItemTypeConfig> = {
     showSeverityPriority: true,
     showSource: true,
     showActivity: false,
+    showBlocked: false,
     showEstimates: false,
     showAcceptanceCriteria: false,
     showBusinessValue: false,
@@ -79,6 +70,7 @@ const CONFIG_BY_TYPE: Record<string, WorkItemTypeConfig> = {
     showSeverityPriority: false,
     showSource: false,
     showActivity: true,
+    showBlocked: true,
     showEstimates: true,
     showAcceptanceCriteria: false,
     showBusinessValue: false,
@@ -93,11 +85,14 @@ const CONFIG_BY_TYPE: Record<string, WorkItemTypeConfig> = {
     showSeverityPriority: false,
     showSource: false,
     showActivity: false,
+    showBlocked: false,
     showEstimates: false,
     showAcceptanceCriteria: true,
     showBusinessValue: true,
     showValueArea: true,
-    showTaskboard: true,
+    // A Feature's own hierarchy (Epic above, User Stories/Bugs below) is shown on the Relationer
+    // tab instead - see WorkItemRefCard - there's no separate task-level workflow to board.
+    showTaskboard: false,
     descriptionLabel: "Beskrivning",
   },
   Epic: {
@@ -107,6 +102,7 @@ const CONFIG_BY_TYPE: Record<string, WorkItemTypeConfig> = {
     showSeverityPriority: false,
     showSource: false,
     showActivity: false,
+    showBlocked: false,
     showEstimates: false,
     showAcceptanceCriteria: true,
     showBusinessValue: true,
@@ -151,9 +147,8 @@ export const CREATABLE_TYPES = ["User Story", "Bug", "Task", "Feature"];
  */
 const ALLOWED_CHILDREN: Record<string, string[]> = {
   Epic: ["Feature"],
-  Feature: ["User Story", "Product Backlog Item", "Bug"],
+  Feature: ["User Story", "Bug"],
   "User Story": ["Task"],
-  "Product Backlog Item": ["Task"],
   Bug: ["Task"],
   Task: [],
 };

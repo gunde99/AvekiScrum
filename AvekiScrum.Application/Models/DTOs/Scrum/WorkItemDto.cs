@@ -21,6 +21,13 @@ namespace AvekiScrum.Application.Models.DTOs.Scrum
         public string Severity { get; set; }
         public double? StoryPoints { get; set; }
         public int SPInt => (int)Math.Round(StoryPoints ?? 0.0);
+        /// <summary>Microsoft.VSTS.Common.StackRank - the Product Backlog's own ordering; see
+        /// AzureDevOpsBoardsClient.GetProductBacklogAsync.</summary>
+        public double? StackRank { get; set; }
+        /// <summary>The "Features" board's column/lane for this item - only set on a Feature read
+        /// through GetProductBacklogAsync, null everywhere else.</summary>
+        public string BoardColumn { get; set; }
+        public string BoardLane { get; set; }
         public string AreaPath { get; set; }
         public string IterationPath { get; set; }
         public string Activity { get; set; }
@@ -45,6 +52,9 @@ namespace AvekiScrum.Application.Models.DTOs.Scrum
         public DateTime? ClosedDate { get; set; }
         public DateTime? ResolvedDate { get; set; }
         public DateTime? ChangedDate { get; set; }
+        /// <summary>När System.State senast ändrades. Till skillnad från ChangedDate påverkas
+        /// detta inte av exempelvis kommentarer, titel eller tilldelning.</summary>
+        public DateTime? StateChangeDate { get; set; }
 
         public DeveloperTeam Team { get; set; }
 
@@ -75,6 +85,8 @@ namespace AvekiScrum.Application.Models.DTOs.Scrum
 
         // Nrb of days that the item has been in its current state
         //Calculated property from ChangedDate and current date
-        public int? DaysInStatus => (int?)(StateEnum == WorkItemState.Closed ? null : (int)Math.Round((DateTime.UtcNow - (ChangedDate?.ToUniversalTime() ?? DateTime.UtcNow)).TotalDays));
+        public int? DaysInStatus => (int?)(StateEnum == WorkItemState.Closed
+            ? null
+            : (int)Math.Floor((DateTime.UtcNow - (StateChangeDate ?? ChangedDate ?? DateTime.UtcNow).ToUniversalTime()).TotalDays));
     }
 }

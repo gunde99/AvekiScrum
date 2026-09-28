@@ -1,0 +1,11 @@
+.sk-story-tab__status {
+  margin: 0 0 var(--space-3);
+  font-weight: 700;
+  color: var(--color-success);
+}
+
+.sk-story-tab__hint {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}

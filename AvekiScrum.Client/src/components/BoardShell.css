@@ -92,6 +92,38 @@
   cursor: default;
 }
 
+.board-shell__team {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.board-shell__team-btn {
+  padding: 4px var(--space-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.board-shell__team-btn:hover:not(.board-shell__team-btn--active) {
+  color: var(--color-text);
+}
+
+.board-shell__team-btn--active {
+  background: var(--color-primary);
+  color: #fff;
+  cursor: default;
+}
+
 .board-shell__theme-toggle {
   width: 36px;
   height: 36px;

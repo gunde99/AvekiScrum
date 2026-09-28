@@ -1,0 +1,26 @@
+.state-pill {
+  display: inline-block;
+  border-radius: 999px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.state-pill--new { background: var(--color-border); color: var(--color-text-muted); }
+.state-pill--active { background: var(--cat-dev); color: #fff; }
+.state-pill--resolved { background: var(--aveki-blue-tint-2); color: #fff; }
+.state-pill--done { background: var(--color-success); color: #fff; }
+.state-pill--notok { background: var(--color-danger); color: #fff; }
+.state-pill--default { background: var(--color-border); color: var(--color-text); }
+
+.state-pill--sm {
+  padding: 1px var(--space-2);
+  font-size: 0.68rem;
+}
+
+.state-pill--md {
+  padding: 2px var(--space-3);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}

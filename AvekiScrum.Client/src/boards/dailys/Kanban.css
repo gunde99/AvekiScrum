@@ -62,12 +62,34 @@
 .kb-lane-head {
   display: flex;
   justify-content: space-between;
+  width: 100%;
   padding: var(--space-1) var(--space-2);
+  font: inherit;
   font-size: 0.7rem;
   font-weight: 700;
+  border: none;
   border-bottom: 1px solid var(--color-border);
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   color: #ffffff;
+  cursor: pointer;
+}
+
+.kb-lane-chevron {
+  display: inline-block;
+  margin-right: var(--space-1);
+  font-size: 0.6rem;
+  transition: transform 0.15s ease;
+}
+
+.kb-lane-chevron--open {
+  transform: rotate(90deg);
+}
+
+.kb-lane-truncated {
+  padding: 2px var(--space-2);
+  font-size: 0.65rem;
+  font-style: italic;
+  color: var(--color-text-muted);
 }
 
 .kb-lane--new .kb-lane-head { background: var(--aveki-grey-600); }
@@ -92,77 +114,5 @@
   font-size: 0.75rem;
 }
 
-.kb-card {
-  display: block;
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-subtle);
-  border-left: 3px solid var(--color-border);
-  text-decoration: none;
-  color: inherit;
-  font-size: 0.75rem;
-}
-
-.kb-card:hover {
-  background: var(--color-border);
-}
-
-.kb-card--draggable {
-  cursor: grab;
-}
-
-.kb-card--draggable:active {
-  cursor: grabbing;
-}
-
-.kb-card--new { border-left-color: var(--aveki-grey-500); }
-.kb-card--active { border-left-color: var(--cat-dev); }
-.kb-card--resolved { border-left-color: var(--aveki-blue-tint-2); }
-.kb-card--done { border-left-color: var(--color-success); }
-.kb-card--test { border-left-color: var(--cat-test-bg); }
-.kb-card--doc { border-left-color: var(--cat-doc); }
-.kb-card--notok { border-left-color: var(--color-danger); }
-
-.kbc-head {
-  display: flex;
-  justify-content: space-between;
-  color: var(--color-text-muted);
-  font-size: 0.65rem;
-}
-
-.kbc-title {
-  font-weight: 600;
-  margin: 2px 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-
-.kbc-branch {
-  color: var(--color-text-muted);
-  font-size: 0.65rem;
-  font-family: var(--font-mono, monospace);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin-bottom: 2px;
-}
-
-.kbc-foot {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: var(--space-2);
-  color: var(--color-text-muted);
-  font-size: 0.65rem;
-  min-width: 0;
-}
-
-.kbc-activity {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  opacity: 0.85;
-}
+/* .kb-card / .kbc-* (the card itself) now live in components/workitem/TaskCardVisual.css - shared
+   with the Relationer and Taskboard tabs, which draw the same card. */

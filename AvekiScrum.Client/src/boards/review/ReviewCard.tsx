@@ -1,6 +1,8 @@
 import { PersonAvatar } from "../../components/PersonAvatar";
+import { StatePill } from "../../components/workitem/StatePill";
+import { getWorkItemTypeConfig } from "../../components/workitem/workItemTypeConfig";
 import type { DailyStoryDto } from "../../api/dailys";
-import { azureStatusClass, fullPersonName } from "../dailys/dailysLogic";
+import { fullPersonName } from "../dailys/dailysLogic";
 import "./ReviewCard.css";
 
 interface ReviewCardProps {
@@ -8,15 +10,18 @@ interface ReviewCardProps {
   selected: boolean;
   onToggleSelect: (id: number, additive: boolean) => void;
   onOpen: (id: number) => void;
-  /** Set on the left-hand list; panel cards get a remove button instead. */
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
-  onRemove?: () => void;
   busy?: boolean;
 }
 
-/** One work item, reduced to what's needed to decide how it should be presented at the review. */
-export function ReviewCard({ story, selected, onToggleSelect, onOpen, draggable, onDragStart, onRemove, busy }: ReviewCardProps) {
+/**
+ * The left-hand list's own card - everything worth knowing before deciding where a card goes at
+ * review: title, status, area path, every tag, story points, who owns it. See ReviewPanelCard for
+ * the pared-down version a card gets once it's actually sorted into a lane.
+ */
+export function ReviewCard({ story, selected, onToggleSelect, onOpen, draggable, onDragStart, busy }: ReviewCardProps) {
+  const config = getWorkItemTypeConfig(story.type);
   return (
     <div
       className={"rv-card" + (selected ? " rv-card--selected" : "") + (busy ? " rv-card--busy" : "")}
@@ -44,29 +49,36 @@ export function ReviewCard({ story, selected, onToggleSelect, onOpen, draggable,
       >
         #{story.id}
       </button>
-      <span className="rv-card__title" title={story.title}>
-        {story.title}
+
+      <span className="rv-card__icon" style={{ color: config.color }} title={story.type} aria-hidden="true">
+        {config.icon}
       </span>
-      <span className={`rv-card__state ${azureStatusClass(story.azureStatus)}`}>{story.azureStatus}</span>
+
+      <div className="rv-card__lines">
+        <div className="rv-card__line1">
+          <span className="rv-card__title" title={story.title}>
+            {story.title}
+          </span>
+          <StatePill state={story.azureStatus} size="sm" />
+          <span className="rv-card__sp">{story.storyPoints || 0} SP</span>
+        </div>
+        <div className="rv-card__line2">
+          {story.areaPath && (
+            <span className="rv-card__area" title={story.areaPath}>
+              {story.areaPath}
+            </span>
+          )}
+          {story.tags.map((tag) => (
+            <span className="rv-card__tag" key={tag}>
+              {tag}
+            </span>
+          ))}
+        </div>
+      </div>
+
       <span className="rv-card__dev" title={fullPersonName(story.developer) || "Ej tilldelad"}>
-        <PersonAvatar name={story.developer} size={20} />
-        <span>{fullPersonName(story.developer) || "–"}</span>
+        <PersonAvatar name={story.developer} size={24} />
       </span>
-      <span className="rv-card__sp">{story.storyPoints || 0} SP</span>
-      {onRemove && (
-        <button
-          type="button"
-          className="rv-card__remove"
-          title="Ta bort taggen och lägg tillbaka kortet i listan"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-          disabled={busy}
-        >
-          {busy ? "…" : "✕"}
-        </button>
-      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System;
 using System.Linq;
@@ -21,6 +21,7 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
         Task<string> PostJsonAsync<T>(string url, T body, CancellationToken ct = default);
         Task<TResponse?> PostJsonAsync<TRequest, TResponse>(string url, TRequest body, CancellationToken ct = default);
         Task<RestResponse> PatchJsonPatchAsync<T>(string url, T body, CancellationToken ct = default);
+        Task<RestResponse> PatchJsonAsync<T>(string url, T body, CancellationToken ct = default);
         Task<RestResponse> PostJsonPatchAsync<T>(string url, T body, CancellationToken ct = default);
         Task<RestResponse> PutJsonAsync<T>(string url, T body, string ifMatchVersion = null, CancellationToken ct = default);
         Task<bool> DeleteAsync(string url, string ifMatchVersion = null, CancellationToken ct = default);
@@ -205,6 +206,21 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             };
         }
 
+        public async Task<RestResponse> PatchJsonAsync<T>(string url, T body, CancellationToken ct = default)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Patch, url)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json")
+            };
+            using var resp = await _httpClient.SendAsync(request, ct);
+            var payload = await resp.Content.ReadAsStringAsync(ct);
+            if (!resp.IsSuccessStatusCode)
+            {
+                _logger.LogError("PATCH {Url} failed: {Status} {Reason} {Payload}", url, (int)resp.StatusCode, resp.ReasonPhrase, payload);
+                throw new HttpRequestException($"PATCH {url} failed with {(int)resp.StatusCode} {resp.ReasonPhrase}. Body: {payload}");
+            }
+            return new RestResponse { Body = payload, ETag = resp.Headers.ETag?.Tag?.Trim('"'), StatusCode = (int)resp.StatusCode };
+        }
         public async Task<RestResponse> PostJsonPatchAsync<T>(string url, T body, CancellationToken ct = default)
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, url)

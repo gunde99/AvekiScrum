@@ -57,12 +57,14 @@ export function korthygienOk(detail: WorkItemDetail, draft: KorthygienDraft): bo
   return (
     hasText(draft.description) &&
     (!config.showStoryPoints || (!!draft.storyPoints && draft.storyPoints > 0)) &&
-    !!draft.assignedTo.trim() &&
     (detail.type === "Bug" || detail.parent !== null || draft.parentNotApplicable) &&
     !!draft.areaPath
-    // Acceptanskriterier and Sprintmål-taggen are intentionally excluded - they're worth a
-    // warning if missing, but shouldn't block Godkänn DoR. Development Partner is excluded too:
-    // it always resolves to either a name or the "not applicable" default, so it can never block.
+    // Acceptanskriterier, Sprintmål-taggen and Ansvarig are intentionally excluded - they're
+    // worth a warning if missing, but per feedback shouldn't block the DoR tag: a card is often
+    // reviewed before anyone is assigned to it, and Godkänn DoR no longer means "perfect", just
+    // "reviewed" - Custom.DoRStatus/DoRDecision carry the actual nuance now. Development Partner
+    // is excluded too: it always resolves to either a name or the "not applicable" default, so it
+    // can never block.
   );
 }
 
@@ -213,12 +215,18 @@ export function WorkItemKorthygienTab({
       >
         <div className="kh-rows">
           <Row label="Beskrivning" ok={hasText(draft.description)}>
-            <RichTextEditor
-              minRows={6}
-              value={draft.description}
-              onChange={(value) => onDraftChange({ description: value })}
-              placeholder="Beskriv kortet. Klistra in en bild för att bifoga den."
-            />
+            {/* Capped to ~3 rows here (not the shared RichTextEditor default) - since the
+                Godkännande dialog shows the full card in its own pane too, this copy only needs
+                to confirm there is a description, not be a comfortable place to read the whole
+                thing. */}
+            <div className="kh-description-editor">
+              <RichTextEditor
+                minRows={3}
+                value={draft.description}
+                onChange={(value) => onDraftChange({ description: value })}
+                placeholder="Beskriv kortet. Klistra in en bild för att bifoga den."
+              />
+            </div>
           </Row>
 
           {config.showAcceptanceCriteria && (
@@ -238,7 +246,7 @@ export function WorkItemKorthygienTab({
             </Row>
           )}
 
-          <Row label="Ansvarig" sub="Teamets utvecklare + PO" ok={!!draft.assignedTo.trim()}>
+          <Row label="Ansvarig" sub="Teamets utvecklare + PO" ok={!!draft.assignedTo.trim()} warnOnly warnText="Otilldelad">
             <PersonSelect value={draft.assignedTo} options={ansvarigOptions} onChange={(v) => onDraftChange({ assignedTo: v })} />
           </Row>
 

@@ -1,9 +1,12 @@
 @echo off
-REM Delad startlogik for start-pat.bat och start-entra.bat. Anropas med lage som %1.
+REM Delad startlogik for start-pat.bat, start-entra.bat och vice-SM.bat. Anropas med lage som %1.
 REM Skillnaden mellan scenarierna ar exakt en sak - Auth:Mode - och den ligger i anroparen.
 REM
 REM Andra argumentet: "force" stoppar det som redan hall portarna utan att fraga. Anvands nar man
 REM vet vad man gor och inte vill svara pa en fraga varje gang.
+REM
+REM Tredje argumentet: sokvagen webblasaren oppnas mot, t.ex. "/?board=dailys" for att hoppa over
+REM startsidan (se vice-SM.bat). Tomt ger samma sak som forut - startsidan pa "/".
 setlocal EnableDelayedExpansion
 
 set "AUTH_MODE=%~1"
@@ -11,6 +14,8 @@ if "%AUTH_MODE%"=="" set "AUTH_MODE=Pat"
 REM Gamla instanser stoppas utan att fraga. "ask" som andra argument aterinfor fragan.
 set "ASK="
 if /i "%~2"=="ask" set "ASK=1"
+set "OPEN_PATH=%~3"
+if "%OPEN_PATH%"=="" set "OPEN_PATH=/"
 
 echo ==========================================================
 echo   AvekiScrum lokalt  -  Auth:Mode = %AUTH_MODE%
@@ -41,8 +46,10 @@ REM Citattecknen runt hela tilldelningen ar inte kosmetika: "set X=Pat && ..." t
 REM fore && i vardet, sa lagert blir "Pat " och matchar ingenting.
 start "AvekiScrum.Api (%AUTH_MODE%)" cmd /k "cd /d "%~dp0AvekiScrum.Api" && set "Auth__Mode=%AUTH_MODE%" && dotnet run --launch-profile http"
 
-echo Startar AvekiScrum.Client pa http://localhost:5199 ...
-start "AvekiScrum.Client" cmd /k "cd /d "%~dp0AvekiScrum.Client" && npm run dev -- --open"
+echo Startar AvekiScrum.Client pa http://localhost:5199%OPEN_PATH% ...
+REM Vite's egen --open tar en sokvag och vantar tills dev-servern faktiskt svarar innan den oppnar
+REM fliken - ingen egen sleep/retry-logik behovs for att traffa ratt sida direkt.
+start "AvekiScrum.Client" cmd /k "cd /d "%~dp0AvekiScrum.Client" && npm run dev -- --open "%OPEN_PATH%""
 
 echo.
 echo Bada delarna kor i egna fonster.

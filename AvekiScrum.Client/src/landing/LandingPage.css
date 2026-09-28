@@ -80,6 +80,22 @@
   align-content: start;
 }
 
+/* The top-level doors (as opposed to the two-team picker, which keeps the narrower layout
+   above) - one column wider and a bit smaller each, so all three sit side by side. */
+.landing__cards--entrances {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  max-width: 1720px;
+  gap: var(--space-4);
+}
+
+/* Ordered before the 900px rule below: both conditions can be true at once, and the narrower
+   breakpoint's single column must win at very small widths regardless of source order otherwise. */
+@media (max-width: 1200px) {
+  .landing__cards--entrances {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 900px) {
   .landing__cards {
     grid-template-columns: minmax(0, 1fr);
@@ -144,6 +160,14 @@
   background: linear-gradient(160deg, rgba(15, 65, 112, 0.38), rgba(157, 191, 33, 0.12) 70%);
 }
 
+.landing-card--documentation .landing-card__photo::after {
+  background: linear-gradient(160deg, rgba(76, 138, 46, 0.4), rgba(254, 205, 26, 0.12) 70%);
+}
+
+.landing-card--testing .landing-card__photo::after {
+  background: linear-gradient(160deg, rgba(254, 205, 26, 0.38), rgba(15, 65, 112, 0.2) 70%);
+}
+
 .landing-card__tagline {
   position: absolute;
   left: var(--space-4);
@@ -185,6 +209,17 @@
   color: var(--color-info-text);
 }
 
+/* Third accent: the same green the app already uses for "documentation" work elsewhere
+   (workItemTypeConfig's --cat-doc is this same variable) - not a new colour invented for this
+   card, reusing the one that already means "documentation" in this codebase. */
+.landing-card--documentation .landing-card__title span {
+  color: var(--color-success);
+}
+
+.landing-card--testing .landing-card__title span {
+  color: var(--color-primary);
+}
+
 .landing-card__text {
   margin: 0;
   color: var(--color-text-muted);
@@ -222,6 +257,14 @@
   background: var(--color-info-text);
 }
 
+.landing-card--documentation .landing-card__bullets li::before {
+  background: var(--color-success);
+}
+
+.landing-card--testing .landing-card__bullets li::before {
+  background: var(--aveki-yellow);
+}
+
 .landing-card__cta {
   margin-top: auto;
   display: inline-flex;
@@ -233,6 +276,14 @@
 
 .landing-card--support .landing-card__cta {
   color: var(--color-info-text);
+}
+
+.landing-card--documentation .landing-card__cta {
+  color: var(--color-success);
+}
+
+.landing-card--testing .landing-card__cta {
+  color: var(--color-primary);
 }
 
 .landing-card__cta span {

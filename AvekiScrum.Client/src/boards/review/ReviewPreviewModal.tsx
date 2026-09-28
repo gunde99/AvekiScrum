@@ -35,7 +35,7 @@ export function ReviewPreviewModal({ team, sprint, sprintStart, sprintEnd, byLan
   const [blocks, setBlocks] = useState<ReviewCardBlock[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [posted, setPosted] = useState(false);
+  const [savedFilename, setSavedFilename] = useState<string | null>(null);
 
   const sections = useMemo<ReviewReportSection[]>(
     () =>
@@ -84,18 +84,17 @@ export function ReviewPreviewModal({ team, sprint, sprintStart, sprintEnd, byLan
     }
   }
 
-  /** Second stage: the same payload, this time actually posted to the channel. */
-  async function publish() {
-    setBusy(true);
-    setError(null);
-    try {
-      await publishReviewReport({ team, sprint, sprintStart, sprintEnd, sections, dryRun: false });
-      setPosted(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Kunde inte publicera rapporten.");
-    } finally {
-      setBusy(false);
-    }
+  /**
+   * Second stage: no Teams webhook is configured yet (see docs/TEAMS_SETUP.md), so rather than
+   * fail against /api/review/publish this saves the exact same report as a .md file - built
+   * client-side from the blocks the dry run already fetched, so what downloads matches the
+   * preview exactly. Swap this back to publish() once a webhook URL exists.
+   */
+  function saveMarkdown() {
+    if (!blocks) return;
+    const filename = `sprintreview-${team}-${sprint}.md`.replace(/\s+/g, "-");
+    downloadTextFile(filename, blocksToMarkdown(blocks));
+    setSavedFilename(filename);
   }
 
   const section = onReport ? null : sections[step];
@@ -130,12 +129,15 @@ export function ReviewPreviewModal({ team, sprint, sprintStart, sprintEnd, byLan
 
         <div className="rvp__body">
           {onReport ? (
-            posted ? (
+            savedFilename ? (
               <div className="rvp__done">
                 <span className="rvp__done-icon" aria-hidden="true">
                   ✅
                 </span>
-                <p>Rapporten är publicerad i Teams-kanalen.</p>
+                <p>
+                  Rapporten är sparad som <strong>{savedFilename}</strong>. Öppna filen och klistra in i Teams-kanalen manuellt -
+                  automatisk publicering väntar på en konfigurerad webhook.
+                </p>
               </div>
             ) : (
               <ReportPreview blocks={blocks ?? []} />
@@ -173,10 +175,10 @@ export function ReviewPreviewModal({ team, sprint, sprintStart, sprintEnd, byLan
 
         <footer className="rvp__actions">
           <button type="button" className="wi-btn" onClick={onClose} disabled={busy}>
-            {posted ? "Stäng" : "Avbryt"}
+            {savedFilename ? "Stäng" : "Avbryt"}
           </button>
           <span className="rvp__spacer" />
-          {step > 0 && !posted && (
+          {step > 0 && !savedFilename && (
             <button type="button" className="wi-btn" onClick={() => setStep((s) => s - 1)} disabled={busy}>
               Tillbaka
             </button>
@@ -191,9 +193,9 @@ export function ReviewPreviewModal({ team, sprint, sprintStart, sprintEnd, byLan
               {busy ? "Skapar rapport…" : "Godkänn"}
             </button>
           )}
-          {onReport && !posted && (
-            <button type="button" className="wi-btn wi-btn--primary" onClick={() => void publish()} disabled={busy}>
-              {busy ? "Publicerar…" : "Publicera till Teams"}
+          {onReport && !savedFilename && (
+            <button type="button" className="wi-btn wi-btn--primary" onClick={saveMarkdown}>
+              Spara som .md-fil
             </button>
           )}
         </footer>
@@ -261,6 +263,40 @@ function renderInline(text: string) {
 
 function unescapeMarkdown(text: string): string {
   return text.replace(/\\([*_#[\]`\\])/g, "$1");
+}
+
+/**
+ * The same blocks the Adaptive Card preview renders, turned into real Markdown - one line per
+ * block, styled by exactly the size/weight/isSubtle/separator flags ReviewReport.BuildAdaptiveCard
+ * sets on the server (see that file). Each block's own text is left untouched: it's already
+ * backslash-escaped for special characters (a card title with a literal "*" or "#"), and that
+ * escaping is exactly as valid in this .md file as it is in the Adaptive Card.
+ */
+function blocksToMarkdown(blocks: ReviewCardBlock[]): string {
+  const lines: string[] = [];
+  for (const block of blocks) {
+    if (block.separator && lines.length > 0) lines.push("---");
+    if (block.size === "Large" && block.weight === "Bolder") lines.push(`# ${block.text}`);
+    else if (block.size === "Medium" && block.weight === "Bolder") lines.push(`## ${block.text}`);
+    else if (block.weight === "Bolder") lines.push(`**${block.text}**`);
+    else if (block.isSubtle) lines.push(`*${block.text}*`);
+    else lines.push(block.text);
+  }
+  return lines.join("\n\n") + "\n";
+}
+
+/** Triggers a browser download of `content` as a local file - no server round-trip, since the
+ *  report's already been built client-side by the time this is called. */
+function downloadTextFile(filename: string, content: string): void {
+  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 /** Cards grouped by owner, alphabetically, with unowned cards last so they read as a leftover. */

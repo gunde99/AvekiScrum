@@ -12,6 +12,7 @@ import type { PersonOption } from "../../api/people";
 import { NewWorkItemForm } from "./NewWorkItemForm";
 import { Section } from "./Section";
 import { WorkItemRefCard } from "./WorkItemRefCard";
+import { TaskCardVisual, toneFromAzureState } from "./TaskCardVisual";
 import { allowedChildTypes, allowedParentTypes } from "./workItemTypeConfig";
 import "./WorkItemRelationsTab.css";
 
@@ -163,7 +164,21 @@ function RelationRow({
 
   return (
     <div className="wi-rel__row">
-      <WorkItemRefCard item={item} onOpen={() => onOpenRelation(item, label)} />
+      {item.type === "Task" ? (
+        <TaskCardVisual
+          id={item.id}
+          title={item.title}
+          statusLabel={item.state}
+          tone={toneFromAzureState(item.state)}
+          assignedTo={item.assignedTo}
+          activity={item.activity}
+          createdDate={item.createdDate}
+          isBlocked={item.isBlocked}
+          onOpen={() => onOpenRelation(item, label)}
+        />
+      ) : (
+        <WorkItemRefCard item={item} onOpen={() => onOpenRelation(item, label)} />
+      )}
       <button
         type="button"
         className="wi-rel__unlink"

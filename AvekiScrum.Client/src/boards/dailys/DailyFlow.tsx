@@ -1,17 +1,17 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { PersonAvatar } from "../../components/PersonAvatar";
 import { useToast } from "../../components/Toast";
-import { fetchAllPeople, fetchTeamRoles, type PersonOption } from "../../api/people";
+import { fetchTeamRoles, type PersonOption } from "../../api/people";
 import { updateWorkItemFields } from "../../api/workitems";
 import { WorkItemModal } from "../../components/workitem/WorkItemModal";
-import type { DailyStoryDto, DailyTaskDto, DeveloperTeamId } from "../../api/dailys";
+import { fetchDailys, fetchSprints, saveDailyCheckIns, type DailyStoryDto, type DeveloperTeamId } from "../../api/dailys";
 import type { SprintGoal } from "../../api/sprintGoals";
 import { MoodGauge } from "./MoodGauge";
+import { TestTaskBoard, type ExtraTestIteration } from "./TestTaskBoard";
 import {
   collectReviewTargets,
+  compactPersonName,
   fullPersonName,
-  isTestTask,
-  isStoryDone,
   pct,
   personKey,
   REVIEW_TAG,
@@ -49,6 +49,92 @@ function shuffle<T>(arr: T[]): T[] {
   return copy;
 }
 
+// Elin and Chica (team leads riding along as optional developer-roster participants) always take
+// their turn last, after even the PO/test-lead closing turns, and never count toward the time
+// budget - see the "tailSteps" split in the flow-building effect below, and isCountedStep next.
+function isTimeExemptPerson(name: string): boolean {
+  return samePerson(name, "Elin Jonsson") || samePerson(name, "Chica Robertsson");
+}
+
+/** Elin and Chica ride along on the developer roster (see isTimeExemptPerson) but aren't
+ *  developers - their actual roles, for the role line under their name during their turn. */
+function specialRoleLabel(name: string): string | null {
+  if (samePerson(name, "Elin Jonsson")) return "Teamledare";
+  if (samePerson(name, "Chica Robertsson")) return "Processansvarig";
+  return null;
+}
+
+/** Review cards aren't a "turn" in the time-budget sense, and neither is a time-exempt person. */
+function isCountedStep(step: FlowStep | null | undefined): boolean {
+  return !!step && step.kind !== "review" && !isTimeExemptPerson(step.name);
+}
+
+// ─── Daily timer ───────────────────────────────────────────────────────────
+// A whole-meeting 15-minute countdown, plus an *adaptive* per-turn budget: at the start of every
+// counted turn, whatever's left of a separate virtual "budget pool" is split evenly across every
+// counted turn still ahead (including the one about to start). Leaving a turn early only debits
+// the pool by what was actually used, so unused time flows forward to whoever's left. Running over
+// never debits more than that turn's own share, so nobody else's slice shrinks because of it - the
+// overrun only eats into the visible whole-meeting clock, which is a separate, real-time countdown.
+// The pool and the clock start at the same value but are otherwise independent.
+const TIMER_TOTAL_SECONDS = 15 * 60;
+const TIMER_ENABLED_STORAGE_KEY = "avekiscrum.dailyflow.timerEnabled";
+
+function formatClock(totalSeconds: number): string {
+  const s = Math.max(0, Math.round(totalSeconds));
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
+// Tones are generated with the Web Audio API rather than shipping sound files - there is no
+// existing audio asset/pattern in this app to fit into, and this keeps the feature self-contained.
+let dailyFlowAudioCtx: AudioContext | null = null;
+
+function ensureDailyFlowAudio(): AudioContext | null {
+  const AudioCtor = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioCtor) return null;
+  if (!dailyFlowAudioCtx) {
+    try {
+      dailyFlowAudioCtx = new AudioCtor();
+    } catch {
+      dailyFlowAudioCtx = null;
+    }
+  } else if (dailyFlowAudioCtx.state === "suspended") {
+    void dailyFlowAudioCtx.resume();
+  }
+  return dailyFlowAudioCtx;
+}
+
+function playDailyFlowTone(freq: number, durMs: number, delayMs = 0, type: OscillatorType = "sine", gainPeak = 0.16) {
+  const ctx = ensureDailyFlowAudio();
+  if (!ctx) return;
+  const start = ctx.currentTime + delayMs / 1000;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.linearRampToValueAtTime(gainPeak, start + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + durMs / 1000);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(start);
+  osc.stop(start + durMs / 1000 + 0.05);
+}
+
+function playFiveMinuteSignal() {
+  playDailyFlowTone(880, 220);
+}
+function playOneMinuteSignal() {
+  playDailyFlowTone(740, 150);
+  playDailyFlowTone(740, 150, 220);
+}
+function playEndGong() {
+  playDailyFlowTone(523.25, 320);
+  playDailyFlowTone(392.0, 550, 200);
+  playDailyFlowTone(261.63, 850, 420, "sine", 0.2);
+}
+
 interface DailyFlowProps {
   team: DeveloperTeamId;
   mode: GroupMode;
@@ -58,8 +144,15 @@ interface DailyFlowProps {
    *  found here rather than in `allStories`: someone tagged them precisely so they'd come up, and
    *  a filter set for browsing the board is no reason to skip them. */
   unfilteredStories: DailyStoryDto[];
+  /** Which sprint allStories itself belongs to - used to anchor the test-lead turn's own lookup of
+   *  last sprint's still-open test tasks (see the effect below) and to label its cards once both
+   *  sprints are shown. Omit and that lookup simply doesn't run. */
+  currentIteration?: { path: string; label: string };
   onHighlightChange: (groupId: string | null) => void;
   onOpenWorkItem: (id: number) => void;
+  /** Refreshes just the given person's cards (developer turns only) instead of the whole board -
+   *  see fetchDailyPerson/applyPersonRefresh. Rejects on failure; the button reports that itself. */
+  onRefreshPerson: (person: string) => Promise<void>;
   /** Lets the board patch its local copy after a test task is reassigned, so the change shows
    *  immediately without a full refetch. */
   onTaskAssigned?: (taskId: number, displayName: string) => void;
@@ -82,8 +175,10 @@ export function DailyFlow({
   groups,
   allStories,
   unfilteredStories,
+  currentIteration,
   onHighlightChange,
   onOpenWorkItem,
+  onRefreshPerson,
   onTaskAssigned,
   sprintGoalsByNumber,
   onOpenValidation,
@@ -93,6 +188,7 @@ export function DailyFlow({
   onClose,
 }: DailyFlowProps) {
   const [roles, setRoles] = useState<{ po: PersonOption | null; testLead: PersonOption | null } | null>(null);
+  const [previousIteration, setPreviousIteration] = useState<ExtraTestIteration | null>(null);
   const [current, setCurrent] = useState<FlowStep | null | undefined>(undefined); // undefined = still preparing
   const [queue, setQueue] = useState<FlowStep[]>([]);
   const [history, setHistory] = useState<FlowStep[]>([]);
@@ -103,7 +199,89 @@ export function DailyFlow({
   // afterwards. Untick to keep it for tomorrow.
   const [clearTagOnNext, setClearTagOnNext] = useState(true);
   const [clearedReviewIds, setClearedReviewIds] = useState<Set<string>>(new Set());
+  const [refreshingCards, setRefreshingCards] = useState(false);
+  const [timerEnabled, setTimerEnabled] = useState(() => localStorage.getItem(TIMER_ENABLED_STORAGE_KEY) !== "false");
+  const [remainingSeconds, setRemainingSeconds] = useState(TIMER_TOTAL_SECONDS);
+  const [speakerElapsedSeconds, setSpeakerElapsedSeconds] = useState(0);
+  // The adaptive budget pool - see the comment above TIMER_TOTAL_SECONDS. Starts equal to the
+  // clock but is debited independently of it.
+  const [budgetPoolRemaining, setBudgetPoolRemaining] = useState(TIMER_TOTAL_SECONDS);
+  const playedFiveRef = useRef(false);
+  const playedOneRef = useRef(false);
+  const playedEndRef = useRef(false);
   const { showToast } = useToast();
+
+  // The whole-meeting countdown - ticks once a second while enabled, pauses in place while
+  // disabled. Only resets on mount (i.e. when the flow is (re)started).
+  useEffect(() => {
+    if (!timerEnabled) return;
+    const id = window.setInterval(() => {
+      setRemainingSeconds((prev) => {
+        const next = Math.max(0, prev - 1);
+        if (next === 300 && !playedFiveRef.current) {
+          playedFiveRef.current = true;
+          playFiveMinuteSignal();
+        }
+        if (next === 60 && !playedOneRef.current) {
+          playedOneRef.current = true;
+          playOneMinuteSignal();
+        }
+        if (next === 0 && !playedEndRef.current) {
+          playedEndRef.current = true;
+          playEndGong();
+        }
+        return next;
+      });
+      setSpeakerElapsedSeconds((s) => s + 1);
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [timerEnabled]);
+
+  // The test-lead turn also shows last sprint's still-open test tasks by default (see
+  // TestLeadTurn/extraIterations) - a card left lingering in a sprint nobody looks at anymore
+  // otherwise stays forgotten until someone happens to open the standalone Test board's own
+  // iteration filter. Best-effort: no toast on failure, since this is a nice-to-have on top of the
+  // turn's own cards, not something the daily should ever block or complain about.
+  useEffect(() => {
+    const path = currentIteration?.path;
+    if (!path) return;
+    let cancelled = false;
+    fetchSprints(team, path)
+      .then((options) => {
+        const idx = options.findIndex((o) => o.path === path);
+        const previous = idx > 0 ? options[idx - 1] : null;
+        if (!previous) return null;
+        return fetchDailys(team, undefined, previous.path).then((response) => ({
+          path: previous.path,
+          label: response.meta.sprint,
+          stories: response.teams[0]?.stories ?? [],
+        }));
+      })
+      .then((iteration) => {
+        if (!cancelled && iteration) setPreviousIteration(iteration);
+      })
+      .catch(() => {
+        // Best-effort, see comment above.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [team, currentIteration?.path]);
+
+  // Per-turn clock resets every time the current step changes - Nästa/Föregående/Hoppa över.
+  useEffect(() => {
+    setSpeakerElapsedSeconds(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.key]);
+
+  function toggleTimer() {
+    setTimerEnabled((prev) => {
+      const next = !prev;
+      localStorage.setItem(TIMER_ENABLED_STORAGE_KEY, String(next));
+      if (next) ensureDailyFlowAudio();
+      return next;
+    });
+  }
 
   // Build the order once, when the flow starts - later filter changes on the board don't
   // reshuffle or resize an already-running flow.
@@ -164,20 +342,29 @@ export function DailyFlow({
         const extraGroups = groups.filter(
           (g) => g.label !== UNASSIGNED_GROUP_LABEL && !roster.some((d) => samePerson(d.displayName, g.label)),
         );
+        const toDevStep = (dev: { email: string; displayName: string }): FlowStep => {
+          const matchingGroup = groups.find((g) => samePerson(g.label, dev.displayName));
+          return matchingGroup
+            ? { kind: "developer" as const, key: matchingGroup.id, name: matchingGroup.label }
+            : { kind: "developer" as const, key: `dev-${dev.email}`, name: dev.displayName };
+        };
         // The participant picker has the final say on who gets a turn: someone off sick is
-        // unticked before the meeting rather than skipped over live.
+        // unticked before the meeting rather than skipped over live. Elin and Chica are pulled out
+        // here and appended after everyone else (closing PO/test-lead turns included) - see
+        // isTimeExemptPerson.
         const devSteps: FlowStep[] = shuffle([
-          ...roster.filter((dev) => takesPart(dev.displayName)).map((dev) => {
-            const matchingGroup = groups.find((g) => samePerson(g.label, dev.displayName));
-            return matchingGroup
-              ? { kind: "developer" as const, key: matchingGroup.id, name: matchingGroup.label }
-              : { kind: "developer" as const, key: `dev-${dev.email}`, name: dev.displayName };
-          }),
+          ...roster.filter((dev) => takesPart(dev.displayName) && !isTimeExemptPerson(dev.displayName)).map(toDevStep),
           ...extraGroups
-            .filter((g) => takesPart(g.label))
+            .filter((g) => takesPart(g.label) && !isTimeExemptPerson(g.label))
             .map((g) => ({ kind: "developer" as const, key: g.id, name: g.label })),
         ]);
-        start([...devSteps, ...closingSteps]);
+        const tailSteps: FlowStep[] = [
+          ...roster.filter((dev) => takesPart(dev.displayName) && isTimeExemptPerson(dev.displayName)).map(toDevStep),
+          ...extraGroups
+            .filter((g) => takesPart(g.label) && isTimeExemptPerson(g.label))
+            .map((g) => ({ kind: "developer" as const, key: g.id, name: g.label })),
+        ];
+        start([...devSteps, ...closingSteps, ...tailSteps]);
       });
     return () => {
       cancelled = true;
@@ -233,19 +420,66 @@ export function DailyFlow({
     }
   }
 
+  // Debits the budget pool for the turn that's ending, capped at that turn's own share - see the
+  // comment above TIMER_TOTAL_SECONDS. Time-exempt people and review steps never touch the pool.
+  function debitBudgetPool() {
+    if (!isCountedStep(current)) return;
+    setBudgetPoolRemaining((pool) => Math.max(0, pool - Math.min(speakerElapsedSeconds, timerBudgetSeconds)));
+  }
+
+  // today, not now: two runs on the same calendar day (a practice round before the real daily,
+  // say) should overwrite each other's save, not fork on the clock time they each happened to
+  // finish at.
+  function todayLocalDate(): string {
+    const d = new Date();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${d.getFullYear()}-${month}-${day}`;
+  }
+
+  // Saves the round's check-in numbers once it actually finishes - not on an early "✕" close,
+  // which is a cancel, not a completion. Silent on failure (a toast here would land right on top
+  // of the "alla har gått igenom daily-flödet" screen for no actionable reason) but logged, so a
+  // recurring save failure is still visible to someone who goes looking.
+  function persistCheckIns(finishedHistory: FlowStep[]) {
+    if (!currentIteration) return;
+    const entries = finishedHistory
+      .filter((step) => step.kind !== "review" && checkIns[step.key] != null)
+      .map((step) => ({ kind: step.kind, key: step.key, label: step.name, score: checkIns[step.key] }));
+    if (entries.length === 0) return;
+    saveDailyCheckIns({
+      team,
+      sprintPath: currentIteration.path,
+      sprintName: currentIteration.label,
+      date: todayLocalDate(),
+      entries,
+    }).catch((err: unknown) => {
+      console.error("Kunde inte spara incheckningssiffrorna för dailyn.", err);
+    });
+  }
+
   function goNext() {
     if (!current) return;
+    // A real click, so it's a safe place to (re)prime the audio context - without this, it would
+    // otherwise only ever get created inside the interval tick that plays the first signal, which
+    // most browsers won't do since that isn't a user gesture, leaving the 5-min/1-min/end sounds
+    // silently blocked.
+    if (timerEnabled) ensureDailyFlowAudio();
     if (current.kind === "review" && clearTagOnNext && !clearedReviewIds.has(current.key)) {
       setClearedReviewIds((prev) => new Set(prev).add(current.key));
       void clearReviewTag(current);
     }
-    setHistory((h) => [...h, current]);
+    debitBudgetPool();
+    const finishedHistory = [...history, current];
+    setHistory(finishedHistory);
     setCurrent(queue[0] ?? null);
     setQueue((q) => q.slice(1));
+    if (queue.length === 0) persistCheckIns(finishedHistory);
   }
 
   function goBack() {
     if (history.length === 0 || !current) return;
+    if (timerEnabled) ensureDailyFlowAudio();
     const prev = history[history.length - 1];
     setHistory((h) => h.slice(0, -1));
     setQueue((q) => [current, ...q]);
@@ -254,9 +488,25 @@ export function DailyFlow({
 
   function skip() {
     if (!current || queue.length === 0) return;
+    if (timerEnabled) ensureDailyFlowAudio();
+    debitBudgetPool();
     const [next, ...rest] = queue;
     setQueue([...rest, current]);
     setCurrent(next);
+  }
+
+  // Refreshes just the current developer's cards - see onRefreshPerson - so a card someone just
+  // moved shows up without pausing the whole standup for a full-team refetch.
+  async function refreshCurrentPersonCards() {
+    if (!current || current.kind !== "developer" || refreshingCards) return;
+    setRefreshingCards(true);
+    try {
+      await onRefreshPerson(current.name);
+    } catch (err) {
+      showToast(`Kunde inte uppdatera ${current.name}s kort: ${err instanceof Error ? err.message : "okänt fel"}`, "error");
+    } finally {
+      setRefreshingCards(false);
+    }
   }
 
   function setCheckIn(key: string, value: number) {
@@ -287,6 +537,12 @@ export function DailyFlow({
   }
 
   const stepNumber = total - queue.length;
+  // Adaptive per-turn budget: whatever's left in the pool, split across every counted turn still
+  // ahead (this one included). See the comment above TIMER_TOTAL_SECONDS for how the pool itself
+  // is debited when a turn ends.
+  const remainingCountedSteps = (isCountedStep(current) ? 1 : 0) + queue.filter(isCountedStep).length;
+  const timerBudgetSeconds =
+    remainingCountedSteps > 0 ? Math.max(1, Math.floor(budgetPoolRemaining / remainingCountedSteps)) : 0;
 
   if (current.kind === "review") {
     // Review cards always sit at the front of the queue, so the current one's position among
@@ -300,6 +556,14 @@ export function DailyFlow({
             ✕
           </button>
         </div>
+        <DailyTimerBar
+          enabled={timerEnabled}
+          remainingSeconds={remainingSeconds}
+          budgetSeconds={timerBudgetSeconds}
+          speakerElapsedSeconds={speakerElapsedSeconds}
+          currentName={null}
+          onToggle={toggleTimer}
+        />
 
         <div className="daily-flow__review">
           <div className="daily-flow__review-bar">
@@ -352,6 +616,14 @@ export function DailyFlow({
           ✕
         </button>
       </div>
+      <DailyTimerBar
+        enabled={timerEnabled}
+        remainingSeconds={remainingSeconds}
+        budgetSeconds={timerBudgetSeconds}
+        speakerElapsedSeconds={speakerElapsedSeconds}
+        currentName={isCountedStep(current) ? current.name : null}
+        onToggle={toggleTimer}
+      />
 
       <div className="daily-flow__body">
         <div className="daily-flow__person">
@@ -368,7 +640,7 @@ export function DailyFlow({
             <div className={"daily-flow__name" + (current.kind === "goal" ? " daily-flow__name--goal" : "")}>{current.name}</div>
             <div className="daily-flow__role">
               {current.kind === "developer"
-                ? "Utvecklare"
+                ? (specialRoleLabel(current.name) ?? "Utvecklare")
                 : current.kind === "goal"
                   ? "Sprintmål"
                   : current.kind === "po"
@@ -414,6 +686,8 @@ export function DailyFlow({
             allStories={allStories}
             onOpenWorkItem={onOpenWorkItem}
             onTaskAssigned={onTaskAssigned}
+            currentIteration={currentIteration}
+            previousIteration={previousIteration}
             value={checkIns[current.key] ?? null}
             onChange={(v) => setCheckIn(current.key, v)}
           />
@@ -433,10 +707,88 @@ export function DailyFlow({
         >
           Hoppa över
         </button>
+        {current.kind === "developer" && (
+          <button
+            type="button"
+            className="daily-flow__btn"
+            onClick={refreshCurrentPersonCards}
+            disabled={refreshingCards}
+            title={`Hämtar bara ${current.name}s kort på nytt, inte hela boarden`}
+          >
+            {refreshingCards ? "Uppdaterar…" : `↻ Uppdatera ${compactPersonName(current.name)}s kort`}
+          </button>
+        )}
         <button type="button" className="daily-flow__btn daily-flow__btn--primary" onClick={goNext}>
           {queue.length === 0 ? "Avsluta" : "Nästa →"}
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The 15-minute meeting countdown plus the current turn's own share of it. The per-turn line
+ * escalates in colour the longer someone runs over - never a sound, no popup, so it stays
+ * informative without interrupting whoever is talking.
+ */
+function DailyTimerBar({
+  enabled,
+  remainingSeconds,
+  budgetSeconds,
+  speakerElapsedSeconds,
+  currentName,
+  onToggle,
+}: {
+  enabled: boolean;
+  remainingSeconds: number;
+  budgetSeconds: number;
+  speakerElapsedSeconds: number;
+  /** null when the current step isn't a person's turn (e.g. a review card). */
+  currentName: string | null;
+  onToggle: () => void;
+}) {
+  if (!enabled) {
+    return (
+      <div className="daily-flow__timer daily-flow__timer--off">
+        <span className="daily-flow__timer-off-note">Nedräkningstimer avstängd</span>
+        <button type="button" className="daily-flow__timer-toggle" onClick={onToggle} title="Slå på timern">
+          ⏱ Aktivera
+        </button>
+      </div>
+    );
+  }
+
+  const level = remainingSeconds <= 60 ? "crit" : remainingSeconds <= 300 ? "warn" : "";
+  const speakerLeft = budgetSeconds - speakerElapsedSeconds;
+  // Escalates the longer someone runs over: a soft nudge at first, orange past a minute over,
+  // red past two - still just a colour change, never a sound, so it stays unobtrusive.
+  const overSeconds = -speakerLeft;
+  const overLevel = overSeconds <= 0 ? "" : overSeconds >= 120 ? "over-red" : overSeconds >= 60 ? "over-orange" : "over";
+
+  return (
+    <div className="daily-flow__timer">
+      <div className={"daily-flow__timer-clock" + (level ? ` daily-flow__timer-clock--${level}` : "")}>
+        {formatClock(remainingSeconds)}
+      </div>
+      <div className="daily-flow__timer-meta">
+        <div className="daily-flow__timer-track">
+          <div
+            className={"daily-flow__timer-fill" + (level ? ` daily-flow__timer-fill--${level}` : "")}
+            style={{ width: `${Math.max(0, (remainingSeconds / TIMER_TOTAL_SECONDS) * 100)}%` }}
+          />
+        </div>
+        {currentName && (
+          <div className={"daily-flow__timer-speaker" + (overLevel ? ` daily-flow__timer-speaker--${overLevel}` : "")}>
+            {currentName}:{" "}
+            {speakerLeft >= 0
+              ? `${formatClock(speakerLeft)} kvar av ${formatClock(budgetSeconds)}`
+              : `${formatClock(-speakerLeft)} över tiden`}
+          </div>
+        )}
+      </div>
+      <button type="button" className="daily-flow__timer-toggle" onClick={onToggle} title="Stäng av timern">
+        ⏱
+      </button>
     </div>
   );
 }
@@ -845,242 +1197,46 @@ function stripLeadingMarker(text: string): string {
   return text.replace(/^\s*(?:[☐☑☒✓✔]|\[[ xX]?\]|[-*])\s*/, "");
 }
 
-// A test task's own status says where it is in its own lifecycle, but whether it can be picked up
-// depends on its PARENT story having reached Resolved. Once a verdict exists it lives in a
-// "Test OK"/"Test ej OK" tag rather than in the status.
-const TEST_READY_PARENT_STATES = new Set(["Resolved", "Closed", "Done"]);
-
-function testResultFromTags(tags: string[]): "ok" | "notok" | null {
-  const lower = tags.map((t) => t.trim().toLowerCase());
-  if (lower.includes("test ej ok")) return "notok";
-  if (lower.includes("test ok")) return "ok";
-  return null;
-}
-
-interface TestTaskRow extends DailyTaskDto {
-  storyId: number;
-  storyTitle: string;
-  parentReady: boolean;
-  /** The story this test belongs to is finished. Nothing left to chase once the test is too. */
-  parentClosed: boolean;
-}
-
-/** A test that has been carried out - closed, or carrying a verdict tag. */
-function isTestFinished(t: TestTaskRow): boolean {
-  return (t.status || "").trim().toLowerCase() === "closed" || testResultFromTags(t.tags) === "ok";
-}
-
-function TestTaskList({
-  tasks,
-  onOpenWorkItem,
-  people,
-  onAssign,
-  busyTaskId,
-}: {
-  tasks: TestTaskRow[];
-  onOpenWorkItem: (id: number) => void;
-  people: PersonOption[];
-  onAssign: (task: TestTaskRow, person: PersonOption) => void;
-  busyTaskId: number | null;
-}) {
-  const [pickerFor, setPickerFor] = useState<number | null>(null);
-
-  return (
-    <ul className="daily-flow__list daily-flow__list--tall">
-      {tasks.map((t) => {
-        const result = testResultFromTags(t.tags);
-        // A finished test says so as a verdict, not as an Azure state: "Closed" on a row under
-        // "Klara test" is the least informative thing the badge could show, and it hides the
-        // difference between a test that passed and one that was merely closed.
-        const statusLabel =
-          result === "notok"
-            ? "Test ej OK"
-            : result === "ok"
-              ? "Test OK"
-              : isTestFinished(t)
-                ? "Stängd"
-                : t.status === "Active"
-                  ? "Pågår"
-                  : t.status || "Ny";
-        // Closed without a verdict gets its own muted badge rather than borrowing the green one -
-        // it means "nobody wrote down whether it passed", which is not the same as Test OK.
-        const statusCls =
-          result === "notok" ? "notok" : result === "ok" ? "ok" : isTestFinished(t) ? "noverdict" : (t.status || "").toLowerCase();
-        return (
-          <li key={t.id}>
-            <div className="df-row df-row--test">
-              <span className={`daily-flow__list-status daily-flow__list-status--${statusCls}`}>{statusLabel}</span>
-              {/* Opens the test task itself, not its parent story - the shown id IS the task's,
-                  so opening the parent made the row look like it described the wrong card. */}
-              <button type="button" className="daily-flow__list-id df-row__id" onClick={() => onOpenWorkItem(t.id)} title="Öppna testkortet">
-                #{t.id}
-              </button>
-              <span className="df-row__person">
-                <button
-                  type="button"
-                  className="df-assign"
-                  onClick={() => setPickerFor(pickerFor === t.id ? null : t.id)}
-                  title="Välj testare"
-                  disabled={busyTaskId === t.id}
-                >
-                  <PersonAvatar name={t.assignedTo} size={20} />
-                  <span className={"daily-flow__list-owner" + (t.assignedTo ? "" : " df-assign__empty")}>
-                    {busyTaskId === t.id ? "Sparar…" : fullPersonName(t.assignedTo) || "Ej tilldelad"}
-                  </span>
-                </button>
-                {pickerFor === t.id && (
-                  <select
-                    className="df-assign__select"
-                    autoFocus
-                    defaultValue=""
-                    onBlur={() => setPickerFor(null)}
-                    onChange={(e) => {
-                      const person = people.find((p) => p.email === e.target.value);
-                      setPickerFor(null);
-                      if (person) onAssign(t, person);
-                    }}
-                  >
-                    <option value="">– välj testare –</option>
-                    {people.map((p) => (
-                      <option key={p.email} value={p.email}>
-                        {p.displayName}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </span>
-              <span className="df-row__title" title={t.title + " (" + t.storyTitle + ")"}>
-                <span>{t.title}</span>
-                {/* The story on its own line: the context for the test, and the thing you most
-                    often want next - so it opens rather than just labelling. */}
-                <button
-                  type="button"
-                  className="daily-flow__list-parent daily-flow__list-parent--link"
-                  onClick={() => onOpenWorkItem(t.storyId)}
-                  title={`Öppna #${t.storyId} ${t.storyTitle}`}
-                >
-                  {t.storyTitle}
-                </button>
-              </span>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
+/**
+ * The test lead's turn: the same board as the standalone "Test" tab (see TestTaskBoard.tsx),
+ * embedded here with the daily flow's own mood check-in wrapped around it. Kept as a thin wrapper
+ * rather than its own copy of the board logic, so a change to how test tasks are classified only
+ * has to happen once.
+ *
+ * Also folds in last sprint's still-open test tasks (previousIteration, fetched by DailyFlow's own
+ * effect above) - always with includeClosedFromExtra false, since a card that's already Closed in
+ * a sprint nobody's looking at anymore isn't something the daily needs to surface, only one that's
+ * still lingering.
+ */
 function TestLeadTurn({
   allStories,
   onOpenWorkItem,
   onTaskAssigned,
+  currentIteration,
+  previousIteration,
   value,
   onChange,
 }: {
   allStories: DailyStoryDto[];
   onOpenWorkItem: (id: number) => void;
   onTaskAssigned?: (taskId: number, displayName: string) => void;
+  currentIteration?: { path: string; label: string };
+  previousIteration?: ExtraTestIteration | null;
   value: number | null;
   onChange: (value: number) => void;
 }) {
-  const [people, setPeople] = useState<PersonOption[]>([]);
-  const [busyTaskId, setBusyTaskId] = useState<number | null>(null);
-  const { showToast } = useToast();
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchAllPeople()
-      .then((p) => !cancelled && setPeople(p))
-      .catch(() => !cancelled && setPeople([]));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  async function handleAssign(task: TestTaskRow, person: PersonOption) {
-    setBusyTaskId(task.id);
-    try {
-      await updateWorkItemFields(task.id, { assignedTo: person.email });
-      showToast("#" + task.id + " tilldelad " + person.displayName + ".", "success");
-      onTaskAssigned?.(task.id, person.displayName);
-    } catch (err) {
-      showToast("Kunde inte tilldela #" + task.id + ": " + (err instanceof Error ? err.message : "Okänt fel"), "error");
-    } finally {
-      setBusyTaskId(null);
-    }
-  }
-
-  const all: TestTaskRow[] = allStories.flatMap((s) =>
-    (s.tasks ?? [])
-      .filter(isTestTask)
-      .map((t) => ({
-        ...t,
-        storyId: s.id,
-        storyTitle: s.title,
-        parentReady: TEST_READY_PARENT_STATES.has(s.azureStatus),
-        parentClosed: isStoryDone(s),
-      })),
-  );
-
-  // A test that is done and whose story is closed is finished business - it would only pad the
-  // list. Everything else the test lead still has a reason to look at.
-  const visible = all.filter((t) => !(isTestFinished(t) && t.parentClosed));
-
-  const finished = visible.filter(isTestFinished);
-  const open = visible.filter((t) => !isTestFinished(t));
-  const awaitingFix = open.filter((t) => testResultFromTags(t.tags) === "notok");
-  const rest = open.filter((t) => testResultFromTags(t.tags) !== "notok");
-  const inProgress = rest.filter((t) => t.status === "Active");
-  const notStarted = rest.filter((t) => t.status !== "Active");
-  const ready = notStarted.filter((t) => t.parentReady);
-  const notReady = notStarted.filter((t) => !t.parentReady);
-  const unassignedCount = open.filter((t) => !t.assignedTo).length;
-
-  // "Klara test" first: these are the ones with an action attached - the testing is done, so the
-  // story is waiting to be closed. Closed tests used to fall into "Redo att testa" simply because
-  // they weren't Active, which read as work still to do.
-  const sections: { label: string; tasks: TestTaskRow[] }[] = [
-    { label: "Klara test – huvudkortet inte stängt", tasks: finished },
-    { label: "Inväntar fix", tasks: awaitingFix },
-    { label: "Under test", tasks: inProgress },
-    { label: "Redo att testa", tasks: ready },
-    { label: "Skapade, men inte redo", tasks: notReady },
-  ];
-
   return (
     <div className="daily-flow__turn">
-      <div className="daily-flow__turn-summary">
-        <span className="df-stat">
-          <strong>{visible.length}</strong> test-tasks
-        </span>
-        <span className="df-stat">
-          <strong>{unassignedCount}</strong> utan ägare
-        </span>
-        {all.length !== visible.length && (
-          <span className="df-hint">{all.length - visible.length} klara på stängda kort dolda</span>
-        )}
-      </div>
       <CheckInGauge label="Hur känns testläget just nu? (1-5)" value={value} onChange={onChange} />
-      {visible.length === 0 ? (
-        <p className="daily-flow__empty">Inga test-tasks att gå igenom.</p>
-      ) : (
-        sections
-          .filter((s) => s.tasks.length > 0)
-          .map((s) => (
-            <div key={s.label}>
-              <div className="daily-flow__group-label">
-                {s.label} ({s.tasks.length})
-              </div>
-              <TestTaskList
-                tasks={s.tasks}
-                onOpenWorkItem={onOpenWorkItem}
-                people={people}
-                onAssign={handleAssign}
-                busyTaskId={busyTaskId}
-              />
-            </div>
-          ))
-      )}
+      <TestTaskBoard
+        allStories={allStories}
+        onOpenWorkItem={onOpenWorkItem}
+        onTaskAssigned={onTaskAssigned}
+        embedded
+        currentIteration={currentIteration}
+        extraIterations={previousIteration ? [previousIteration] : undefined}
+        includeClosedFromExtra={false}
+      />
     </div>
   );
 }

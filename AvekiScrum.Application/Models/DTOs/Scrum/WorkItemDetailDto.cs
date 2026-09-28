@@ -30,6 +30,9 @@ namespace AvekiScrum.Application.Models.DTOs.Scrum
         public string? Stakeholders { get; set; }
         /// <summary>The Lime case this card came from, when support filed it. Free text on old cards.</summary>
         public string? ExternalLink { get; set; }
+        /// <summary>The build a fix shipped in ("BETA #20260913.3") - Azure's native "Integrated in
+        /// Build" field, set by the build pipeline. Null until the fix has actually been built.</summary>
+        public string? IntegrationBuild { get; set; }
         public List<string> Tags { get; set; } = new();
         public string DescriptionHtml { get; set; } = "";
         public string AcceptanceCriteriaHtml { get; set; } = "";
@@ -42,6 +45,19 @@ namespace AvekiScrum.Application.Models.DTOs.Scrum
         public List<WorkItemCommentDto> Comments { get; set; } = new();
         public List<WorkItemPullRequestDto> PullRequests { get; set; } = new();
         public List<WorkItemHistoryEntryDto> History { get; set; } = new();
+        public int? Rev { get; set; }
+        /// <summary>Microsoft.VSTS.CMMI.Blocked - Task-only in this process template.</summary>
+        public bool IsBlocked { get; set; }
+        public string? DoRStatus { get; set; }
+        public string DoRDecisionHtml { get; set; } = "";
+        public string? DoRApprovedBy { get; set; }
+        public DateTime? DoRApprovedDate { get; set; }
+        public int? DoRRevision { get; set; }
+        /// <summary>Sakkunnig-kandidater - set on a Feature, null elsewhere.</summary>
+        public string? Kandidat1 { get; set; }
+        public string? Kandidat2 { get; set; }
+        public string? Kandidat3 { get; set; }
+        public string SakkunnigInfoHtml { get; set; } = "";
     }
 
     public sealed class WorkItemPullRequestDto
@@ -75,7 +91,9 @@ namespace AvekiScrum.Application.Models.DTOs.Scrum
 
     public sealed class WorkItemHistoryEntryDto
     {
-        public DateTimeOffset When { get; set; }
+        public DateTimeOffset? When { get; set; }
+        public int Revision { get; set; }
+        public string? ChangedBy { get; set; }
         public string Field { get; set; } = "";
         public string? OldValue { get; set; }
         public string? NewValue { get; set; }
@@ -88,6 +106,13 @@ namespace AvekiScrum.Application.Models.DTOs.Scrum
         public string Title { get; set; } = "";
         public string State { get; set; } = "";
         public string? Activity { get; set; }
+        /// <summary>So a Task shown as a relation or on a Taskboard can use the same card look as
+        /// one on the sprint board - see TaskCardVisual.tsx.</summary>
+        public string? AssignedTo { get; set; }
+        public DateTime? CreatedDate { get; set; }
+        public bool IsBlocked { get; set; }
+        /// <summary>Set for User Story/Bug - null for every other type.</summary>
+        public double? StoryPoints { get; set; }
     }
 
     public sealed class WorkItemCommentDto

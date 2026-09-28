@@ -38,7 +38,7 @@ export function WorkItemDetailsTab({ detail }: { detail: WorkItemDetail }) {
         <Row label="Klart arbete" value={detail.completedWork} />
       </Section>
 
-      <Section title="Tekniskt">
+      <Section title="Övrigt">
         <Row label="ID" value={detail.id} />
         <Row
           label="Länk"
@@ -48,6 +48,7 @@ export function WorkItemDetailsTab({ detail }: { detail: WorkItemDetail }) {
             </a>
           }
         />
+        <Row label="Integrerat i bygge" value={detail.integrationBuild} />
       </Section>
     </div>
   );

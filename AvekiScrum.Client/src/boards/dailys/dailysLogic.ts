@@ -1,4 +1,5 @@
-import type { DailyPullRequestDto, DailyStoryDto, DailyTaskDto } from "../../api/dailys";
+import type { DailyPullRequestDto, DailysResponse, DailyStoryDto, DailyTaskDto } from "../../api/dailys";
+import type { WorkItemDetail } from "../../api/workitems";
 import { fullPersonName, personKey, samePerson, uniqueNames } from "../../lib/personNames";
 
 export { fullPersonName, compactPersonName, personKey, samePerson, uniqueNames, reviewerNames } from "../../lib/personNames";
@@ -6,6 +7,109 @@ export { fullPersonName, compactPersonName, personKey, samePerson, uniqueNames, 
 // ─── Progress / status helpers ────────────────────────────
 export function pct(n: number, total: number): number {
   return total ? Math.round((n / total) * 100) : 0;
+}
+
+function norm(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+/**
+ * Mirrors DeriveTaskStage in SprintBacklogMapper.cs. A task's stage depends only on that one
+ * task's own state/activity/tags - unlike a story's stage (which folds in every sibling task,
+ * alerts and PR data), it's safe to redo here from the WorkItemDetail a save already returned,
+ * which is what lets applyWorkItemSave keep the four delivery tiles (TaskPills.deliveryTiles)
+ * correct immediately after an edit instead of only catching up on the next full board refetch.
+ */
+function deriveTaskStage(state: string | null | undefined, activity: string | null | undefined, tags: string[]): string {
+  const act = norm(activity);
+  const tagSet = new Set(tags.map(norm));
+
+  if (act === "code review" || act === "code-review" || act === "codereview" || act === "review" ||
+      ["pr", "code-review", "codereview", "review"].some((t) => tagSet.has(t)))
+    return "CodeReview";
+  if (act === "test" || act === "testing" || act === "qa" || ["test", "testing", "qa"].some((t) => tagSet.has(t)))
+    return "Test";
+  if (act === "doc" || act === "docs" || act === "documentation" || ["doc", "docs", "documentation"].some((t) => tagSet.has(t)))
+    return "Documentation";
+
+  const st = norm(state);
+  if (st === "closed") return "Done";
+  switch (st) {
+    case "new":
+      return "New";
+    case "active":
+      return "Active";
+    case "resolved":
+    case "done":
+      return "Resolved";
+    default:
+      return "None";
+  }
+}
+
+/** Mirrors DeriveTaskStatus in SprintBacklogMapper.cs - see deriveTaskStage above for why this is
+ *  safe to redo client-side from a single task's own fields. */
+function deriveTaskStatus(state: string | null | undefined, tags: string[]): string {
+  const st = norm(state);
+  if (st === "closed") return "Closed";
+  const tagSet = new Set(tags.map(norm));
+  if (["notok", "failed", "fail", "rejected"].some((t) => tagSet.has(t))) return "NotOk";
+  return st === "new" ? "New" : "Active";
+}
+
+/**
+ * Patches whichever story or task in `data` the card just saved, straight from the WorkItemDetail
+ * the save already returned - the PATCH endpoint re-reads the item from Azure server-side as part
+ * of answering the request, so this is already fresh data, not a stale echo of the form. Used by
+ * every board that opens cards through useWorkItemModals, so a "Spara" on the card's own Redigera
+ * flow shows up in whichever list is behind it without a full board refetch.
+ *
+ * A task's stage/status are recomputed (see deriveTaskStage/deriveTaskStatus) rather than just
+ * copied, which is what makes the four delivery tiles under "Leveransstatus" react to an edit -
+ * they're keyed off stage/activity, not the raw Azure state string. A story's own stage/alertSummary
+ * /stageLabel are the one thing still left alone: those come from business logic that folds in every
+ * sibling task, alerts and PR data, and isn't safely reproducible from one saved item alone - a
+ * stale alert badge is a much smaller problem than a wrong one.
+ */
+export function applyWorkItemSave(data: DailysResponse, updated: WorkItemDetail): DailysResponse {
+  return {
+    ...data,
+    teams: data.teams.map((team) => ({
+      ...team,
+      stories: team.stories.map((story) => {
+        if (story.id === updated.id) {
+          return {
+            ...story,
+            title: updated.title,
+            azureStatus: updated.state,
+            developer: updated.assignedTo,
+            areaPath: updated.areaPath,
+            tags: updated.tags,
+          };
+        }
+        if (!story.tasks.some((task) => task.id === updated.id)) return story;
+        return {
+          ...story,
+          tasks: story.tasks.map((task) => {
+            if (task.id !== updated.id) return task;
+            const stage = deriveTaskStage(updated.state, updated.activity, updated.tags);
+            const status = deriveTaskStatus(updated.state, updated.tags);
+            return {
+              ...task,
+              title: updated.title,
+              status,
+              stage,
+              assignedTo: updated.assignedTo,
+              activity: updated.activity,
+              isBlocked: updated.isBlocked,
+              tags: updated.tags,
+              priority: updated.priority,
+            };
+          }),
+        };
+      }),
+    })),
+  };
 }
 
 /**
@@ -95,6 +199,15 @@ export function isDocumentationTask(t: DailyTaskDto): boolean {
   return stage === "documentation" || activity === "documentation";
 }
 
+/**
+ * A "Hjälptext" task belongs to the documentation team, not the card's own team - it is allowed to
+ * live on past the parent card's closure (AvekiDokumentation's whole point), so it must not count
+ * toward this card's own "procent klart" the way an ordinary task does.
+ */
+export function isHelpTextTask(t: DailyTaskDto): boolean {
+  return (t.title || "").trim().toLowerCase().startsWith("hjälptext");
+}
+
 export function isDevelopmentTask(t: DailyTaskDto): boolean {
   return (
     ["new", "active", "resolved", "done"].includes((t.stage || "").toLowerCase()) &&
@@ -119,7 +232,8 @@ export function isPullRequestDone(pr: DailyPullRequestDto): boolean {
 }
 
 export function storyProg(s: DailyStoryDto): number {
-  const tasks = s.tasks || [];
+  // Hjälptext tasks belong to the documentation team, not this card's team - see isHelpTextTask.
+  const tasks = (s.tasks || []).filter((t) => !isHelpTextTask(t));
   const prs = s.pullRequests || [];
   const total = tasks.length + prs.length;
   if (!total) return 0;
@@ -141,7 +255,8 @@ export function taskPillCounts(s: DailyStoryDto): TaskPillCounts {
 
   const utvTasks = tasks.filter((t) => ["New", "Active", "Resolved", "Done"].includes(t.stage));
   const testTasks = tasks.filter((t) => t.stage === "Test");
-  const dokTasks = tasks.filter((t) => t.stage === "Documentation");
+  // Hjälptext tasks belong to the documentation team, not this card's team - see isHelpTextTask.
+  const dokTasks = tasks.filter((t) => t.stage === "Documentation" && !isHelpTextTask(t));
 
   return {
     utv: { count: utvTasks.length, done: utvTasks.length > 0 && utvTasks.every((t) => t.stage === "Done") },
@@ -184,7 +299,8 @@ export function dorStatus(s: DailyStoryDto): DorStatus {
   const tasks = s.tasks || [];
   const hasDorTag = hasTag(s.tags, "DoR");
   const testTasks = tasks.filter(isTestTask);
-  const dokTasks = tasks.filter(isDocumentationTask);
+  // Hjälptext tasks belong to the documentation team, not this card's team - see isHelpTextTask.
+  const dokTasks = tasks.filter((t) => isDocumentationTask(t) && !isHelpTextTask(t));
 
   return {
     hasDorTag,
@@ -234,9 +350,10 @@ export function korthygienWarnings(s: DailyStoryDto): string[] {
   if (!s.areaPath) warnings.push("Area Path är inte satt.");
   if (!s.developer) warnings.push("Ingen ansvarig är utsedd.");
   if (!s.storyPoints) warnings.push("Story points saknas.");
-  // Warnings rather than blockers in the dialog too - worth saying, not worth stopping for.
-  if (!s.hasAcceptanceCriteria) warnings.push("Acceptanskriterier saknas.");
-  if (s.sprintGoal === "(Inget sprintmål)") warnings.push("Kortet hör inte till något sprintmål.");
+  // Warnings rather than blockers in the dialog too - worth saying, not worth stopping for. Bugs
+  // are exempt, same as the parent check above - a Bug's "acceptance criteria" is that the bug is
+  // gone, which lives in Repro Steps, not in this field.
+  if (s.type !== "Bug" && !s.hasAcceptanceCriteria) warnings.push("Acceptanskriterier saknas.");
   return warnings;
 }
 
@@ -606,6 +723,47 @@ function storyParticipantKeys(s: DailyStoryDto): string[] {
     s.developmentPartner,
     ...(s.pullRequests || []).flatMap((pr) => pr.reviewers || []),
   ].filter((v): v is string => !!v);
+}
+
+// The subset of storyParticipantKeys the API's /api/dailys/person can actually determine without
+// the PR-detail calls it deliberately skips for speed (see BuildPersonJsonAsync's comment) - PR
+// reviewers come from that same skipped call, so they're left out here too. Used to decide which
+// of a person's *currently shown* cards a person-scoped refresh is allowed to drop: a card that's
+// there only because of the fields the endpoint doesn't check is left alone rather than guessed at.
+function storyDirectParticipantKeys(s: DailyStoryDto): string[] {
+  return [s.developer, s.developmentPartner, ...(s.tasks || []).map((t) => t.assignedTo)].filter(
+    (v): v is string => !!v,
+  );
+}
+
+function storyHasDirectPerson(s: DailyStoryDto, person: string): boolean {
+  return storyDirectParticipantKeys(s).some((k) => samePerson(k, person));
+}
+
+/**
+ * Splices the freshly-fetched cards for one person into `data` in place of their old versions,
+ * without touching the other team or anyone else's cards - the client side of the daily flow's
+ * "Uppdatera korten" button. `newStories` is the complete, current set of cards fetchDailyPerson
+ * found for `person` (in `teamId`); anything that used to be one of their direct cards (see
+ * storyHasDirectPerson) but isn't in that set anymore has been reassigned away and is dropped, and
+ * anything new is added, in one step.
+ */
+export function applyPersonRefresh(
+  data: DailysResponse,
+  teamId: string,
+  person: string,
+  newStories: DailyStoryDto[],
+): DailysResponse {
+  const newIds = new Set(newStories.map((s) => s.id));
+  return {
+    ...data,
+    teams: data.teams.map((team) => {
+      if (team.id !== teamId) return team;
+      const stalePersonIds = new Set(team.stories.filter((s) => storyHasDirectPerson(s, person)).map((s) => s.id));
+      const kept = team.stories.filter((s) => !stalePersonIds.has(s.id) && !newIds.has(s.id));
+      return { ...team, stories: [...kept, ...newStories] };
+    }),
+  };
 }
 
 const DEV_ROLE_BUCKET_LABELS: Record<DevRoleBucket, string> = {

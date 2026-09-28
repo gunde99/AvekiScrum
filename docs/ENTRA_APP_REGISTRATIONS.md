@@ -63,6 +63,7 @@ Kryssa i, och inget mer:
 | Scope | Varför vi behöver det |
 |---|---|
 | `vso.work_full` | Läsa och skriva buggar, tasks, taggar, bilagor – och radera (DoR-flödet lägger kort i papperskorgen) |
+| `vso.test_write` | Läsa och skriva Test Plans, sviter, testfall, testpunkter, körningar och resultat |
 | `vso.project` | Läsa projekt, team och teaminställningar (sprintar) |
 | `vso.wiki` | Sprintmålen läses ur wikin |
 | `vso.code` | PR-fliken på korten |

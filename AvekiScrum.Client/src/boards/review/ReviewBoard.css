@@ -12,11 +12,17 @@
   }
 }
 
+/* Bounded to the viewport and independently scrollable, same on both columns - previously only
+   the right column was sticky (following along while the far-longer left list scrolled the whole
+   page with it), which isn't the same thing as the two being able to scroll independently. */
 .rv-list {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   min-width: 0;
+  max-height: calc(100vh - 230px);
+  overflow-y: auto;
+  padding-right: var(--space-1);
 }
 
 .rv-list__head {
@@ -68,7 +74,62 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+.rv-group__head--clickable {
+  cursor: pointer;
+}
+
+.rv-group__head--clickable:hover {
+  color: var(--color-text);
+}
+
+.rv-group__chevron {
+  display: inline-block;
+  font-size: 0.6rem;
+  transition: transform 0.12s ease;
+}
+
+.rv-group__chevron--open {
+  transform: rotate(90deg);
+}
+
 .rv-group__count {
+  margin-left: auto;
+  font-weight: 400;
+}
+
+/* The sprint goal's full content (see SprintGoalDetails), expanded in place under the group
+   header - normal-case text, since .rv-group__head above it is deliberately all-caps/label-sized. */
+.rv-group__goal-details {
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  font-size: 0.85rem;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.rv-status-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: var(--space-2);
+}
+
+.rv-status-group__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 2px var(--space-2);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+}
+
+.rv-status-group__count {
   margin-left: auto;
   font-weight: 400;
 }
@@ -91,9 +152,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  /* Follows along while scrolling the (much longer) card list beside it. */
   position: sticky;
   top: var(--space-3);
+  max-height: calc(100vh - 230px);
+  overflow-y: auto;
+  padding-right: var(--space-1);
 }
 
 .rv-panel {
@@ -163,7 +226,7 @@
 .rv-panel__cards {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--space-2);
   max-height: 240px;
   overflow-y: auto;
 }
@@ -174,4 +237,44 @@
   text-align: center;
   font-size: 0.78rem;
   color: var(--color-text-muted);
+}
+
+.rv-panel-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.rv-panel-group__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 2px var(--space-1);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+}
+
+.rv-panel-group__count {
+  margin-left: auto;
+  font-weight: 400;
+}
+
+/* Non-blocking - see the moveProgress render comment in ReviewBoard.tsx. Bottom-right, out of the
+   way of both columns, so tagging a batch of cards doesn't stop you from doing anything else. */
+.rv-move-toast {
+  position: fixed;
+  right: var(--space-5);
+  bottom: var(--space-5);
+  z-index: 500;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text);
 }

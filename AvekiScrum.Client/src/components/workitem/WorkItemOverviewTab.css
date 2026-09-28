@@ -22,6 +22,42 @@
   border-top: 1px solid var(--color-border);
 }
 
+/* Ej blockerad: quiet, matches an ordinary field value. Blockerad: red and dashed, same language
+   as the task card's own blocked styling (TaskCardVisual.css) so the two read as the same state. */
+.wi-blocked-toggle {
+  padding: 2px var(--space-3);
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wi-blocked-toggle:hover:not(:disabled) {
+  background: var(--color-border);
+}
+
+.wi-blocked-toggle:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.wi-blocked-toggle--blocked {
+  border: 1px dashed var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  color: var(--color-danger);
+}
+
+.wi-field__error {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-danger);
+  font-size: 0.75rem;
+}
+
 .wi-field--area {
   justify-self: end;
   text-align: right;
@@ -94,14 +130,19 @@
   width: 100%;
 }
 
+/* Blue like Azure's own tag chips, so tags read as tags rather than blending into the grey chrome
+   around them. color-mix against each theme's own --color-info-text keeps the tint readable in
+   both light and dark mode instead of hardcoding one blue that only works on one background. */
 .wi-tag {
   display: inline-block;
   padding: 1px var(--space-2);
   margin: 0 var(--space-1) var(--space-1) 0;
   border-radius: 999px;
-  background: var(--color-bg-subtle);
-  border: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-info-text) 16%, var(--color-bg-subtle));
+  border: 1px solid color-mix(in srgb, var(--color-info-text) 40%, transparent);
+  color: var(--color-info-text);
   font-size: 0.7rem;
+  font-weight: 600;
 }
 
 .wi-meta-row {

@@ -4,8 +4,11 @@ import { LoadingOverlay } from "../../components/LoadingOverlay";
 import { useToast } from "../../components/Toast";
 import { fetchDailys, type DailyStoryDto, type DailysResponse, type DeveloperTeamId } from "../../api/dailys";
 import { fetchTeamRoles } from "../../api/people";
+import { fetchSprintGoals, type SprintGoal } from "../../api/sprintGoals";
 import { updateWorkItemFields } from "../../api/workitems";
-import { WorkItemModal } from "../../components/workitem/WorkItemModal";
+import { useWorkItemModals } from "../../components/workitem/useWorkItemModals";
+import { SprintPicker } from "../dailys/SprintPicker";
+import { SprintGoalDetails } from "../dailys/SprintGoalDetails";
 import { FilterPanel, WORK_ITEM_TYPES, type TagFilterState, type WorkItemTypeKey } from "../dailys/FilterPanel";
 import {
   buildGroups,
@@ -17,14 +20,10 @@ import {
   type TestFilterKey,
 } from "../dailys/dailysLogic";
 import { ReviewCard } from "./ReviewCard";
+import { ReviewPanelCard } from "./ReviewPanelCard";
 import { ReviewPreviewModal } from "./ReviewPreviewModal";
-import { laneOf, REVIEW_LANES, tagsForLane, type ReviewLane, type ReviewLaneKey } from "./reviewLogic";
+import { groupByDeveloper, groupByStatus, laneOf, REVIEW_LANES, tagsForLane, type ReviewLane, type ReviewLaneKey } from "./reviewLogic";
 import "./ReviewBoard.css";
-
-const TEAMS: { id: DeveloperTeamId; label: string }[] = [
-  { id: "Nord", label: "Team Nord" },
-  { id: "Syd", label: "Team Syd" },
-];
 
 /**
  * Sprint review prep: every card the team worked on has to be tagged with how it will be
@@ -34,29 +33,36 @@ const TEAMS: { id: DeveloperTeamId; label: string }[] = [
  * what still needs deciding.
  */
 interface ReviewBoardProps {
-  onNavigate?: (board: "dailys" | "review") => void;
+  onNavigate?: (board: "refinement" | "dailys" | "review" | "test") => void;
   /** Back to the start page, where AvekiSupport lives. */
   onHome?: () => void;
+  /** Owned by App - see BoardShell's header, which is where this is actually chosen now. */
+  team: DeveloperTeamId;
+  onTeamChange: (team: DeveloperTeamId) => void;
 }
 
-export function ReviewBoard({ onNavigate, onHome }: ReviewBoardProps) {
+export function ReviewBoard({ onNavigate, onHome, team, onTeamChange }: ReviewBoardProps) {
   const { showToast } = useToast();
-  const [team, setTeam] = useState<DeveloperTeamId>("Syd");
+  // Set by the sprint picker - undefined means "today's sprint", /api/dailys' own default.
+  const [selectedIteration, setSelectedIteration] = useState<string | undefined>(undefined);
+  useEffect(() => setSelectedIteration(undefined), [team]);
   const [mode, setMode] = useState<GroupMode>("developer");
   const [data, setData] = useState<DailysResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchText, setSearchText] = useState("");
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string> | null>(null);
+  const [selectedSources, setSelectedSources] = useState<Set<string> | null>(null);
   const [tagFilters, setTagFilters] = useState<Map<string, TagFilterState>>(new Map());
   const [hideStaleClosed, setHideStaleClosed] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<Set<WorkItemTypeKey>>(new Set(["story", "bug"]));
   const [testFilters, setTestFilters] = useState<Set<TestFilterKey>>(new Set());
   const [developerRoster, setDeveloperRoster] = useState<string[]>([]);
+  const [sprintGoals, setSprintGoals] = useState<SprintGoal[]>([]);
+  const [expandedGoalGroups, setExpandedGoalGroups] = useState<Set<string>>(new Set());
   const [selection, setSelection] = useState<Set<number>>(new Set());
   const [busyIds, setBusyIds] = useState<Set<number>>(new Set());
   const [dragOverLane, setDragOverLane] = useState<ReviewLaneKey | null>(null);
-  const [openWorkItemId, setOpenWorkItemId] = useState<number | null>(null);
   // Progress of a multi-card move. Each card is its own Azure write, so a batch of ten takes long
   // enough that the board would otherwise just look frozen.
   const [moveProgress, setMoveProgress] = useState<{ done: number; total: number; label: string } | null>(null);
@@ -66,10 +72,11 @@ export function ReviewBoard({ onNavigate, onHome }: ReviewBoardProps) {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    fetchDailys(team, controller.signal)
+    fetchDailys(team, controller.signal, selectedIteration)
       .then((response) => {
         setData(response);
         setSelectedStatuses(null);
+        setSelectedSources(null);
         setTagFilters(new Map());
         setSelectedTypes(new Set(WORK_ITEM_TYPES.map((t) => t.key)));
         setTestFilters(new Set());
@@ -82,13 +89,26 @@ export function ReviewBoard({ onNavigate, onHome }: ReviewBoardProps) {
         setLoading(false);
       });
     return () => controller.abort();
-  }, [team]);
+  }, [team, selectedIteration]);
 
   useEffect(() => {
     const controller = new AbortController();
     fetchTeamRoles(team, controller.signal)
       .then((roles) => setDeveloperRoster(roles.developers.map((d) => d.displayName)))
       .catch(() => setDeveloperRoster([]));
+    return () => controller.abort();
+  }, [team]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchSprintGoals(team, controller.signal)
+      .then(setSprintGoals)
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        // Same as DailysBoard: a nice-to-have overlay on top of the card data, not worth failing
+        // the whole board over if the Wiki page can't be reached.
+        setSprintGoals([]);
+      });
     return () => controller.abort();
   }, [team]);
 
@@ -100,6 +120,11 @@ export function ReviewBoard({ onNavigate, onHome }: ReviewBoardProps) {
   );
   const availableTags = useMemo(() => [...new Set(stories.flatMap((s) => s.tags))].sort(), [stories]);
   const activeStatuses = selectedStatuses ?? new Set(availableStatuses);
+  const availableSources = useMemo(
+    () => [...new Set(stories.map((s) => s.source).filter((v): v is string => !!v))].sort(),
+    [stories],
+  );
+  const activeSources = selectedSources ?? new Set(availableSources);
 
   /** Everything matching the filters - before the review lanes are taken out of it. */
   const filtered = useMemo(() => {
@@ -109,6 +134,7 @@ export function ReviewBoard({ onNavigate, onHome }: ReviewBoardProps) {
     return stories.filter((s) => {
       if (s.ownedByProductOwner) return false;
       if (!activeStatuses.has(s.azureStatus)) return false;
+      if (s.source && !activeSources.has(s.source)) return false;
       if (hideStaleClosed && isStaleClosed(s)) return false;
       const typeKey: WorkItemTypeKey = s.type === "Bug" ? "bug" : "story";
       if (!selectedTypes.has(typeKey)) return false;
@@ -119,7 +145,7 @@ export function ReviewBoard({ onNavigate, onHome }: ReviewBoardProps) {
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stories, searchText, selectedStatuses, tagFilters, hideStaleClosed, selectedTypes, testFilters]);
+  }, [stories, searchText, selectedStatuses, selectedSources, tagFilters, hideStaleClosed, selectedTypes, testFilters]);
 
   /** Cards still waiting for a decision - the ones the meeting prep is actually about. */
   const untagged = useMemo(() => filtered.filter((s) => laneOf(s) === null), [filtered]);
@@ -240,30 +266,44 @@ export function ReviewBoard({ onNavigate, onHome }: ReviewBoardProps) {
   const selectedInList = untagged.filter((s) => selection.has(s.id)).length;
   const taggedCount = useMemo(() => [...byLane.values()].reduce((sum, list) => sum + list.length, 0), [byLane]);
 
+  const sprintGoalsByNumber = useMemo(() => new Map(sprintGoals.map((g) => [g.number, g])), [sprintGoals]);
+
+  function toggleGoalGroup(id: string) {
+    setExpandedGoalGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const { setOpenWorkItemId, modals: workItemModals } = useWorkItemModals({
+    team,
+    getStory: (id) => stories.find((s) => s.id === id),
+  });
+
   return (
     <BoardShell
       activeBoard="review"
       onNavigate={onNavigate}
       onHome={onHome}
+      team={team}
+      onTeamChange={onTeamChange}
       title="Review"
-      subtitle={data ? `${data.meta.sprint} · ${data.meta.sprintStart} – ${data.meta.sprintEnd}` : undefined}
+      subtitle={
+        data && (
+          <SprintPicker
+            team={team}
+            sprint={data.meta.sprint}
+            sprintStart={data.meta.sprintStart}
+            sprintEnd={data.meta.sprintEnd}
+            sprintPath={data.meta.sprintPath}
+            onSelect={setSelectedIteration}
+          />
+        )
+      }
     >
       <div className="dailys-board__toolbar">
-        <div className="dailys-board__group" role="group" aria-label="Team">
-          <span className="dailys-board__group-label">Team</span>
-          <div className="dailys-board__group-body">
-            {TEAMS.map((t) => (
-              <button
-                key={t.id}
-                className={"dailys-board__tab" + (t.id === team ? " dailys-board__tab--active" : "")}
-                onClick={() => setTeam(t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
         <div className="dailys-board__group" role="group" aria-label="Gruppering">
           <span className="dailys-board__group-label">Gruppera på</span>
           <div className="dailys-board__group-body">
@@ -335,6 +375,16 @@ export function ReviewBoard({ onNavigate, onHome }: ReviewBoardProps) {
                 return next;
               })
             }
+            sources={availableSources}
+            selectedSources={activeSources}
+            onToggleSource={(source) =>
+              setSelectedSources((prev) => {
+                const next = new Set(prev ?? availableSources);
+                if (next.has(source)) next.delete(source);
+                else next.add(source);
+                return next;
+              })
+            }
           />
         </div>
 
@@ -355,13 +405,16 @@ export function ReviewBoard({ onNavigate, onHome }: ReviewBoardProps) {
       </div>
 
       {loading && <LoadingOverlay message="Hämtar sprintens kort…" />}
-      {moveProgress && (
-        <LoadingOverlay
-          message={`Taggar kort som ${moveProgress.label}…`}
-          sub={`${moveProgress.done} av ${moveProgress.total} klara`}
-        />
-      )}
       {error && <p className="dailys-board__status dailys-board__status--error">Fel: {error}</p>}
+      {/* A small corner indicator rather than a blocking splash - tagging ten cards is a handful of
+          sequential writes, and there's no reason the rest of the board should freeze while they
+          go out. Cards being written already show their own busy state (see ReviewCard/
+          ReviewPanelCard's busy prop). */}
+      {moveProgress && (
+        <div className="rv-move-toast" role="status">
+          Taggar kort som {moveProgress.label}… {moveProgress.done}/{moveProgress.total}
+        </div>
+      )}
 
       {!loading && !error && (
         <div className="rv-layout">
@@ -385,30 +438,66 @@ export function ReviewBoard({ onNavigate, onHome }: ReviewBoardProps) {
             {untagged.length === 0 ? (
               <p className="rv-empty">Alla kort som matchar filtret är taggade. 🎉</p>
             ) : (
-              groups.map((group) => (
-                <div className="rv-group" key={group.id}>
-                  {mode !== "none" && (
-                    <div className="rv-group__head">
-                      <span>{group.label}</span>
-                      <span className="rv-group__count">{group.stories.length}</span>
-                    </div>
-                  )}
-                  <div className="rv-group__cards">
-                    {group.stories.map((s) => (
-                      <ReviewCard
-                        key={s.id}
-                        story={s}
-                        selected={selection.has(s.id)}
-                        busy={busyIds.has(s.id)}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, s.id)}
-                        onToggleSelect={toggleSelect}
-                        onOpen={setOpenWorkItemId}
-                      />
-                    ))}
+              groups.map((group) => {
+                const goalNumberMatch = mode === "goals" ? group.label.match(/\d+/) : null;
+                const goalNumber = goalNumberMatch ? Number(goalNumberMatch[0]) : null;
+                const matchedGoal = goalNumber !== null ? sprintGoalsByNumber.get(goalNumber) : undefined;
+                const groupLabel = matchedGoal ? `Sprintmål ${matchedGoal.number} - ${matchedGoal.title}` : group.label;
+                const isExpanded = expandedGoalGroups.has(group.id);
+                // The catch-all has nothing in common to sort by except where each card stands -
+                // Closed first (nothing left to decide), New last.
+                const isNoGoalGroup = mode === "goals" && group.label === "(Inget sprintmål)";
+
+                function renderCard(s: DailyStoryDto) {
+                  return (
+                    <ReviewCard
+                      key={s.id}
+                      story={s}
+                      selected={selection.has(s.id)}
+                      busy={busyIds.has(s.id)}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, s.id)}
+                      onToggleSelect={toggleSelect}
+                      onOpen={setOpenWorkItemId}
+                    />
+                  );
+                }
+
+                return (
+                  <div className="rv-group" key={group.id}>
+                    {mode !== "none" && (
+                      <div
+                        className={"rv-group__head" + (matchedGoal ? " rv-group__head--clickable" : "")}
+                        onClick={matchedGoal ? () => toggleGoalGroup(group.id) : undefined}
+                      >
+                        {matchedGoal && (
+                          <span className={"rv-group__chevron" + (isExpanded ? " rv-group__chevron--open" : "")}>▶</span>
+                        )}
+                        <span>{groupLabel}</span>
+                        <span className="rv-group__count">{group.stories.length}</span>
+                      </div>
+                    )}
+                    {matchedGoal && isExpanded && (
+                      <div className="rv-group__goal-details">
+                        <SprintGoalDetails goal={matchedGoal} onOpenWorkItem={setOpenWorkItemId} />
+                      </div>
+                    )}
+                    {isNoGoalGroup ? (
+                      groupByStatus(group.stories).map((statusGroup) => (
+                        <div className="rv-status-group" key={statusGroup.status}>
+                          <div className="rv-status-group__head">
+                            <span>{statusGroup.status}</span>
+                            <span className="rv-status-group__count">{statusGroup.stories.length}</span>
+                          </div>
+                          <div className="rv-group__cards">{statusGroup.stories.map(renderCard)}</div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rv-group__cards">{group.stories.map(renderCard)}</div>
+                    )}
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </section>
 
@@ -452,24 +541,29 @@ export function ReviewBoard({ onNavigate, onHome }: ReviewBoardProps) {
                     {laneStories.length === 0 ? (
                       <p className="rv-panel__empty">Dra kort hit.</p>
                     ) : (
-                      laneStories.map((s) => (
-                        // Draggable too, so a card in the wrong panel is moved by dragging it to
-                        // the right one rather than having to send it back to the list first.
-                        // Selection doesn't apply here - a panel card drags on its own.
-                        <ReviewCard
-                          key={s.id}
-                          story={s}
-                          selected={false}
-                          busy={busyIds.has(s.id)}
-                          draggable
-                          onDragStart={(e) => {
-                            e.dataTransfer.setData("application/json", JSON.stringify([s.id]));
-                            e.dataTransfer.effectAllowed = "move";
-                          }}
-                          onToggleSelect={() => undefined}
-                          onOpen={setOpenWorkItemId}
-                          onRemove={() => void moveToLane([s.id], null)}
-                        />
+                      groupByDeveloper(laneStories).map((group) => (
+                        <div className="rv-panel-group" key={group.label}>
+                          <div className="rv-panel-group__head">
+                            <span>{group.label}</span>
+                            <span className="rv-panel-group__count">{group.stories.length}</span>
+                          </div>
+                          {group.stories.map((s) => (
+                            // Draggable too, so a card in the wrong panel is moved by dragging it
+                            // to the right one rather than having to send it back to the list first.
+                            <ReviewPanelCard
+                              key={s.id}
+                              story={s}
+                              busy={busyIds.has(s.id)}
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData("application/json", JSON.stringify([s.id]));
+                                e.dataTransfer.effectAllowed = "move";
+                              }}
+                              onOpen={setOpenWorkItemId}
+                              onRemove={() => void moveToLane([s.id], null)}
+                            />
+                          ))}
+                        </div>
                       ))
                     )}
                   </div>
@@ -491,7 +585,7 @@ export function ReviewBoard({ onNavigate, onHome }: ReviewBoardProps) {
         />
       )}
 
-      {openWorkItemId !== null && <WorkItemModal workItemId={openWorkItemId} onClose={() => setOpenWorkItemId(null)} />}
+      {workItemModals}
     </BoardShell>
   );
 }

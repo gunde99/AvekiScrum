@@ -19,6 +19,7 @@ internal sealed class EntraCredentialProvider : IAzureDevOpsCredentialProvider
     public static readonly string[] AzureDevOpsScopes =
     {
         "499b84ac-1321-427f-aa17-267ca6975798/vso.work_full",
+        "499b84ac-1321-427f-aa17-267ca6975798/vso.test_write",
         "499b84ac-1321-427f-aa17-267ca6975798/vso.project",
         "499b84ac-1321-427f-aa17-267ca6975798/vso.wiki",
         "499b84ac-1321-427f-aa17-267ca6975798/vso.code",

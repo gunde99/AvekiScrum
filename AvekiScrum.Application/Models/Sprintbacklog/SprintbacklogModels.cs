@@ -87,6 +87,7 @@ namespace AvekiScrum.Application.Models.Sprintbacklog
         public string Activity { get; set; } = "";
         public bool IsBlocked { get; set; }
         public List<string> Tags { get; set; } = new();
+        public int? Priority { get; set; }
 
         public bool IsPlaceholder { get; set; }
         public DateTime CreatedDate { get; set; }

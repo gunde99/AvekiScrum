@@ -1,7 +1,8 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using AvekiScrum.Application.Models.DTOs.Developer;
@@ -22,7 +23,26 @@ namespace AvekiScrum.Application.Models.DTOs.Scrum
         public int Id { get; set; }
         public int Rev { get; set; }
         public DateTimeOffset RevisedDate { get; set; }
+        public IdentityRef? RevisedBy { get; set; }
         public WorkItemFieldsChange? Fields { get; set; }
+
+        /// <summary>
+        /// The timestamp of this revision. Azure uses 9999-01-01 in RevisedDate for the current
+        /// revision; System.ChangedDate.newValue contains the actual timestamp of the change.
+        /// </summary>
+        [JsonIgnore]
+        public DateTimeOffset? EffectiveChangedDate
+        {
+            get
+            {
+                DateTimeOffset? changedDate = Fields?.ChangedDate?.NewValue;
+                if (IsRealDate(changedDate)) return changedDate;
+                return IsRealDate(RevisedDate) ? RevisedDate : null;
+            }
+        }
+
+        private static bool IsRealDate(DateTimeOffset? value)
+            => value.HasValue && value.Value.Year > 1900 && value.Value.Year < 9999;
     }
 
     public sealed class FieldChange<T> { public T? OldValue { get; set; } public T? NewValue { get; set; } }
@@ -32,5 +52,10 @@ namespace AvekiScrum.Application.Models.DTOs.Scrum
         [JsonPropertyName("System.State")] public FieldChange<string>? State { get; set; }
         [JsonPropertyName("System.AssignedTo")] public FieldChange<IdentityRef>? AssignedTo { get; set; }
         [JsonPropertyName("System.Tags")] public FieldChange<string>? Tags { get; set; }
+
+        /// <summary>All other field deltas returned by Azure. The history UI must not silently
+        /// lose fields just because a new process field has not been modelled explicitly.</summary>
+        [JsonExtensionData]
+        public Dictionary<string, JsonElement> AdditionalFields { get; set; } = new();
     }
 }

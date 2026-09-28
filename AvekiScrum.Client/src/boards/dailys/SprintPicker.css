@@ -1,0 +1,111 @@
+.sprint-picker__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: none;
+  border: none;
+  padding: 2px var(--space-1);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.sprint-picker__trigger:hover {
+  background: var(--color-bg-subtle);
+}
+
+.sprint-picker__caret {
+  font-size: 0.7em;
+  color: var(--color-text-muted);
+}
+
+/* Positioned via FloatingPopover (portal to document.body, position: fixed set inline). */
+.sprint-picker__pop {
+  z-index: 1000;
+  width: 300px;
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-2);
+  cursor: default;
+}
+
+.sprint-picker__status {
+  margin: 0;
+  padding: var(--space-3);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.sprint-picker__status--error {
+  color: var(--color-danger);
+}
+
+.sprint-picker__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sprint-picker__heading {
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.sprint-picker__option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sprint-picker__option:hover {
+  background: var(--color-bg-subtle);
+}
+
+.sprint-picker__option--active {
+  background: var(--color-primary);
+  color: #ffffff;
+}
+
+.sprint-picker__option-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+}
+
+.sprint-picker__option-dates {
+  font-size: 0.78rem;
+  color: inherit;
+  opacity: 0.8;
+}
+
+.sprint-picker__badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: var(--color-success);
+  color: #ffffff;
+  border-radius: 999px;
+  padding: 1px var(--space-2);
+}

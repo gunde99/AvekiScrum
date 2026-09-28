@@ -52,6 +52,14 @@ namespace AvekiScrum.Application.Abstractions
         Task<int> CreateTaskAsync(int parentId, string title, string? activity, string? assignedTo, string? state, string? areaPath, string? iterationPath, CancellationToken ct = default);
         Task<int> CreateRelatedUserStoryAsync(int relatedToId, string title, string? assignedTo, string? areaPath, string? iterationPath, CancellationToken ct = default);
         Task<int> CreateWorkItemAsync(string workItemType, IReadOnlyDictionary<string, object?> fields, int? linkToId, string? linkRel, CancellationToken ct = default);
+        /// <summary>
+        /// AvekiDokumentation's "Beställ hjälptext" button: creates a Task directly in a different
+        /// Azure DevOps project (Dokumentation), parented under its BESTÄLLNING story, Related-linked
+        /// back to <paramref name="relatedWorkItemId"/> in this project. Additive to
+        /// <see cref="CreateRelatedUserStoryAsync"/>, which the DoR checklist's own "Hjälptext" row
+        /// still uses unchanged.
+        /// </summary>
+        Task<int> CreateCrossProjectHelpTextTaskAsync(string targetProject, int parentStoryId, string title, string? descriptionHtml, string? assignedTo, int relatedWorkItemId, CancellationToken ct = default);
         Task AddWorkItemCommentAsync(int workItemId, string text, CancellationToken ct = default);
         Task DeleteWorkItemAsync(int workItemId, CancellationToken ct = default);
         Task AddWorkItemRelationAsync(int workItemId, int targetId, string linkRel, CancellationToken ct = default);
@@ -94,5 +102,12 @@ namespace AvekiScrum.Application.Abstractions
         Task<TestingTaskMetricsSummary> GetTestWorkItemMetrics(IEnumerable<string> areaPaths, DateTimeOffset from, DateTimeOffset to, CancellationToken ct);
         Task<TestPlanProgressDto> GetTestPlanProgressAsync(string sheetId, int planId, int suiteId, CancellationToken ct = default);
         Task<TestPlanProgressDto> GetTestPlanProgressBySuiteNameAsync(string sheetId, int planId, string suiteName, CancellationToken ct = default);
+
+        // Refinement / Product Backlog
+        Task<IReadOnlyList<AzureTeamDto>> GetProjectTeamsAsync(CancellationToken ct = default);
+        Task<ProductBacklogDto> GetProductBacklogAsync(string boardTeam, string? tag, string? iterationPath, string? areaPath, CancellationToken ct = default);
+        Task<ProductBacklogDto> GetRefinementSprintAsync(string iterationPath, IEnumerable<string> areaPaths, CancellationToken ct = default);
+        Task<ProductBacklogDto> GetTaggedRefinementItemsAsync(string iterationPathPrefix, IEnumerable<string> areaPaths, string tag, CancellationToken ct = default);
+        Task<ProductBacklogDto> SearchRefinementItemsAsync(string query, CancellationToken ct = default);
     }
 }
