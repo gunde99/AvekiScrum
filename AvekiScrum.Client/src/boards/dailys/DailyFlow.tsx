@@ -29,7 +29,7 @@ import {
 import { LinkCardsModal } from "./LinkCardsModal";
 import "./DailyFlow.css";
 
-type FlowStepKind = "review" | "developer" | "goal" | "po" | "testlead" | "talkingPoints";
+type FlowStepKind = "review" | "developer" | "goal" | "po" | "testlead" | "talkingPoints" | "onemorething";
 
 interface FlowStep {
   kind: FlowStepKind;
@@ -72,11 +72,17 @@ function specialRoleLabel(name: string): string | null {
   return null;
 }
 
-/** Review cards aren't a "turn" in the time-budget sense, and neither is a time-exempt person nor
- *  a talking-points step (lightweight ones piggyback on the turn right after them; full-turn ones
- *  are for someone outside the roster the budget was built for). */
+/** Review cards aren't a "turn" in the time-budget sense, and neither is a time-exempt person, a
+ *  talking-points step (lightweight ones piggyback on the turn right after them; full-turn ones are
+ *  for someone outside the roster the budget was built for), nor the "One more thing..." card. */
 function isCountedStep(step: FlowStep | null | undefined): boolean {
-  return !!step && step.kind !== "review" && step.kind !== "talkingPoints" && !isTimeExemptPerson(step.name);
+  return (
+    !!step &&
+    step.kind !== "review" &&
+    step.kind !== "talkingPoints" &&
+    step.kind !== "onemorething" &&
+    !isTimeExemptPerson(step.name)
+  );
 }
 
 // ─── Daily timer ───────────────────────────────────────────────────────────
@@ -371,6 +377,13 @@ export function DailyFlow({
             }));
         }
 
+        // A single "One more thing..." card right after the last regular participant - only when
+        // there's actually something behind it, so a daily with nothing to raise never gains an
+        // extra empty step.
+        function withOneMoreThing(tailSteps: FlowStep[]): FlowStep[] {
+          return tailSteps.length === 0 ? [] : [{ kind: "onemorething" as const, key: "one-more-thing", name: "" }, ...tailSteps];
+        }
+
         if (mode === "goals") {
           // Sprint goals keep their existing (meaningful) order instead of being shuffled. The
           // PO and test lead close the round here just as they do in the developer standup - the
@@ -380,7 +393,7 @@ export function DailyFlow({
           start([
             ...groups.map((g) => ({ kind: "goal" as const, key: g.id, name: g.label })),
             ...closingSteps,
-            ...buildTalkingPointTailSteps(byAssignee),
+            ...withOneMoreThing(buildTalkingPointTailSteps(byAssignee)),
           ]);
           return;
         }
@@ -434,7 +447,12 @@ export function DailyFlow({
           devStepsWithTalkingPoints.push(step);
         }
 
-        start([...devStepsWithTalkingPoints, ...closingSteps, ...tailSteps, ...buildTalkingPointTailSteps(remainingPoints)]);
+        start([
+          ...devStepsWithTalkingPoints,
+          ...closingSteps,
+          ...tailSteps,
+          ...withOneMoreThing(buildTalkingPointTailSteps(remainingPoints)),
+        ]);
       });
     return () => {
       cancelled = true;
@@ -686,6 +704,45 @@ export function DailyFlow({
           </button>
           <button type="button" className="daily-flow__btn daily-flow__btn--primary" onClick={goNext}>
             {queue.length === 0 ? "Avsluta" : "Nästa →"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Sits right after the last regular participant, before whatever "Saker att ta upp" tail turns
+  // follow (see withOneMoreThing) - an empty daily card with nothing but this line, the same beat
+  // as a keynote's own "one more thing".
+  if (current.kind === "onemorething") {
+    return (
+      <div className="daily-flow">
+        <div className="daily-flow__head">
+          <span className="daily-flow__progress">
+            Steg {stepNumber} av {total}
+          </span>
+          <button type="button" className="daily-flow__close" onClick={onClose} aria-label="Avsluta daily-flöde">
+            ✕
+          </button>
+        </div>
+        <DailyTimerBar
+          enabled={timerEnabled}
+          remainingSeconds={remainingSeconds}
+          budgetSeconds={timerBudgetSeconds}
+          speakerElapsedSeconds={speakerElapsedSeconds}
+          currentName={null}
+          onToggle={toggleTimer}
+        />
+
+        <div className="daily-flow__one-more-thing">
+          <div className="daily-flow__one-more-thing-text">One more thing…</div>
+        </div>
+
+        <div className="daily-flow__controls">
+          <button type="button" className="daily-flow__btn" onClick={goBack} disabled={history.length === 0}>
+            ← Föregående
+          </button>
+          <button type="button" className="daily-flow__btn daily-flow__btn--primary" onClick={goNext}>
+            Nästa →
           </button>
         </div>
       </div>

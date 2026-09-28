@@ -40,6 +40,20 @@
   font-size: 0.85rem;
 }
 
+.daily-flow__one-more-thing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+}
+
+.daily-flow__one-more-thing-text {
+  font-size: 2.6rem;
+  font-weight: 700;
+  color: var(--aveki-orange);
+  letter-spacing: 0.01em;
+}
+
 .daily-flow__status {
   padding: var(--space-4);
   color: var(--color-text-muted);
