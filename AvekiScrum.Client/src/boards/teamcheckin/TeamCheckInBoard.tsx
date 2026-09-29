@@ -89,7 +89,7 @@ function isTypingTarget(el: Element | null): boolean {
 }
 
 interface TeamCheckInBoardProps {
-  onNavigate?: (board: "refinement" | "dailys" | "review" | "test" | "teamcheckin") => void;
+  onNavigate?: (board: "team-home" | "refinement" | "dailys" | "review" | "test" | "teamcheckin") => void;
   onHome?: () => void;
 }
 

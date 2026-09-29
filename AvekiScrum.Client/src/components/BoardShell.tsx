@@ -4,6 +4,7 @@ import { TalkingPointsModal } from "./TalkingPointsModal";
 import type { DeveloperTeamId } from "../api/dailys";
 
 const BOARDS = [
+  { id: "team-home", label: "Översikt", enabled: true },
   { id: "planering", label: "Planering", enabled: false },
   { id: "refinement", label: "Refinement", enabled: true },
   { id: "dailys", label: "Dailys", enabled: true },
@@ -17,7 +18,7 @@ export type BoardId = (typeof BOARDS)[number]["id"];
 
 /** The boards that actually exist. The others are shown in the nav but disabled, so navigation
  *  can only ever emit one of these - which is what lets the boards themselves narrow their prop. */
-export type NavigableBoardId = Extract<BoardId, "refinement" | "dailys" | "review" | "test" | "teamcheckin">;
+export type NavigableBoardId = Extract<BoardId, "team-home" | "refinement" | "dailys" | "review" | "test" | "teamcheckin">;
 
 interface BoardShellProps {
   activeBoard: BoardId;

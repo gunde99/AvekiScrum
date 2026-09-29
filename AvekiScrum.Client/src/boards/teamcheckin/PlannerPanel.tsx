@@ -6,6 +6,11 @@ const PLANNER_URL = "https://planner.cloud.microsoft/webui/plan/ALag4dZ-RkqdozqB
 // under the same name instead of opening a new one - exactly what lets Miro click this link ahead
 // of the meeting to let Planner's own slow load finish, then jump straight back to that same tab
 // once the agenda reaches this step, instead of piling up a fresh tab every time.
+//
+// This only works without rel="noopener"/"noreferrer": per the HTML spec, either of those forces a
+// brand-new top-level browsing context on every click, ignoring the named-window lookup entirely -
+// which is exactly the "opens a new tab every time" bug this had at first. Safe to drop here since
+// the target is a fixed, hardcoded, trusted Microsoft URL, not anything user-supplied.
 const PLANNER_WINDOW_NAME = "aveki-planner-board";
 
 /**
@@ -20,7 +25,7 @@ export function PlannerPanel() {
       <div className="tcb-planner__icon">📋</div>
       <div className="tcb-planner__title">Aktivitetsboarden</div>
       <p className="tcb-planner__desc">Microsoft Planner tillåter inte inbäddning av sina sidor, så boarden öppnas i ett eget fönster.</p>
-      <a className="wi-btn wi-btn--primary tcb-planner__open" href={PLANNER_URL} target={PLANNER_WINDOW_NAME} rel="noreferrer">
+      <a className="wi-btn wi-btn--primary tcb-planner__open" href={PLANNER_URL} target={PLANNER_WINDOW_NAME}>
         Öppna aktivitetsboarden ↗
       </a>
     </div>

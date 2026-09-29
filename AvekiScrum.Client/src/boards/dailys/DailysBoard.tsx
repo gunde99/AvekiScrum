@@ -82,7 +82,7 @@ function writeParticipantChoices(team: DeveloperTeamId, choices: Record<string, 
 }
 
 interface DailysBoardProps {
-  onNavigate?: (board: "refinement" | "dailys" | "review" | "test" | "teamcheckin") => void;
+  onNavigate?: (board: "team-home" | "refinement" | "dailys" | "review" | "test" | "teamcheckin") => void;
   /** Back to the start page, where AvekiSupport lives. */
   onHome?: () => void;
   /** Owned by App - see BoardShell's header, which is where this is actually chosen now. */

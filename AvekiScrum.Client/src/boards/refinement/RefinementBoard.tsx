@@ -36,7 +36,7 @@ type Source = "backlog" | "sprint" | "tagged" | "custom";
 const REFINEMENT_TAG = "Refinement";
 
 interface RefinementBoardProps {
-  onNavigate?: (board: "refinement" | "dailys" | "review" | "test" | "teamcheckin") => void;
+  onNavigate?: (board: "team-home" | "refinement" | "dailys" | "review" | "test" | "teamcheckin") => void;
   onHome?: () => void;
   team: DeveloperTeamId;
   onTeamChange: (team: DeveloperTeamId) => void;

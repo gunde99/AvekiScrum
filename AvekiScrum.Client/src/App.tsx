@@ -4,6 +4,7 @@ import { ReviewBoard } from "./boards/review/ReviewBoard";
 import { TestBoard } from "./boards/test/TestBoard";
 import { RefinementBoard } from "./boards/refinement/RefinementBoard";
 import { TeamCheckInBoard } from "./boards/teamcheckin/TeamCheckInBoard";
+import { TeamHomeBoard } from "./boards/teamhome/TeamHomeBoard";
 import { LandingPage, type AppKey, type TeamKey } from "./landing/LandingPage";
 import { SupportApp } from "./support/SupportApp";
 import { DocumentationApp } from "./documentation/DocumentationApp";
@@ -17,7 +18,7 @@ type Route =
   | { app: "documentation" }
   | { app: "testing" };
 
-const NAVIGABLE_BOARDS: readonly NavigableBoardId[] = ["dailys", "review", "test", "refinement", "teamcheckin"];
+const NAVIGABLE_BOARDS: readonly NavigableBoardId[] = ["team-home", "dailys", "review", "test", "refinement", "teamcheckin"];
 
 /**
  * `?board=dailys` skips the landing page and opens straight into that board - see vice-SM.bat,
@@ -43,7 +44,9 @@ export default function App() {
   function open(app: AppKey, team?: TeamKey) {
     // The team comes from the start page's second step. Syd is the fallback for the callers that
     // have no team to give - support and documentation - and is never actually used by either.
-    setRoute(app === "scrum" ? { app: "scrum", board: "dailys", team: team ?? "Syd" } : { app });
+    // Picking Scrum + a team lands on the team's own start page now, not straight into a specific
+    // board - Översikt is where "go anywhere from here" actually starts.
+    setRoute(app === "scrum" ? { app: "scrum", board: "team-home", team: team ?? "Syd" } : { app });
   }
 
   const home = () => {
@@ -65,5 +68,6 @@ export default function App() {
   if (route.board === "refinement") return <RefinementBoard team={route.team} onTeamChange={changeTeam} onNavigate={navigate} onHome={home} />;
   // No team prop - Teamavstämning is one meeting for both teams, not a per-team board.
   if (route.board === "teamcheckin") return <TeamCheckInBoard onNavigate={navigate} onHome={home} />;
-  return <DailysBoard team={route.team} onTeamChange={changeTeam} onNavigate={navigate} onHome={home} />;
+  if (route.board === "dailys") return <DailysBoard team={route.team} onTeamChange={changeTeam} onNavigate={navigate} onHome={home} />;
+  return <TeamHomeBoard team={route.team} onTeamChange={changeTeam} onNavigate={navigate} onHome={home} />;
 }
