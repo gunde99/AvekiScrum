@@ -1,0 +1,43 @@
+.tcb-transition-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 15, 5, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  animation: tcb-fade-in 0.2s ease;
+}
+
+.tcb-transition-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-md);
+  min-width: 320px;
+  text-align: center;
+}
+
+.tcb-transition-icon {
+  font-size: 5rem;
+  line-height: 1;
+}
+
+.tcb-transition-label {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+@keyframes tcb-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

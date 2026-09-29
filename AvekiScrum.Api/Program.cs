@@ -759,6 +759,28 @@ app.MapGet("/api/refinement/search", async (
 })
 .WithName("SearchRefinementItems");
 
+// Teamavstämning's Scrum Master step (weeks 2+ of a sprint): work items tagged for both teams at
+// once, in whichever sprint is current right now. "Current" is resolved off Team Nord's own
+// iteration list - Nord and Syd share the same release/sprint cadence, just different area paths,
+// so either team's calendar gives the same answer.
+app.MapGet("/api/team-checkin/cross-team-items", async (
+    IAzureDevOpsService azureDevOpsService,
+    CancellationToken ct) =>
+{
+    var iterations = await azureDevOpsService.GetIterationsAsync(DeveloperTeam.Nord, ct);
+    var current = iterations.FirstOrDefault(i => i.IsCurrent);
+    if (current is null)
+        return Results.Ok(new { board = (object?)null, featureIds = Array.Empty<int>(), items = Array.Empty<object>() });
+
+    var nordAreas = await azureDevOpsService.GetTeamAreaPathsAsync(DeveloperTeam.Nord, ct);
+    var sydAreas = await azureDevOpsService.GetTeamAreaPathsAsync(DeveloperTeam.Syd, ct);
+    var areaPaths = nordAreas.Concat(sydAreas).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+    var backlog = await azureDevOpsService.GetTaggedRefinementItemsAsync(current.Path, areaPaths, "Berör både teamen", ct);
+    return Results.Ok(backlog);
+})
+.WithName("GetCrossTeamTaggedItems");
+
 app.MapGet("/api/sprint-goals", async (
     string team,
     IAzureDevOpsService azureDevOpsService,

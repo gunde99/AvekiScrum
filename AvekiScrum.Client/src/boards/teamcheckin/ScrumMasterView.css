@@ -1,0 +1,54 @@
+.tcb-sm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.tcb-sm__hint {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+.tcb-sm__team-toggle {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.tcb-sm__goals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.tcb-sm__goal {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.tcb-sm__goal-title {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.tcb-sm__goal-desc {
+  margin: 0 0 4px;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.tcb-sm__goal-owners {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.tcb-sm__cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}

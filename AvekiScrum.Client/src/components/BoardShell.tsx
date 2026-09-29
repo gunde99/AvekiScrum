@@ -9,6 +9,7 @@ const BOARDS = [
   { id: "dailys", label: "Dailys", enabled: true },
   { id: "review", label: "Review", enabled: true },
   { id: "test", label: "Test", enabled: true },
+  { id: "teamcheckin", label: "Teamavstämning", enabled: true },
   { id: "retro", label: "Retro", enabled: false },
 ] as const;
 
@@ -16,7 +17,7 @@ export type BoardId = (typeof BOARDS)[number]["id"];
 
 /** The boards that actually exist. The others are shown in the nav but disabled, so navigation
  *  can only ever emit one of these - which is what lets the boards themselves narrow their prop. */
-export type NavigableBoardId = Extract<BoardId, "refinement" | "dailys" | "review" | "test">;
+export type NavigableBoardId = Extract<BoardId, "refinement" | "dailys" | "review" | "test" | "teamcheckin">;
 
 interface BoardShellProps {
   activeBoard: BoardId;

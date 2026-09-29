@@ -1,0 +1,33 @@
+.tcb-planner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 320px;
+  padding: var(--space-6);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-subtle);
+  text-align: center;
+}
+
+.tcb-planner__icon {
+  font-size: 3rem;
+}
+
+.tcb-planner__title {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.tcb-planner__desc {
+  max-width: 420px;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.tcb-planner__open {
+  margin-top: var(--space-2);
+}
