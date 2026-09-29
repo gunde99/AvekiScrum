@@ -214,6 +214,36 @@ export async function saveDailyCheckIns(request: {
   }
 }
 
+/** One card's net Story Points change after a given cutoff - see /api/dailys/story-points-changes. */
+export interface StoryPointsChangeDto {
+  id: number;
+  oldStoryPoints: number;
+  newStoryPoints: number;
+  changedAt: string;
+}
+
+/** Checks which of the given (already-on-the-board) cards had their Story Points changed after
+ *  `cutoffUtc` - used to build the Dailys board's "SP changed since planning" inflow group. Walks
+ *  each card's Azure DevOps revision history server-side, so it's called with a narrow candidate
+ *  list (cards that existed before the cutoff) and loaded in the background, not on initial render. */
+export async function fetchStoryPointsChanges(
+  storyIds: number[],
+  cutoffUtc: string,
+  signal?: AbortSignal,
+): Promise<StoryPointsChangeDto[]> {
+  if (storyIds.length === 0) return [];
+  const response = await apiFetch(`${API_BASE_URL}/api/dailys/story-points-changes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ storyIds, cutoffUtc }),
+    signal,
+  });
+  if (!response.ok) {
+    throw new Error(await describeFailure(response, "Kunde inte hämta SP-ändringar"));
+  }
+  return (await response.json()) as StoryPointsChangeDto[];
+}
+
 /** The sprints the picker offers: the release the sprint at `around` belongs to, plus the release
  *  before and after it (only the ones that actually have iterations created yet). Omit `around` to
  *  center on whichever sprint /api/dailys would pick by default. */

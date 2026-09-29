@@ -925,3 +925,45 @@ export function buildGroups(stories: DailyStoryDto[], mode: GroupMode, developer
 
   return devGroups;
 }
+
+// ─── Sprint inflow (cards/SP that arrived after planning) ─────────────────
+
+/**
+ * Day 1 of the sprint, after lunch - planning itself runs sprint day 1 in the morning, so anything
+ * created or re-pointed from here on came in after the plan was already set, not as part of it.
+ */
+export function sprintInflowCutoff(sprintStart: string): Date {
+  return new Date(`${sprintStart}T13:00:00`);
+}
+
+/** Cards created after the inflow cutoff - the "new cards" group. Each row's roleText says when. */
+export function buildNewCardsGroup(stories: DailyStoryDto[], cutoff: Date): StoryGroup | null {
+  const created = stories
+    .filter((s) => s.createdDate && new Date(s.createdDate) > cutoff)
+    .map((s) => ({ ...s, roleText: `Tillkom ${fmtDateTime(s.createdDate)}` }));
+  if (created.length === 0) return null;
+  return { id: "inflow-new", label: "Nytillkomna kort i sprinten", mode: "none", stories: created };
+}
+
+/** One card whose Story Points changed net after the inflow cutoff - see /api/dailys/story-points-changes. */
+export interface StoryPointsChange {
+  id: number;
+  oldStoryPoints: number;
+  newStoryPoints: number;
+  changedAt: string;
+}
+
+/** The "SP changed" group - cards already on the board before the cutoff whose points were
+ *  re-estimated afterwards. Each row's roleText spells out the old/new value and when it happened. */
+export function buildSpChangedGroup(stories: DailyStoryDto[], changes: StoryPointsChange[]): StoryGroup | null {
+  const byId = new Map(stories.map((s) => [s.id, s]));
+  const changed = changes
+    .map((c) => {
+      const story = byId.get(c.id);
+      if (!story) return null;
+      return { ...story, roleText: `SP ändrades ${c.oldStoryPoints} → ${c.newStoryPoints} (${fmtDateTime(c.changedAt)})` };
+    })
+    .filter((s): s is DailyStoryDto & { roleText: string } => s !== null);
+  if (changed.length === 0) return null;
+  return { id: "inflow-sp-changed", label: "Story points ändrade under sprinten", mode: "none", stories: changed };
+}

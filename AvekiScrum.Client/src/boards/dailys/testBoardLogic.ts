@@ -12,6 +12,16 @@ export function testResultFromTags(tags: string[]): "ok" | "notok" | null {
   return null;
 }
 
+/** T-shirt-size tags for how big a test is - "S"/"M"/"L"/"XL", exactly (not e.g. "ange storlek
+ *  (S/M/L)", the reminder tag someone puts on an untriaged task - that's a prompt, not a value). */
+export const TEST_SIZES = ["XL", "L", "M", "S"] as const;
+export type TestSize = (typeof TEST_SIZES)[number];
+
+export function testSizeTag(tags: string[] | undefined): TestSize | null {
+  if (!tags) return null;
+  return TEST_SIZES.find((size) => tags.includes(size)) ?? null;
+}
+
 export interface TestTaskRow extends DailyTaskDto {
   storyId: number;
   storyTitle: string;

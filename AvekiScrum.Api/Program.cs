@@ -466,6 +466,51 @@ app.MapPost("/api/dailys/checkins", async (
 })
 .WithName("SaveDailyCheckIns");
 
+// Sprint inflow (Dailys' "new cards"/"SP changed" groups): which of the given stories had their
+// Story Points changed after the given cutoff - the candidate id list is exactly the board's own
+// "existed before the cutoff" stories (see dailysLogic.ts), so this never has to re-derive team or
+// sprint on its own. One GetWorkItemUpdatesAsync call per candidate, same as the test-task timeline
+// pipeline already does per test task - run concurrently for the same reason ReleaseOpenItemsView's
+// multi-sprint fetch does (a sequential loop over even a modest number of stories was slow enough to
+// notice). Loaded asynchronously by the client after the main board renders, not part of /api/dailys
+// itself, so a slow history lookup never delays the board a team actually stands around waiting for.
+app.MapPost("/api/dailys/story-points-changes", async (
+    StoryPointsChangesRequest request,
+    IAzureDevOpsService azureDevOpsService,
+    CancellationToken ct) =>
+{
+    if (request.StoryIds is null || request.StoryIds.Count == 0)
+        return Results.Ok(Array.Empty<object>());
+    if (!DateTimeOffset.TryParse(request.CutoffUtc, out var cutoff))
+        return Results.BadRequest("Unparseable 'cutoffUtc'.");
+
+    var checks = await Task.WhenAll(request.StoryIds.Select(async id =>
+    {
+        var updates = await azureDevOpsService.GetWorkItemUpdatesAsync(id, ct);
+        var spRevisions = updates.Value
+            .Select(u => new { Date = u.EffectiveChangedDate, Change = u.Fields?.StoryPoints })
+            .Where(x => x.Date.HasValue && x.Change != null)
+            .OrderBy(x => x.Date)
+            .ToList();
+
+        var postCutoff = spRevisions.Where(x => x.Date!.Value > cutoff).ToList();
+        if (postCutoff.Count == 0)
+            return null;
+
+        var oldValue = postCutoff[0].Change!.OldValue ?? 0;
+        var newValue = postCutoff[^1].Change!.NewValue ?? 0;
+        // Multiple changes can cancel out (bumped up, then back down) - only worth flagging if the
+        // net result across the whole post-cutoff window actually differs.
+        if (Math.Abs(oldValue - newValue) < 0.01)
+            return null;
+
+        return new { id, oldStoryPoints = oldValue, newStoryPoints = newValue, changedAt = postCutoff[^1].Date!.Value.ToString("o") };
+    }));
+
+    return Results.Ok(checks.Where(c => c != null));
+})
+.WithName("GetStoryPointsChanges");
+
 // Reads back what's been saved so far - not wired into any UI yet (the retro-facing view is still
 // being designed), but useful to inspect what a few sprints' worth of data actually looks like.
 app.MapGet("/api/dailys/checkins", async (
@@ -2080,6 +2125,8 @@ internal sealed record SaveDailyCheckInsRequest(
     string SprintName,
     string Date,
     List<DailyCheckInEntryRequest> Entries);
+
+internal sealed record StoryPointsChangesRequest(List<int> StoryIds, string CutoffUtc);
 
 internal sealed record DailyCheckInEntryRequest(
     string Kind,

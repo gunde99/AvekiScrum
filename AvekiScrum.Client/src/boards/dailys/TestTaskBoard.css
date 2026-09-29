@@ -17,6 +17,7 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--space-2);
+  margin-bottom: var(--space-3);
 }
 
 .test-board__export {
@@ -321,6 +322,26 @@ ul.test-board__task-list {
 .test-board__priority-btn--p2 { border-color: var(--color-info); color: var(--color-info-text); }
 .test-board__priority-btn--p3 { border-color: var(--aveki-yellow); color: #a76400; }
 .test-board__priority-btn--p4 { border-color: var(--color-success); color: var(--color-success); }
+
+/* T-shirt size of the test itself ("S"/"M"/"L"/"XL" tags) - a small traffic-light-ish scale so a
+   big test stands out on the row without reading the title. */
+.test-board__size {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  font-size: 0.68rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.test-board__size--s { border-color: var(--color-success); color: var(--color-success); }
+.test-board__size--m { border-color: var(--color-info); color: var(--color-info-text); }
+.test-board__size--l { border-color: var(--aveki-yellow); color: #a76400; }
+.test-board__size--xl { border-color: var(--color-danger); color: var(--color-danger); }
 
 /* Only rendered once the board actually spans more than one sprint (see showSprintTags in
    TestTaskBoard.tsx) - a plain single-iteration board never pays for this. Sits inline with the

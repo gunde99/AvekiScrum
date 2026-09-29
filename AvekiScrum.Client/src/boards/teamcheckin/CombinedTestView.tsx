@@ -83,7 +83,7 @@ export function CombinedTestView() {
   if (error) return <p className="dailys-board__status dailys-board__status--error">Fel: {error}</p>;
 
   return (
-    <div>
+    <div className="tcb-test">
       <div className="tcb-test__filter" role="group" aria-label="Team">
         {(["Alla", "Nord", "Syd"] as const).map((t) => (
           <button

@@ -52,6 +52,7 @@ namespace AvekiScrum.Application.Models.DTOs.Scrum
         [JsonPropertyName("System.State")] public FieldChange<string>? State { get; set; }
         [JsonPropertyName("System.AssignedTo")] public FieldChange<IdentityRef>? AssignedTo { get; set; }
         [JsonPropertyName("System.Tags")] public FieldChange<string>? Tags { get; set; }
+        [JsonPropertyName("Microsoft.VSTS.Scheduling.StoryPoints")] public FieldChange<double?>? StoryPoints { get; set; }
 
         /// <summary>All other field deltas returned by Azure. The history UI must not silently
         /// lose fields just because a new process field has not been modelled explicitly.</summary>

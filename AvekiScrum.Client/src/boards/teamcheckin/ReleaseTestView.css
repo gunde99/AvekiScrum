@@ -9,6 +9,12 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+.tcb-test {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
 .tcb-test__filter,
 .tcb-release__meta {
   display: flex;

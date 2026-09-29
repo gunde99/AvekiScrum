@@ -122,3 +122,15 @@
   display: flex;
   flex-direction: column;
 }
+
+/* New/re-pointed cards since planning - kept visually apart from the normal grouping (goals/
+   developer/ungrouped) below, since these two are an overlay on top of that grouping, not a mode
+   of it: the same card can show up here and again under its developer or sprint goal. */
+.dailys-board__inflow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px dashed var(--color-border);
+}

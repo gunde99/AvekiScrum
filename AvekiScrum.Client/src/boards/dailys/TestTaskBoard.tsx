@@ -17,6 +17,7 @@ import {
   statusAge,
   statusBadgeClass,
   testResultFromTags,
+  testSizeTag,
   PRIORITY_EMOJI,
   PRIORITY_LABELS,
   TEST_GROUP_MODE_LABELS,
@@ -380,6 +381,14 @@ export function TestTaskBoard({
                           >
                             #{t.id}
                           </button>
+                          {testSizeTag(t.tags) && (
+                            <span
+                              className={`test-board__size test-board__size--${testSizeTag(t.tags)!.toLowerCase()}`}
+                              title="Storlek på testet"
+                            >
+                              {testSizeTag(t.tags)}
+                            </span>
+                          )}
                           <span className="test-board__priority">
                             <button
                               type="button"
