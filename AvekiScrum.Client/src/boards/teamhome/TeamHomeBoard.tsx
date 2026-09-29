@@ -4,7 +4,7 @@ import { PersonAvatar } from "../../components/PersonAvatar";
 import { fetchDailys, type DailyStoryDto, type DeveloperTeamId } from "../../api/dailys";
 import { fetchTeamRoles, type PersonOption } from "../../api/people";
 import { KpiStrip } from "../dailys/KpiStrip";
-import { samePerson, summarizeStories } from "../dailys/dailysLogic";
+import { pct, samePerson, summarizeStories } from "../dailys/dailysLogic";
 import "./TeamHomeBoard.css";
 
 interface TeamHomeBoardProps {
@@ -19,24 +19,28 @@ interface RosterEntry extends PersonOption {
 }
 
 interface MemberSummary {
-  total: number;
   active: number;
   done: number;
-  newCount: number;
   totalSP: number;
   doneSP: number;
-  alerts: number;
   openPRs: number;
+}
+
+/** Elin and Chica ride along on the developer roster (see DailyFlow.tsx's own isTimeExemptPerson)
+ *  but aren't developers - they get their real role here and move to "Övriga roller" below. */
+function specialRoleLabel(name: string): string | null {
+  if (samePerson(name, "Elin Jonsson")) return "Teamansvarig";
+  if (samePerson(name, "Chica Robertsson")) return "Processansvarig";
+  return null;
 }
 
 function summarizeMember(stories: DailyStoryDto[], name: string): MemberSummary {
   const owned = stories.filter((s) => samePerson(s.developer, name));
-  const { active, done, newCount, totalSP, doneSP } = summarizeStories(owned);
-  const alerts = owned.filter((s) => s.alertLevel === "Warning" || s.alertLevel === "Critical").length;
+  const { active, done, totalSP, doneSP } = summarizeStories(owned);
   const openPRs = owned
     .flatMap((s) => s.pullRequests ?? [])
     .filter((pr) => samePerson(pr.createdByUniqueName || pr.createdBy || "", name) && pr.status?.toLowerCase() === "active").length;
-  return { total: owned.length, active, done, newCount, totalSP, doneSP, alerts, openPRs };
+  return { active, done, totalSP, doneSP, openPRs };
 }
 
 /**
@@ -45,7 +49,7 @@ function summarizeMember(stories: DailyStoryDto[], name: string): MemberSummary 
  * Azure DevOps) plus a team-wide summary, with the usual board tabs above to go anywhere from here.
  *
  * Built entirely from fetchDailys' + fetchTeamRoles' existing data - no new backend endpoint, since
- * both are already fetched in full by every other board and already carry per-story PR/alert info.
+ * both are already fetched in full by every other board and already carry per-story PR info.
  */
 export function TeamHomeBoard({ onNavigate, onHome, team, onTeamChange }: TeamHomeBoardProps) {
   const [roles, setRoles] = useState<{ po: PersonOption | null; testLead: PersonOption | null; developers: PersonOption[] } | null>(null);
@@ -76,13 +80,21 @@ export function TeamHomeBoard({ onNavigate, onHome, team, onTeamChange }: TeamHo
     };
   }, [team]);
 
-  const roster: RosterEntry[] = useMemo(() => {
-    if (!roles) return [];
-    return [
-      ...(roles.po ? [{ ...roles.po, role: "Product Owner" }] : []),
-      ...roles.developers.map((d) => ({ ...d, role: "Utvecklare" })),
-      ...(roles.testLead ? [{ ...roles.testLead, role: "Testansvarig" }] : []),
-    ];
+  // Real developers get the full stats grid; everyone else (PO, test lead, Elin, Chica) just needs
+  // a name/photo/role - they don't own sprint cards the way a developer does, so stats on them
+  // would just be a row of zeros.
+  const { developerMembers, otherMembers } = useMemo(() => {
+    if (!roles) return { developerMembers: [] as RosterEntry[], otherMembers: [] as RosterEntry[] };
+    const other: RosterEntry[] = [];
+    const developers: RosterEntry[] = [];
+    if (roles.po) other.push({ ...roles.po, role: "Product Owner" });
+    for (const dev of roles.developers) {
+      const special = specialRoleLabel(dev.displayName);
+      if (special) other.push({ ...dev, role: special });
+      else developers.push({ ...dev, role: "Utvecklare" });
+    }
+    if (roles.testLead) other.push({ ...roles.testLead, role: "Testansvarig" });
+    return { developerMembers: developers, otherMembers: other };
   }, [roles]);
 
   // PO-owned cards are excluded from the developer-focused board everywhere else in the app - same
@@ -98,9 +110,11 @@ export function TeamHomeBoard({ onNavigate, onHome, team, onTeamChange }: TeamHo
         <>
           <KpiStrip stories={boardStories} />
 
+          <div className="th-section-title">Utvecklare</div>
           <div className="th-members">
-            {roster.map((member) => {
+            {developerMembers.map((member) => {
               const summary = summarizeMember(boardStories, member.displayName);
+              const spPct = pct(summary.doneSP, summary.totalSP);
               return (
                 <div className="th-member" key={member.email}>
                   <PersonAvatar name={member.displayName} size={56} />
@@ -114,25 +128,42 @@ export function TeamHomeBoard({ onNavigate, onHome, team, onTeamChange }: TeamHo
                       <span>
                         <strong>{summary.done}</strong> klara
                       </span>
-                      <span>
-                        <strong>{summary.totalSP}</strong> SP
-                      </span>
                       {summary.openPRs > 0 && (
                         <span className="th-member__stat--pr">
                           <strong>{summary.openPRs}</strong> öppna PR
                         </span>
                       )}
-                      {summary.alerts > 0 && (
-                        <span className="th-member__stat--alert">
-                          ⚠ <strong>{summary.alerts}</strong>
-                        </span>
-                      )}
+                    </div>
+                    <div className="th-member__progress" title={`${summary.doneSP} av ${summary.totalSP} story points klara`}>
+                      <div className="th-member__progress-track">
+                        <div className="th-member__progress-fill" style={{ width: `${spPct}%` }} />
+                      </div>
+                      <span className="th-member__progress-label">
+                        {summary.doneSP}/{summary.totalSP} SP
+                      </span>
                     </div>
                   </div>
                 </div>
               );
             })}
           </div>
+
+          {otherMembers.length > 0 && (
+            <>
+              <div className="th-section-title">Övriga roller</div>
+              <div className="th-members th-members--compact">
+                {otherMembers.map((member) => (
+                  <div className="th-member th-member--compact" key={member.email}>
+                    <PersonAvatar name={member.displayName} size={44} />
+                    <div className="th-member__body">
+                      <div className="th-member__name">{member.displayName}</div>
+                      <div className="th-member__role">{member.role}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </>
       )}
     </BoardShell>

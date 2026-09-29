@@ -1,6 +1,6 @@
 import "./PlannerPanel.css";
 
-const PLANNER_URL = "https://planner.cloud.microsoft/webui/plan/ALag4dZ-RkqdozqBxshNd5cAC2u4/view/board?tid=48e7c764-137b-4c2b-8521-8e0e1f19f10b";
+const PLANNER_URL = "https://planner.cloud.microsoft/webui/plan/yNIigqf0DES3l0ZtgrMx5JcAE8Kl/view/board?tid=48e7c764-137b-4c2b-8521-8e0e1f19f10b";
 
 // A fixed, non-"_blank" window name: browsers reuse and focus an already-open tab/window opened
 // under the same name instead of opening a new one - exactly what lets Miro click this link ahead

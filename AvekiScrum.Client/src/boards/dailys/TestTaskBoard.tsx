@@ -91,6 +91,12 @@ export function TestTaskBoard({
   const [statusFilter, setStatusFilter] = useState<Set<TestStatusBucket> | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [collapsedInitialized, setCollapsedInitialized] = useState(false);
+  // The toolbar's three sub-panels - all collapsed by default so the board opens on the cards
+  // themselves instead of a wall of buttons. Independent toggles, not an accordion: filtering and
+  // grouping are unrelated questions, no reason opening one should close the other.
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [showGroupPanel, setShowGroupPanel] = useState(false);
+  const [showStatsPanel, setShowStatsPanel] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -204,6 +210,9 @@ export function TestTaskBoard({
   }
 
   const unassignedCount = visible.filter((t) => !t.assignedTo).length;
+  // Shown on the collapsed "Filter" button so a narrowed view stays legible even with the panel
+  // that did the narrowing tucked away.
+  const hasActiveFilter = search.trim().length > 0 || (statusFilter !== null && statusFilter.size < availableStatuses.length);
 
   // A freshly-mounted <select> only focuses on its own - opening the actual dropdown still took a
   // second click. showPicker() (Chrome/Edge 121+, Firefox 130+) opens it immediately; where it
@@ -223,83 +232,117 @@ export function TestTaskBoard({
 
   return (
     <div className={"test-board" + (embedded ? " test-board--embedded" : "")}>
-      <div className="test-board__toolbar">
-        <div className="test-board__group" role="group" aria-label="Gruppera på">
-          <span className="test-board__group-label">Gruppera på</span>
-          <div className="test-board__group-body">
-            {(Object.keys(TEST_GROUP_MODE_LABELS) as TestGroupMode[]).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                className={"test-board__tab" + (mode === groupMode ? " test-board__tab--active" : "")}
-                onClick={() => setGroupMode(mode)}
-              >
-                {TEST_GROUP_MODE_LABELS[mode]}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="test-board__group" role="group" aria-label="Sortera på">
-          <span className="test-board__group-label">Sortera</span>
-          <div className="test-board__group-body">
-            {(Object.keys(TEST_SORT_LABELS) as TestSortKey[]).map((key) => (
-              <button
-                key={key}
-                type="button"
-                className={"test-board__tab" + (key === sortKey ? " test-board__tab--active" : "")}
-                onClick={() => toggleSort(key)}
-              >
-                {TEST_SORT_LABELS[key]}
-                {key === sortKey && <span className="test-board__sort-arrow">{sortDir === "asc" ? " ▲" : " ▼"}</span>}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <input
-          type="search"
-          className="test-board__search"
-          placeholder="Sök titel, #id…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="test-board__toolbar test-board__toolbar--compact">
+        <button
+          type="button"
+          className={"test-board__toggle" + (showFilterPanel ? " test-board__toggle--active" : "") + (hasActiveFilter ? " test-board__toggle--marked" : "")}
+          onClick={() => setShowFilterPanel((v) => !v)}
+        >
+          🔍 Filter{hasActiveFilter && <span className="test-board__toggle-dot" title="Ett filter är aktivt" />}
+        </button>
+        <button
+          type="button"
+          className={"test-board__toggle" + (showGroupPanel ? " test-board__toggle--active" : "")}
+          onClick={() => setShowGroupPanel((v) => !v)}
+        >
+          ▤ Gruppera <span className="test-board__toggle-sub">{TEST_GROUP_MODE_LABELS[groupMode]}</span>
+        </button>
+        <button
+          type="button"
+          className={"test-board__toggle" + (showStatsPanel ? " test-board__toggle--active" : "")}
+          onClick={() => setShowStatsPanel((v) => !v)}
+        >
+          📊 Statistik <span className="test-board__toggle-sub">{visible.length} kort</span>
+        </button>
       </div>
 
-      {availableStatuses.length > 1 && (
-        <div className="test-board__statusbar">
-          {availableStatuses.map((bucket) => {
-            const active = (statusFilter ?? new Set(availableStatuses)).has(bucket);
-            const count = all.filter((r) => classifyTestStatus(r) === bucket).length;
-            return (
-              <button
-                key={bucket}
-                type="button"
-                className={
-                  "test-board__status" +
-                  (statusBadgeClass(bucket) ? ` test-board__status--${statusBadgeClass(bucket)}` : "") +
-                  (active ? " test-board__status--active" : "")
-                }
-                onClick={() => toggleStatus(bucket)}
-                title={TEST_STATUS_LABELS[bucket]}
-              >
-                <span className="test-board__status-count">{count}</span>
-                <span className="test-board__status-label">{TEST_STATUS_LABELS[bucket]}</span>
-              </button>
-            );
-          })}
+      {showFilterPanel && (
+        <div className="test-board__panel">
+          <input
+            type="search"
+            className="test-board__search"
+            placeholder="Sök titel, #id…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            autoFocus
+          />
+          {availableStatuses.length > 1 && (
+            <div className="test-board__statusbar">
+              {availableStatuses.map((bucket) => {
+                const active = (statusFilter ?? new Set(availableStatuses)).has(bucket);
+                const count = all.filter((r) => classifyTestStatus(r) === bucket).length;
+                return (
+                  <button
+                    key={bucket}
+                    type="button"
+                    className={
+                      "test-board__status" +
+                      (statusBadgeClass(bucket) ? ` test-board__status--${statusBadgeClass(bucket)}` : "") +
+                      (active ? " test-board__status--active" : "")
+                    }
+                    onClick={() => toggleStatus(bucket)}
+                    title={TEST_STATUS_LABELS[bucket]}
+                  >
+                    <span className="test-board__status-count">{count}</span>
+                    <span className="test-board__status-label">{TEST_STATUS_LABELS[bucket]}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
-      <div className="test-board__summary">
-        <span className="df-stat">
-          <strong>{visible.length}</strong> test-tasks
-        </span>
-        <span className="df-stat">
-          <strong>{unassignedCount}</strong> utan ägare
-        </span>
-        {all.length !== visible.length && <span className="df-hint">{all.length - visible.length} dolda av filter</span>}
-      </div>
+      {showGroupPanel && (
+        <div className="test-board__panel">
+          <div className="test-board__group" role="group" aria-label="Gruppera på">
+            <span className="test-board__group-label">Gruppera på</span>
+            <div className="test-board__group-body">
+              {(Object.keys(TEST_GROUP_MODE_LABELS) as TestGroupMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className={"test-board__tab" + (mode === groupMode ? " test-board__tab--active" : "")}
+                  onClick={() => setGroupMode(mode)}
+                >
+                  {TEST_GROUP_MODE_LABELS[mode]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="test-board__group" role="group" aria-label="Sortera på">
+            <span className="test-board__group-label">Sortera</span>
+            <div className="test-board__group-body">
+              {(Object.keys(TEST_SORT_LABELS) as TestSortKey[]).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={"test-board__tab" + (key === sortKey ? " test-board__tab--active" : "")}
+                  onClick={() => toggleSort(key)}
+                >
+                  {TEST_SORT_LABELS[key]}
+                  {key === sortKey && <span className="test-board__sort-arrow">{sortDir === "asc" ? " ▲" : " ▼"}</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showStatsPanel && (
+        <div className="test-board__panel">
+          <div className="test-board__summary">
+            <span className="df-stat">
+              <strong>{visible.length}</strong> test-tasks
+            </span>
+            <span className="df-stat">
+              <strong>{unassignedCount}</strong> utan ägare
+            </span>
+            {all.length !== visible.length && <span className="df-hint">{all.length - visible.length} dolda av filter</span>}
+          </div>
+        </div>
+      )}
 
       {visible.length === 0 ? (
         <p className="daily-flow__empty">Inga test-tasks matchar urvalet.</p>

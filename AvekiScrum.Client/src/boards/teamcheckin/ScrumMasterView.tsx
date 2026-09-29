@@ -7,6 +7,7 @@ import { toRelationRef } from "../refinement/refinementLogic";
 import { WorkItemRefCard } from "../../components/workitem/WorkItemRefCard";
 import { useWorkItemModals } from "../../components/workitem/useWorkItemModals";
 import { useToast } from "../../components/Toast";
+import { prefetchReleaseData, prefetchTestData } from "./teamCheckInPrefetch";
 import "./ScrumMasterView.css";
 
 type SprintWeek = "week1" | "later";
@@ -71,6 +72,13 @@ export function ScrumMasterView() {
           if (cancelled) return;
           setItems(backlog.items);
         }
+
+        // Warms up Release/Test-ansvarig's own (heavy) data now that this step's own load is done,
+        // so it's already in flight - often already finished - by the time the agenda gets there.
+        // Fire-and-forget: a failure here just means that step starts cold, same as before; it'll
+        // report its own error normally when it awaits the same promise itself.
+        prefetchTestData().catch(() => {});
+        prefetchReleaseData().catch(() => {});
       })
       .catch((err: unknown) => {
         if (cancelled) return;

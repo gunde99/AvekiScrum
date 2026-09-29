@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { fetchDailys, type DailysResponse, type DailyStoryDto } from "../../api/dailys";
+import { type DailysResponse, type DailyStoryDto } from "../../api/dailys";
 import { TestTaskBoard } from "../dailys/TestTaskBoard";
 import { applyWorkItemSave } from "../dailys/dailysLogic";
 import { useWorkItemModals } from "../../components/workitem/useWorkItemModals";
+import { prefetchTestData } from "./teamCheckInPrefetch";
 
 type TeamFilter = "Nord" | "Syd" | "Alla";
 
@@ -27,6 +28,9 @@ function patchTaskAssignment(response: DailysResponse, taskId: number, assignedT
  * fed both teams' current-sprint stories at once - "kombinerad med bägge teamen" - with a team
  * filter layered on top. Status filtering and free-text search are already built into
  * TestTaskBoard itself, so this only adds the one thing it doesn't have: which team(s) to include.
+ *
+ * The actual fetch lives in teamCheckInPrefetch.ts, warmed up by ScrumMasterView as soon as its own
+ * data is ready - this just awaits whatever that returns.
  */
 export function CombinedTestView() {
   const [teamFilter, setTeamFilter] = useState<TeamFilter>("Alla");
@@ -39,8 +43,8 @@ export function CombinedTestView() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    Promise.all([fetchDailys("Nord"), fetchDailys("Syd")])
-      .then(([nord, syd]) => {
+    prefetchTestData()
+      .then(({ nord, syd }) => {
         if (cancelled) return;
         setNordData(nord);
         setSydData(syd);

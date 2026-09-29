@@ -67,22 +67,28 @@
 }
 
 .tcb-sm__goal {
-  padding: var(--space-3);
+  padding: var(--space-4);
   border: 1px solid var(--color-border);
+  border-top: 3px solid var(--aveki-orange);
   border-radius: var(--radius-md);
   background: var(--color-bg);
 }
 
 .tcb-sm__goal-title {
-  font-weight: 700;
-  margin-bottom: 4px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  padding-bottom: var(--space-2);
+  margin-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .tcb-sm__goal-desc {
-  margin: 0 0 4px;
-  color: var(--color-text);
-  font-size: 0.9rem;
-  line-height: 1.4;
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-muted);
+  font-size: 0.92rem;
+  font-style: italic;
+  line-height: 1.5;
 }
 
 .tcb-sm__goal-meta {
@@ -90,20 +96,20 @@
   gap: var(--space-3);
   font-size: 0.78rem;
   color: var(--color-text-muted);
-  margin-bottom: 6px;
+  margin-bottom: var(--space-2);
 }
 
 .tcb-sm__goal-section {
-  margin-top: var(--space-2);
+  margin-top: var(--space-3);
 }
 
 .tcb-sm__goal-section-title {
-  font-size: 0.7rem;
-  font-weight: 700;
+  font-size: 0.68rem;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-muted);
-  margin-bottom: 4px;
+  letter-spacing: 0.08em;
+  color: var(--aveki-orange);
+  margin-bottom: var(--space-2);
 }
 
 .tcb-sm__checklist {
@@ -114,6 +120,16 @@
   flex-direction: column;
   gap: 2px;
   font-size: 0.85rem;
+}
+
+.tcb-sm__checklist li {
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-sm);
+  transition: background-color 0.12s ease;
+}
+
+.tcb-sm__checklist li:hover {
+  background: color-mix(in srgb, var(--aveki-orange) 14%, transparent);
 }
 
 .tcb-sm__checklist-done {
@@ -128,20 +144,29 @@
 }
 
 .tcb-sm__subgoal {
-  padding: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-bg-subtle);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  cursor: default;
+}
+
+.tcb-sm__subgoal:hover {
+  background: color-mix(in srgb, var(--aveki-orange) 16%, var(--color-bg-subtle));
+  border-left-color: var(--aveki-orange);
 }
 
 .tcb-sm__subgoal-title {
-  font-weight: 600;
-  font-size: 0.88rem;
+  font-weight: 700;
+  font-size: 0.92rem;
 }
 
 .tcb-sm__subgoal-desc {
-  margin: 2px 0 0;
-  font-size: 0.82rem;
+  margin: 3px 0 0;
+  font-size: 0.83rem;
   color: var(--color-text-muted);
+  line-height: 1.45;
 }
 
 .tcb-sm__cards {

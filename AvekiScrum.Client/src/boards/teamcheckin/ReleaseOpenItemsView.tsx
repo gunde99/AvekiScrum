@@ -1,18 +1,17 @@
 import { useEffect, useState } from "react";
-import { fetchDailys, fetchSprints, type DailyStoryDto, type DailyTaskDto, type DeveloperTeamId } from "../../api/dailys";
+import { type DailyStoryDto, type DailyTaskDto } from "../../api/dailys";
 import { useToast } from "../../components/Toast";
 import { useWorkItemModals } from "../../components/workitem/useWorkItemModals";
 import { updateWorkItemFields } from "../../api/workitems";
 import { GroupCard } from "../dailys/GroupCard";
 import { DOD_TAG, type FlowLaneStage, type StoryGroup } from "../dailys/dailysLogic";
+import { prefetchReleaseData } from "./teamCheckInPrefetch";
 
 // Mirrors DailysBoard's own lane maps - kept local since nothing else in this view touches the
 // kanban drag/drop surface, only GroupCard's StoryTable does (via onTaskDrop).
 const LANE_TO_AZURE_STATE: Record<FlowLaneStage, string> = { New: "New", Active: "Active", Resolved: "Resolved", Done: "Closed" };
 const LANE_TO_STATUS: Record<FlowLaneStage, string> = { New: "New", Active: "Active", Resolved: "Active", Done: "Closed" };
 const LANE_LABEL: Record<FlowLaneStage, string> = { New: "Ny", Active: "Aktiv", Resolved: "Löst", Done: "Klar" };
-
-const TEAMS: DeveloperTeamId[] = ["Nord", "Syd"];
 
 function updateStory(groups: StoryGroup[], storyId: number, updater: (s: DailyStoryDto) => DailyStoryDto): StoryGroup[] {
   return groups.map((g) => ({ ...g, stories: g.stories.map((s) => (s.id === storyId ? updater(s) : s)) }));
@@ -27,6 +26,10 @@ function updateTask(groups: StoryGroup[], taskId: number, updater: (t: DailyTask
  * sprints that have otherwise moved on - exactly the "forgot to close this one" cards a release
  * check exists to surface. One group per (team, sprint), rendered with the same GroupCard/StoryTable
  * the daily board itself uses, auto-expanded since the whole point is to see everything at once.
+ *
+ * The actual data-building (fetchSprints + a bunch of fetchDailys calls) lives in
+ * teamCheckInPrefetch.ts, warmed up by ScrumMasterView as soon as its own data is ready - this just
+ * awaits whatever that returns, so switching here mid-meeting is usually instant instead of cold.
  */
 export function ReleaseOpenItemsView() {
   const { showToast } = useToast();
@@ -39,55 +42,18 @@ export function ReleaseOpenItemsView() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    (async () => {
-      try {
-        const perTeamSprints = await Promise.all(TEAMS.map((t) => fetchSprints(t)));
-        // One job per (team, sprint) to look at - built up front so every fetchDailys call below
-        // can run concurrently instead of one at a time. fetchDailys does a full per-story PR/test-
-        // timeline enrichment (see DailyDashboardDataBuilder), so awaiting these in a loop instead
-        // of together turned a handful of old sprints into a multi-minute wait in practice.
-        const jobs: { team: DeveloperTeamId; sprintPath: string; sprintName: string }[] = [];
-        for (let i = 0; i < TEAMS.length; i++) {
-          const team = TEAMS[i];
-          const sprints = perTeamSprints[i];
-          const current = sprints.find((s) => s.isCurrent);
-          // Only genuinely past sprints - fetchSprints' own window can include the release ahead
-          // of the current one too, which has nothing "left over" to report yet.
-          const older = current
-            ? sprints.filter((s) => !s.isCurrent && new Date(s.startDate).getTime() < new Date(current.startDate).getTime())
-            : sprints.filter((s) => !s.isCurrent);
-          // Capped to the 4 most recent - a card still open from a year ago is real, but chasing
-          // every sprint the project has ever had would make this view too slow to be worth opening
-          // during a meeting. Most recent first, so the cap keeps the sprints that matter most.
-          const recentOlder = [...older].sort((a, b) => b.startDate.localeCompare(a.startDate)).slice(0, 4);
-          for (const sprint of recentOlder) {
-            jobs.push({ team, sprintPath: sprint.path, sprintName: sprint.name });
-          }
-        }
-
-        const responses = await Promise.all(jobs.map((j) => fetchDailys(j.team, undefined, j.sprintPath)));
-        const built: StoryGroup[] = [];
-        jobs.forEach((job, i) => {
-          const response = responses[i];
-          const openStories = (response.teams[0]?.stories ?? []).filter(
-            (s) => (s.azureStatus || "").trim().toLowerCase() !== "closed",
-          );
-          if (openStories.length > 0) {
-            built.push({ id: `${job.team}|${job.sprintPath}`, label: `Team ${job.team} - ${job.sprintName}`, mode: "none", stories: openStories });
-          }
-        });
-        // Most recently started sprint first - the freshest "still shouldn't be open" cards matter most.
-        built.sort((a, b) => b.id.localeCompare(a.id));
-        if (!cancelled) {
-          setGroups(built);
-          setOpenGroups(new Set(built.map((g) => g.id)));
-        }
-      } catch (err) {
+    prefetchReleaseData()
+      .then((built) => {
+        if (cancelled) return;
+        setGroups(built);
+        setOpenGroups(new Set(built.map((g) => g.id)));
+      })
+      .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : "Kunde inte hämta äldre sprintar.");
-      } finally {
+      })
+      .finally(() => {
         if (!cancelled) setLoading(false);
-      }
-    })();
+      });
     return () => {
       cancelled = true;
     };
