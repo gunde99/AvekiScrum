@@ -6,6 +6,7 @@ import { StepTransitionModal } from "./StepTransitionModal";
 import { PlannerPanel } from "./PlannerPanel";
 import { RolePlaceholderPanel } from "./RolePlaceholderPanel";
 import { ScrumMasterView } from "./ScrumMasterView";
+import { ReleaseTestView } from "./ReleaseTestView";
 import "./TeamCheckInBoard.css";
 
 // 60 minutes is a starting guess for how long a Teamavstämning actually runs - retune this one
@@ -72,9 +73,19 @@ function renderPanel(step: AgendaStep) {
       return <PlannerPanel />;
     case "scrum-master":
       return <ScrumMasterView />;
+    case "release-test":
+      return <ReleaseTestView />;
     default:
       return <RolePlaceholderPanel step={step} />;
   }
+}
+
+/** True while focus is somewhere that ArrowLeft/ArrowRight should move a text caret instead of the
+ *  agenda - a free-text search box, a sprint-goal wiki URL field, etc. */
+function isTypingTarget(el: Element | null): boolean {
+  if (!el) return false;
+  const tag = el.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (el as HTMLElement).isContentEditable;
 }
 
 interface TeamCheckInBoardProps {
@@ -84,24 +95,29 @@ interface TeamCheckInBoardProps {
 
 /**
  * "Teamavstämning" - a recurring cross-team meeting, deliberately with no team switcher (it's one
- * meeting for both teams, not a per-team board). Left: a fixed agenda stepped through by hand, with
- * a whole-meeting countdown. Right: whatever the current agenda step has to show - see renderPanel.
+ * meeting for both teams, not a per-team board). Left: a fixed agenda, with a whole-meeting
+ * countdown once the meeting is actually started. Right: whatever the current agenda step has to
+ * show - see renderPanel.
+ *
+ * Two modes: before "Starta möte", clicking any agenda item just previews its panel - no flash, no
+ * running timer, nothing recorded. Starting resets to step 0 with a fresh clock; from then on every
+ * step change (Nästa/Föregående, arrow keys, or clicking a different agenda item) flashes the
+ * transition card, same as a real meeting.
  */
 export function TeamCheckInBoard({ onNavigate, onHome }: TeamCheckInBoardProps) {
   const { showToast } = useToast();
+  const [started, setStarted] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [remainingSeconds, setRemainingSeconds] = useState(TOTAL_SECONDS);
   const [timerEnabled, setTimerEnabled] = useState(true);
-  // Flashes on the very first step too - "here's what we're starting with" is as useful as "here's
-  // what's next".
-  const [transitioning, setTransitioning] = useState(true);
+  const [transitioning, setTransitioning] = useState(false);
   const playedQuarterRef = useRef(false);
   const playedFiveRef = useRef(false);
 
   const step = AGENDA[stepIndex];
 
   useEffect(() => {
-    if (!timerEnabled) return;
+    if (!started || !timerEnabled) return;
     const id = window.setInterval(() => {
       setRemainingSeconds((prev) => {
         const next = Math.max(0, prev - 1);
@@ -119,20 +135,53 @@ export function TeamCheckInBoard({ onNavigate, onHome }: TeamCheckInBoardProps) 
       });
     }, 1000);
     return () => window.clearInterval(id);
-  }, [timerEnabled, showToast]);
+  }, [started, timerEnabled, showToast]);
 
+  // Flashes on every step change once the meeting is running - but this effect also fires once on
+  // mount (before anything has been started), where it must stay silent.
   useEffect(() => {
-    setTransitioning(true);
+    if (started) setTransitioning(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step.id]);
 
+  // Arrow-key browsing of the agenda - both before and during the meeting. Ignored while focus is
+  // in a text field (search boxes, the wiki-url editor, …) so it doesn't fight the caret.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (isTypingTarget(document.activeElement)) return;
+      if (e.key === "ArrowRight") goNext();
+      else if (e.key === "ArrowLeft") goBack();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function goNext() {
-    if (timerEnabled) ensureAudio();
+    if (started && timerEnabled) ensureAudio();
     setStepIndex((i) => Math.min(i + 1, AGENDA.length - 1));
   }
 
   function goBack() {
-    if (timerEnabled) ensureAudio();
+    if (started && timerEnabled) ensureAudio();
     setStepIndex((i) => Math.max(i - 1, 0));
+  }
+
+  function jumpTo(i: number) {
+    if (started && timerEnabled) ensureAudio();
+    setStepIndex(i);
+  }
+
+  function handleStart() {
+    setStarted(true);
+    setStepIndex(0);
+    setRemainingSeconds(TOTAL_SECONDS);
+    playedQuarterRef.current = false;
+    playedFiveRef.current = false;
+    if (timerEnabled) ensureAudio();
+    // Flashes even though stepIndex may already have been 0 from browsing beforehand - "the
+    // meeting has actually begun" deserves its own flash regardless of which step that happens to be.
+    setTransitioning(true);
   }
 
   function toggleTimer() {
@@ -149,12 +198,18 @@ export function TeamCheckInBoard({ onNavigate, onHome }: TeamCheckInBoardProps) 
     <BoardShell activeBoard="teamcheckin" onNavigate={onNavigate} onHome={onHome} title="Teamavstämning">
       <div className="tcb-layout">
         <div className="tcb-left">
-          <div className={"tcb-timer" + (level ? ` tcb-timer--${level}` : "")}>
-            <div className="tcb-timer__clock">{timerEnabled ? formatClock(remainingSeconds) : "--:--"}</div>
-            <button type="button" className="tcb-timer__toggle" onClick={toggleTimer} title={timerEnabled ? "Stäng av timern" : "Slå på timern"}>
-              ⏱
+          {!started ? (
+            <button type="button" className="daily-flow__btn daily-flow__btn--primary tcb-start" onClick={handleStart}>
+              ▶ Starta möte
             </button>
-          </div>
+          ) : (
+            <div className={"tcb-timer" + (level ? ` tcb-timer--${level}` : "")}>
+              <div className="tcb-timer__clock">{timerEnabled ? formatClock(remainingSeconds) : "--:--"}</div>
+              <button type="button" className="tcb-timer__toggle" onClick={toggleTimer} title={timerEnabled ? "Stäng av timern" : "Slå på timern"}>
+                ⏱
+              </button>
+            </div>
+          )}
 
           <ol className="tcb-agenda">
             {AGENDA.map((s, i) => (
@@ -162,11 +217,13 @@ export function TeamCheckInBoard({ onNavigate, onHome }: TeamCheckInBoardProps) 
                 key={s.id}
                 className={
                   "tcb-agenda__item" +
-                  (i === stepIndex ? " tcb-agenda__item--active" : i < stepIndex ? " tcb-agenda__item--done" : "")
+                  (i === stepIndex ? " tcb-agenda__item--active" : started && i < stepIndex ? " tcb-agenda__item--done" : "")
                 }
               >
-                <span className="tcb-agenda__icon">{s.icon}</span>
-                <span className="tcb-agenda__label">{s.label}</span>
+                <button type="button" className="tcb-agenda__button" onClick={() => jumpTo(i)} title={started ? undefined : "Förhandsgranska"}>
+                  <span className="tcb-agenda__icon">{s.icon}</span>
+                  <span className="tcb-agenda__label">{s.label}</span>
+                </button>
               </li>
             ))}
           </ol>
@@ -181,7 +238,10 @@ export function TeamCheckInBoard({ onNavigate, onHome }: TeamCheckInBoardProps) 
           </div>
         </div>
 
-        <div className="tcb-right">{renderPanel(step)}</div>
+        <div className="tcb-right">
+          {!started && <div className="tcb-preview-banner">Förhandsgranskning - mötet är inte startat än</div>}
+          {renderPanel(step)}
+        </div>
       </div>
 
       {transitioning && <StepTransitionModal step={step} onDone={() => setTransitioning(false)} />}

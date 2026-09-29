@@ -794,6 +794,39 @@ app.MapGet("/api/sprint-goals", async (
 })
 .WithName("GetSprintGoals");
 
+// The sprint-goals wiki page changes every sprint - lets it be repointed from the app itself
+// instead of editing appsettings.json and restarting. GET returns the effective url (override if
+// one's been saved, else the appsettings.json default) so the edit UI can show what's actually in
+// use, not just whether an override exists.
+app.MapGet("/api/sprint-goals/wiki-url", async (
+    string team,
+    ISprintGoalsWikiUrlStore store,
+    IConfiguration configuration,
+    CancellationToken ct) =>
+{
+    if (!Enum.TryParse<DeveloperTeam>(team, ignoreCase: true, out var developerTeam))
+        return Results.BadRequest($"Unknown team '{team}'. Expected 'Nord' or 'Syd'.");
+
+    var url = await store.GetOverrideAsync(developerTeam, ct) ?? configuration[$"PlanningBoard:SprintGoalsWikiUrls:{developerTeam}"] ?? "";
+    return Results.Ok(new { team = developerTeam.ToString(), url });
+})
+.WithName("GetSprintGoalsWikiUrl");
+
+app.MapPost("/api/sprint-goals/wiki-url", async (
+    SetSprintGoalsWikiUrlRequest request,
+    ISprintGoalsWikiUrlStore store,
+    CancellationToken ct) =>
+{
+    if (!Enum.TryParse<DeveloperTeam>(request.Team, ignoreCase: true, out var developerTeam))
+        return Results.BadRequest($"Unknown team '{request.Team}'. Expected 'Nord' or 'Syd'.");
+    if (string.IsNullOrWhiteSpace(request.Url))
+        return Results.BadRequest("Missing 'url'.");
+
+    await store.SetOverrideAsync(developerTeam, request.Url, ct);
+    return Results.Ok();
+})
+.WithName("SetSprintGoalsWikiUrl");
+
 app.MapGet("/api/team-members", (
     string team,
     ITeamRoleProvider teamRoleProvider) =>
@@ -2070,6 +2103,8 @@ internal sealed record UpdateTalkingPointRequest(
 
 /// <summary>Team is "Nord", "Syd", or "Both" (mark done/reset on both teams' flags at once).</summary>
 internal sealed record SetTalkingPointRaisedRequest(string Team, bool Raised);
+
+internal sealed record SetSprintGoalsWikiUrlRequest(string Team, string Url);
 
 internal sealed record SetAllTalkingPointsRaisedRequest(string Team, bool Raised);
 

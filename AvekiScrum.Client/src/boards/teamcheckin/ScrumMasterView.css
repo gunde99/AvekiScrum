@@ -12,9 +12,52 @@
   color: var(--color-text-muted);
 }
 
+.tcb-sm__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
 .tcb-sm__team-toggle {
   display: flex;
   gap: var(--space-2);
+}
+
+.tcb-sm__wikiurl {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+  font-size: 0.8rem;
+}
+
+.tcb-sm__wikiurl-label {
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.tcb-sm__wikiurl-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.tcb-sm__wikiurl-input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.8rem;
 }
 
 .tcb-sm__goals {
@@ -42,8 +85,62 @@
   line-height: 1.4;
 }
 
-.tcb-sm__goal-owners {
+.tcb-sm__goal-meta {
+  display: flex;
+  gap: var(--space-3);
   font-size: 0.78rem;
+  color: var(--color-text-muted);
+  margin-bottom: 6px;
+}
+
+.tcb-sm__goal-section {
+  margin-top: var(--space-2);
+}
+
+.tcb-sm__goal-section-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  margin-bottom: 4px;
+}
+
+.tcb-sm__checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.85rem;
+}
+
+.tcb-sm__checklist-done {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+.tcb-sm__subgoals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.tcb-sm__subgoal {
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+}
+
+.tcb-sm__subgoal-title {
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.tcb-sm__subgoal-desc {
+  margin: 2px 0 0;
+  font-size: 0.82rem;
   color: var(--color-text-muted);
 }
 

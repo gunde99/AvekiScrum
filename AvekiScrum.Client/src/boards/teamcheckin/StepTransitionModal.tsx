@@ -16,8 +16,9 @@ interface StepTransitionModalProps {
  * TeamCheckInBoard), so by the time this clears there's usually already something to show instead
  * of a bare loading state.
  *
- * The icon is a placeholder - no real photo per role/person exists yet (see agenda.ts) - swap
- * AgendaStep.icon for an actual image once one's sourced for a given role.
+ * Steps with a role photo (see agenda.ts/public/rollbilder) show it large; the rest fall back to
+ * the plain emoji icon - "Laget runt"/"Övrigt" aren't roles, so no photo is a better fit than a
+ * forced one.
  */
 export function StepTransitionModal({ step, onDone }: StepTransitionModalProps) {
   useEffect(() => {
@@ -29,7 +30,11 @@ export function StepTransitionModal({ step, onDone }: StepTransitionModalProps) 
   return createPortal(
     <div className="tcb-transition-overlay" role="status" aria-live="polite">
       <div className="tcb-transition-card">
-        <div className="tcb-transition-icon">{step.icon}</div>
+        {step.photo ? (
+          <img className="tcb-transition-photo" src={step.photo} alt="" />
+        ) : (
+          <div className="tcb-transition-icon">{step.icon}</div>
+        )}
         <div className="tcb-transition-label">{step.label}</div>
       </div>
     </div>,

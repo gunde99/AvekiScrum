@@ -27,6 +27,14 @@
   line-height: 1;
 }
 
+.tcb-transition-photo {
+  width: 220px;
+  height: 220px;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
 .tcb-transition-label {
   font-size: 1.3rem;
   font-weight: 700;

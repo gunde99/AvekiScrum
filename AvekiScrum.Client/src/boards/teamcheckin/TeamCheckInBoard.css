@@ -61,21 +61,35 @@
 }
 
 .tcb-agenda__item {
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+}
+
+.tcb-agenda__button {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  width: 100%;
   padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  border: 1px solid transparent;
+  border: none;
+  background: none;
   color: var(--color-text-muted);
   font-size: 0.88rem;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.tcb-agenda__button:hover {
+  background: var(--color-bg-subtle);
 }
 
 .tcb-agenda__icon {
   flex-shrink: 0;
 }
 
-.tcb-agenda__item--done {
+.tcb-agenda__item--done .tcb-agenda__button {
   text-decoration: line-through;
   opacity: 0.6;
 }
@@ -83,6 +97,9 @@
 .tcb-agenda__item--active {
   border-color: var(--aveki-orange);
   background: color-mix(in srgb, var(--aveki-orange) 12%, transparent);
+}
+
+.tcb-agenda__item--active .tcb-agenda__button {
   color: var(--color-text);
   font-weight: 700;
 }
@@ -91,6 +108,23 @@
   display: flex;
   justify-content: space-between;
   gap: var(--space-2);
+}
+
+.tcb-start {
+  width: 100%;
+  padding: var(--space-3);
+  font-size: 1rem;
+}
+
+.tcb-preview-banner {
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--aveki-orange) 15%, transparent);
+  color: var(--color-text);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
 }
 
 @media (max-width: 900px) {

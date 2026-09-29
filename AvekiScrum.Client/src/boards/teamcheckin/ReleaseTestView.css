@@ -1,0 +1,16 @@
+.tcb-rt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.tcb-rt__tabs {
+  padding: 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tcb-test__filter,
+.tcb-release__meta {
+  display: flex;
+  gap: var(--space-2);
+}
