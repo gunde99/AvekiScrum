@@ -6,6 +6,7 @@ import { StepTransitionModal } from "./StepTransitionModal";
 import { EndMeetingModal } from "./EndMeetingModal";
 import { PlannerPanel } from "./PlannerPanel";
 import { RolePlaceholderPanel } from "./RolePlaceholderPanel";
+import { OvrigtPanel } from "./OvrigtPanel";
 import { ScrumMasterView } from "./ScrumMasterView";
 import { ReleaseTestView } from "./ReleaseTestView";
 import "./TeamCheckInBoard.css";
@@ -76,6 +77,8 @@ function renderPanel(step: AgendaStep) {
       return <ScrumMasterView />;
     case "release-test":
       return <ReleaseTestView />;
+    case "ovrigt":
+      return <OvrigtPanel />;
     default:
       return <RolePlaceholderPanel step={step} />;
   }

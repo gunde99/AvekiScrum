@@ -17,8 +17,8 @@ interface StepTransitionModalProps {
  * of a bare loading state.
  *
  * Steps with a photo (see agenda.ts/public/rollbilder) show it large; the rest fall back to the
- * plain emoji icon - "Övrigt" has no fixed shape of its own, so no photo is a better fit than a
- * forced one.
+ * plain emoji icon - only "Genomgång av aktivitetsboarden" has none, since it flashes straight into
+ * its own PlannerPanel rather than a role's talking point.
  */
 export function StepTransitionModal({ step, onDone }: StepTransitionModalProps) {
   useEffect(() => {

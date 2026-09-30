@@ -28,5 +28,5 @@ export const AGENDA: AgendaStep[] = [
   { id: "release-test", label: "Information från Release/Test-ansvarig", icon: "🚦", photo: "/startbilder/test.jpg" },
   { id: "appsec", label: "Information från AppSec", icon: "🛡️", photo: "/rollbilder/appsec.jpg" },
   { id: "devops", label: "Information från DevOps", icon: "⚙️", photo: "/rollbilder/devops.jpg" },
-  { id: "ovrigt", label: "Övrigt", icon: "💬" },
+  { id: "ovrigt", label: "Övrigt", icon: "💬", photo: "/rollbilder/ovrigt.jpg" },
 ];
