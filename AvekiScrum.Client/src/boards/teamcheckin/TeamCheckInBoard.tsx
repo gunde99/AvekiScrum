@@ -3,6 +3,7 @@ import { BoardShell } from "../../components/BoardShell";
 import { useToast } from "../../components/Toast";
 import { AGENDA, type AgendaStep } from "./agenda";
 import { StepTransitionModal } from "./StepTransitionModal";
+import { EndMeetingModal } from "./EndMeetingModal";
 import { PlannerPanel } from "./PlannerPanel";
 import { RolePlaceholderPanel } from "./RolePlaceholderPanel";
 import { ScrumMasterView } from "./ScrumMasterView";
@@ -111,6 +112,7 @@ export function TeamCheckInBoard({ onNavigate, onHome }: TeamCheckInBoardProps) 
   const [remainingSeconds, setRemainingSeconds] = useState(TOTAL_SECONDS);
   const [timerEnabled, setTimerEnabled] = useState(true);
   const [transitioning, setTransitioning] = useState(false);
+  const [endingMeeting, setEndingMeeting] = useState(false);
   const playedQuarterRef = useRef(false);
   const playedFiveRef = useRef(false);
 
@@ -184,6 +186,22 @@ export function TeamCheckInBoard({ onNavigate, onHome }: TeamCheckInBoardProps) 
     setTransitioning(true);
   }
 
+  function handleEndMeeting() {
+    setEndingMeeting(true);
+  }
+
+  /** Closing the "tack för idag" card is also what resets the board - the next time someone opens
+   *  Teamavstämning it should start fresh (▶ Starta möte again), not resume a stopped clock on
+   *  whichever step the meeting happened to end on. */
+  function handleCloseEndMeeting() {
+    setEndingMeeting(false);
+    setStarted(false);
+    setStepIndex(0);
+    setRemainingSeconds(TOTAL_SECONDS);
+    playedQuarterRef.current = false;
+    playedFiveRef.current = false;
+  }
+
   function toggleTimer() {
     setTimerEnabled((prev) => {
       const next = !prev;
@@ -236,6 +254,12 @@ export function TeamCheckInBoard({ onNavigate, onHome }: TeamCheckInBoardProps) 
               Nästa →
             </button>
           </div>
+
+          {started && (
+            <button type="button" className="daily-flow__btn tcb-end" onClick={handleEndMeeting}>
+              ⏹ Avsluta mötet
+            </button>
+          )}
         </div>
 
         <div className="tcb-right">
@@ -245,6 +269,7 @@ export function TeamCheckInBoard({ onNavigate, onHome }: TeamCheckInBoardProps) 
       </div>
 
       {transitioning && <StepTransitionModal step={step} onDone={() => setTransitioning(false)} />}
+      {endingMeeting && <EndMeetingModal onClose={handleCloseEndMeeting} />}
     </BoardShell>
   );
 }

@@ -16,8 +16,8 @@ interface StepTransitionModalProps {
  * TeamCheckInBoard), so by the time this clears there's usually already something to show instead
  * of a bare loading state.
  *
- * Steps with a role photo (see agenda.ts/public/rollbilder) show it large; the rest fall back to
- * the plain emoji icon - "Laget runt"/"Övrigt" aren't roles, so no photo is a better fit than a
+ * Steps with a photo (see agenda.ts/public/rollbilder) show it large; the rest fall back to the
+ * plain emoji icon - "Övrigt" has no fixed shape of its own, so no photo is a better fit than a
  * forced one.
  */
 export function StepTransitionModal({ step, onDone }: StepTransitionModalProps) {

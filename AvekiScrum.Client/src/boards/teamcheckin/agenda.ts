@@ -21,7 +21,7 @@ export interface AgendaStep {
 
 /** Fixed order, mirroring the Planner card's own checklist - not user-configurable. */
 export const AGENDA: AgendaStep[] = [
-  { id: "laget-runt", label: "Laget runt (kort om vad man jobbar med just nu)", icon: "🗣️" },
+  { id: "laget-runt", label: "Laget runt (kort om vad man jobbar med just nu)", icon: "🗣️", photo: "/rollbilder/laget-runt.jpg" },
   { id: "aktivitetsboarden", label: "Genomgång av aktivitetsboarden", icon: "📋" },
   { id: "utvecklingsansvarig", label: "Information från Utvecklingsansvarig", icon: "🧭", photo: "/rollbilder/utvecklingsansvarig.jpg" },
   { id: "scrum-master", label: "Information från Scrum Mastern", icon: "🧑‍💼", photo: "/startbilder/scrum.jpg" },

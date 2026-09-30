@@ -116,6 +116,14 @@
   font-size: 1rem;
 }
 
+/* Available for the whole meeting, not just on the last agenda step - a real meeting sometimes
+   needs to wrap up early. Muted on purpose: it should read as "done for today", not compete with
+   Nästa/Föregående for attention. */
+.tcb-end {
+  width: 100%;
+  color: var(--color-text-muted);
+}
+
 .tcb-preview-banner {
   margin-bottom: var(--space-3);
   padding: var(--space-2) var(--space-3);
