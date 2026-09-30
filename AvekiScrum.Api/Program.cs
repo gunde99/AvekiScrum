@@ -466,16 +466,18 @@ app.MapPost("/api/dailys/checkins", async (
 })
 .WithName("SaveDailyCheckIns");
 
-// Sprint inflow (Dailys' "new cards"/"SP changed" groups): which of the given stories had their
-// Story Points changed after the given cutoff - the candidate id list is exactly the board's own
-// "existed before the cutoff" stories (see dailysLogic.ts), so this never has to re-derive team or
-// sprint on its own. One GetWorkItemUpdatesAsync call per candidate, same as the test-task timeline
-// pipeline already does per test task - run concurrently for the same reason ReleaseOpenItemsView's
-// multi-sprint fetch does (a sequential loop over even a modest number of stories was slow enough to
-// notice). Loaded asynchronously by the client after the main board renders, not part of /api/dailys
-// itself, so a slow history lookup never delays the board a team actually stands around waiting for.
-app.MapPost("/api/dailys/story-points-changes", async (
-    StoryPointsChangesRequest request,
+// Sprint inflow (Dailys' "Nytillkomna kort"/"SP ändrade" groups): for each given story, whether it
+// was moved into the current iteration after the cutoff (a card can enter a sprint either by being
+// created in it - which the client already knows from its own createdDate, no round-trip needed -
+// or by being re-assigned into it from elsewhere after planning) and/or had its Story Points changed
+// after the cutoff. Both signals come from the same revision history, so one GetWorkItemUpdatesAsync
+// call per candidate covers both - same pattern the test-task timeline pipeline already uses per
+// test task, run concurrently for the same reason ReleaseOpenItemsView's multi-sprint fetch does (a
+// sequential loop over even a modest number of stories was slow enough to notice). Loaded
+// asynchronously by the client after the main board renders, not part of /api/dailys itself, so a
+// slow history lookup never delays the board a team actually stands around waiting for.
+app.MapPost("/api/dailys/sprint-inflow-changes", async (
+    SprintInflowChangesRequest request,
     IAzureDevOpsService azureDevOpsService,
     CancellationToken ct) =>
 {
@@ -483,33 +485,59 @@ app.MapPost("/api/dailys/story-points-changes", async (
         return Results.Ok(Array.Empty<object>());
     if (!DateTimeOffset.TryParse(request.CutoffUtc, out var cutoff))
         return Results.BadRequest("Unparseable 'cutoffUtc'.");
+    if (string.IsNullOrWhiteSpace(request.CurrentIterationPath))
+        return Results.BadRequest("Missing 'currentIterationPath'.");
 
     var checks = await Task.WhenAll(request.StoryIds.Select(async id =>
     {
         var updates = await azureDevOpsService.GetWorkItemUpdatesAsync(id, ct);
-        var spRevisions = updates.Value
-            .Select(u => new { Date = u.EffectiveChangedDate, Change = u.Fields?.StoryPoints })
-            .Where(x => x.Date.HasValue && x.Change != null)
+        var revisions = updates.Value
+            .Select(u => new { Date = u.EffectiveChangedDate, u.Fields })
+            .Where(x => x.Date.HasValue)
             .OrderBy(x => x.Date)
             .ToList();
 
-        var postCutoff = spRevisions.Where(x => x.Date!.Value > cutoff).ToList();
-        if (postCutoff.Count == 0)
-            return null;
+        // Net Story Points change across the whole post-cutoff window - multiple edits can cancel
+        // out (bumped up, then back down), only worth flagging if the end result actually differs.
+        var spPostCutoff = revisions.Where(x => x.Date!.Value > cutoff && x.Fields?.StoryPoints != null).ToList();
+        double? oldStoryPoints = null, newStoryPoints = null;
+        DateTimeOffset? spChangedAt = null;
+        if (spPostCutoff.Count > 0)
+        {
+            var oldValue = spPostCutoff[0].Fields!.StoryPoints!.OldValue ?? 0;
+            var newValue = spPostCutoff[^1].Fields!.StoryPoints!.NewValue ?? 0;
+            if (Math.Abs(oldValue - newValue) >= 0.01)
+            {
+                oldStoryPoints = oldValue;
+                newStoryPoints = newValue;
+                spChangedAt = spPostCutoff[^1].Date;
+            }
+        }
 
-        var oldValue = postCutoff[0].Change!.OldValue ?? 0;
-        var newValue = postCutoff[^1].Change!.NewValue ?? 0;
-        // Multiple changes can cancel out (bumped up, then back down) - only worth flagging if the
-        // net result across the whole post-cutoff window actually differs.
-        if (Math.Abs(oldValue - newValue) < 0.01)
-            return null;
+        // A card can bounce between iterations more than once after the cutoff - only the most
+        // recent move that actually landed it in the current sprint matters.
+        var movedIn = revisions
+            .Where(x => x.Date!.Value > cutoff && x.Fields?.IterationPath != null
+                        && string.Equals(x.Fields.IterationPath!.NewValue, request.CurrentIterationPath, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(x => x.Date)
+            .FirstOrDefault();
 
-        return new { id, oldStoryPoints = oldValue, newStoryPoints = newValue, changedAt = postCutoff[^1].Date!.Value.ToString("o") };
+        if (spChangedAt is null && movedIn is null) return null;
+
+        return new
+        {
+            id,
+            movedFrom = movedIn?.Fields?.IterationPath?.OldValue,
+            movedIntoSprintAt = movedIn?.Date?.ToString("o"),
+            oldStoryPoints,
+            newStoryPoints,
+            spChangedAt = spChangedAt?.ToString("o"),
+        };
     }));
 
     return Results.Ok(checks.Where(c => c != null));
 })
-.WithName("GetStoryPointsChanges");
+.WithName("GetSprintInflowChanges");
 
 // Reads back what's been saved so far - not wired into any UI yet (the retro-facing view is still
 // being designed), but useful to inspect what a few sprints' worth of data actually looks like.
@@ -2126,7 +2154,7 @@ internal sealed record SaveDailyCheckInsRequest(
     string Date,
     List<DailyCheckInEntryRequest> Entries);
 
-internal sealed record StoryPointsChangesRequest(List<int> StoryIds, string CutoffUtc);
+internal sealed record SprintInflowChangesRequest(List<int> StoryIds, string CutoffUtc, string CurrentIterationPath);
 
 internal sealed record DailyCheckInEntryRequest(
     string Kind,

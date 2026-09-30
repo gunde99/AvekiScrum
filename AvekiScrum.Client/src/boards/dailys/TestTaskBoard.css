@@ -282,11 +282,15 @@ ul.test-board__task-list {
   transform: rotate(90deg);
 }
 
-/* Seven aligned facts per Testing-task. Tester is the task's own owner; developer is the owner of
+/* Eight aligned facts per Testing-task. Tester is the task's own owner; developer is the owner of
    its parent story/bug; priority is the task's own (edit it here, no need to open the card).
-   Status age comes from Azure's State Change Date. */
+   Status age comes from Azure's State Change Date. Status and priority were both wider than their
+   text needs (a plain word, or an emoji plus two characters), trimmed down to make room for size
+   without growing the row - size gets its own narrow column (see .test-board__size) since it's
+   never more than two letters, and it's always rendered (blank when there's no tag) so its column
+   stays put instead of shifting every column after it. */
 .test-board .df-row--test {
-  grid-template-columns: 100px 64px 76px 160px 160px 104px minmax(0, 1fr);
+  grid-template-columns: 88px 64px 24px 68px 160px 160px 104px minmax(0, 1fr);
 }
 
 .test-board__priority {
@@ -296,13 +300,13 @@ ul.test-board__task-list {
 .test-board__priority-btn {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
   border: 1px solid var(--color-border);
   border-radius: 999px;
   background: var(--color-bg);
-  padding: 2px 8px;
+  padding: 1px 6px;
   font: inherit;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 700;
   white-space: nowrap;
   cursor: pointer;
@@ -324,18 +328,25 @@ ul.test-board__task-list {
 .test-board__priority-btn--p4 { border-color: var(--color-success); color: var(--color-success); }
 
 /* T-shirt size of the test itself ("S"/"M"/"L"/"XL" tags) - a small traffic-light-ish scale so a
-   big test stands out on the row without reading the title. */
+   big test stands out on the row without reading the title. Never more than two letters, so a fixed
+   width (not min-width) is enough - it owns its own grid column, sized to match. Always rendered
+   (see TestTaskBoard.tsx), with a border-less --empty variant for rows with no size tag, so the
+   column reserves its space instead of the row shifting to fill the gap. */
 .test-board__size {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 22px;
-  padding: 2px 6px;
+  width: 20px;
+  padding: 1px 0;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
-  font-size: 0.68rem;
+  font-size: 0.6rem;
   font-weight: 800;
   flex-shrink: 0;
+}
+
+.test-board__size--empty {
+  border-color: transparent;
 }
 
 .test-board__size--s { border-color: var(--color-success); color: var(--color-success); }
@@ -428,7 +439,7 @@ ul.test-board__task-list {
 
 @media (max-width: 1100px) {
   .test-board .df-row--test {
-    grid-template-columns: 100px 64px 76px minmax(150px, 1fr) minmax(150px, 1fr) 104px;
+    grid-template-columns: 88px 64px 24px 68px minmax(150px, 1fr) minmax(150px, 1fr) 104px;
   }
 
   .test-board .df-row--test .df-row__title {

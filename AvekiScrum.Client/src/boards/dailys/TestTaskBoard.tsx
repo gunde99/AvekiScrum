@@ -381,14 +381,20 @@ export function TestTaskBoard({
                           >
                             #{t.id}
                           </button>
-                          {testSizeTag(t.tags) && (
-                            <span
-                              className={`test-board__size test-board__size--${testSizeTag(t.tags)!.toLowerCase()}`}
-                              title="Storlek på testet"
-                            >
-                              {testSizeTag(t.tags)}
-                            </span>
-                          )}
+                          {(() => {
+                            const size = testSizeTag(t.tags);
+                            // Always rendered, even with no size tag - it owns a fixed grid column
+                            // (see .test-board .df-row--test), so leaving it out when empty would
+                            // shift every column after it instead of just leaving blank space.
+                            return (
+                              <span
+                                className={`test-board__size${size ? ` test-board__size--${size.toLowerCase()}` : " test-board__size--empty"}`}
+                                title={size ? "Storlek på testet" : undefined}
+                              >
+                                {size ?? ""}
+                              </span>
+                            );
+                          })()}
                           <span className="test-board__priority">
                             <button
                               type="button"

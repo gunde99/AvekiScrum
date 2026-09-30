@@ -214,34 +214,42 @@ export async function saveDailyCheckIns(request: {
   }
 }
 
-/** One card's net Story Points change after a given cutoff - see /api/dailys/story-points-changes. */
-export interface StoryPointsChangeDto {
+/** What happened to one already-on-the-board card after the sprint-inflow cutoff - see
+ *  /api/dailys/sprint-inflow-changes. A card can carry either signal, both, or (if it's absent from
+ *  the response entirely) neither - the fields of whichever signal didn't fire are all null. */
+export interface SprintInflowChangeDto {
   id: number;
-  oldStoryPoints: number;
-  newStoryPoints: number;
-  changedAt: string;
+  /** The iteration path it moved out of, if `movedIntoSprintAt` is set. */
+  movedFrom: string | null;
+  /** Set when the card's IterationPath was changed into the current sprint after the cutoff - i.e.
+   *  it arrived by being moved in from elsewhere, not by being created in this sprint. */
+  movedIntoSprintAt: string | null;
+  oldStoryPoints: number | null;
+  newStoryPoints: number | null;
+  spChangedAt: string | null;
 }
 
-/** Checks which of the given (already-on-the-board) cards had their Story Points changed after
- *  `cutoffUtc` - used to build the Dailys board's "SP changed since planning" inflow group. Walks
- *  each card's Azure DevOps revision history server-side, so it's called with a narrow candidate
- *  list (cards that existed before the cutoff) and loaded in the background, not on initial render. */
-export async function fetchStoryPointsChanges(
+/** Checks which of the given (already-on-the-board) cards were moved into `currentIterationPath`
+ *  and/or had their Story Points changed, after `cutoffUtc` - used to build the Dailys board's
+ *  sprint-inflow groups ("Nytillkomna kort"/"Story points ändrade"). Walks each card's Azure DevOps
+ *  revision history server-side, so it's loaded in the background, not on initial render. */
+export async function fetchSprintInflowChanges(
   storyIds: number[],
   cutoffUtc: string,
+  currentIterationPath: string,
   signal?: AbortSignal,
-): Promise<StoryPointsChangeDto[]> {
+): Promise<SprintInflowChangeDto[]> {
   if (storyIds.length === 0) return [];
-  const response = await apiFetch(`${API_BASE_URL}/api/dailys/story-points-changes`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/dailys/sprint-inflow-changes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ storyIds, cutoffUtc }),
+    body: JSON.stringify({ storyIds, cutoffUtc, currentIterationPath }),
     signal,
   });
   if (!response.ok) {
-    throw new Error(await describeFailure(response, "Kunde inte hämta SP-ändringar"));
+    throw new Error(await describeFailure(response, "Kunde inte hämta sprintinflödet"));
   }
-  return (await response.json()) as StoryPointsChangeDto[];
+  return (await response.json()) as SprintInflowChangeDto[];
 }
 
 /** The sprints the picker offers: the release the sprint at `around` belongs to, plus the release

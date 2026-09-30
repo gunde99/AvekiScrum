@@ -5,11 +5,12 @@ import { useToast } from "../../components/Toast";
 import {
   fetchDailys,
   fetchDailyPerson,
-  fetchStoryPointsChanges,
+  fetchSprintInflowChanges,
   TEAM_OPTIONS,
   type DailyStoryDto,
   type DailysResponse,
   type DeveloperTeamId,
+  type SprintInflowChangeDto,
 } from "../../api/dailys";
 import { fetchSprintGoals, type SprintGoal } from "../../api/sprintGoals";
 import { fetchTeamRoles } from "../../api/people";
@@ -27,8 +28,7 @@ import {
   applyWorkItemSave,
   buildFlowParticipants,
   buildGroups,
-  buildNewCardsGroup,
-  buildSpChangedGroup,
+  buildSprintInflowGroups,
   DOD_TAG,
   isStaleClosed,
   matchesTestFilter,
@@ -37,7 +37,6 @@ import {
   withoutReviewTag,
   type GroupMode,
   type FlowLaneStage,
-  type StoryPointsChange,
   type TestFilterKey,
 } from "./dailysLogic";
 import type { PersonOption } from "../../api/people";
@@ -134,10 +133,11 @@ export function DailysBoard({ onNavigate, onHome, team, onTeamChange }: DailysBo
   const [dailyFlowActive, setDailyFlowActive] = useState(false);
   const [flowHighlightGroupId, setFlowHighlightGroupId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  // Sprint-inflow tracking (Story Points side only - "new cards" needs no server round-trip, see
-  // spChangedGroup below): cards that already existed before planning's cutoff but were re-pointed
-  // afterwards. Fetched in the background once the board's own data is in, never blocking render.
-  const [spChanges, setSpChanges] = useState<StoryPointsChange[]>([]);
+  // Sprint-inflow tracking: per-card signals that need a server round-trip through Azure DevOps'
+  // revision history (a card moved into this iteration from elsewhere, or had its Story Points
+  // re-pointed) - "created after the cutoff" needs no such trip, see buildSprintInflowGroups.
+  // Fetched in the background once the board's own data is in, never blocking render.
+  const [inflowChanges, setInflowChanges] = useState<SprintInflowChangeDto[]>([]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -178,27 +178,26 @@ export function DailysBoard({ onNavigate, onHome, team, onTeamChange }: DailysBo
     return () => controller.abort();
   }, [team]);
 
-  // Background check for cards that already existed before the sprint-inflow cutoff but had their
-  // Story Points changed afterwards - see buildSpChangedGroup. Narrowed to cards NOT already caught
-  // by the "new cards" group (those are new regardless of their points) so the candidate list - and
-  // therefore the number of Azure history look-ups - stays as small as possible.
+  // Background check for sprint-inflow signals Azure DevOps' revision history has to answer: did
+  // this card get moved into the current iteration after the cutoff, and/or did its Story Points
+  // change after the cutoff. Checked for every non-PO card, not just ones that pre-date the cutoff -
+  // a card created after the cutoff can still have been re-pointed since, and that's worth showing
+  // too (see buildSprintInflowGroups).
   useEffect(() => {
     if (!data) return;
     const cutoff = sprintInflowCutoff(data.meta.sprintStart);
-    const candidateIds = (data.teams[0]?.stories ?? [])
-      .filter((s) => !s.ownedByProductOwner && !(s.createdDate && new Date(s.createdDate) > cutoff))
-      .map((s) => s.id);
+    const candidateIds = (data.teams[0]?.stories ?? []).filter((s) => !s.ownedByProductOwner).map((s) => s.id);
     if (candidateIds.length === 0) {
-      setSpChanges([]);
+      setInflowChanges([]);
       return;
     }
     const controller = new AbortController();
-    fetchStoryPointsChanges(candidateIds, cutoff.toISOString(), controller.signal)
-      .then(setSpChanges)
+    fetchSprintInflowChanges(candidateIds, cutoff.toISOString(), data.meta.sprintPath, controller.signal)
+      .then(setInflowChanges)
       .catch((err: unknown) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
         // A best-effort enrichment - the board works fine without it.
-        setSpChanges([]);
+        setInflowChanges([]);
       });
     return () => controller.abort();
   }, [data]);
@@ -411,11 +410,13 @@ export function DailysBoard({ onNavigate, onHome, team, onTeamChange }: DailysBo
     [data],
   );
   const nonPoStories = useMemo(() => stories.filter((s) => !s.ownedByProductOwner), [stories]);
-  const newCardsGroup = useMemo(
-    () => (inflowCutoff ? buildNewCardsGroup(nonPoStories, inflowCutoff) : null),
-    [nonPoStories, inflowCutoff],
+  const { newCardsGroup, spChangedGroup } = useMemo(
+    () =>
+      inflowCutoff
+        ? buildSprintInflowGroups(nonPoStories, inflowCutoff, inflowChanges)
+        : { newCardsGroup: null, spChangedGroup: null },
+    [nonPoStories, inflowCutoff, inflowChanges],
   );
-  const spChangedGroup = useMemo(() => buildSpChangedGroup(nonPoStories, spChanges), [nonPoStories, spChanges]);
 
   // The daily flow's own groups, built from dailyFlowStories (hideStaleClosed applied) rather than
   // boardStories - so a card the flow is skipping over doesn't still pad out its "X kort, Y klara"

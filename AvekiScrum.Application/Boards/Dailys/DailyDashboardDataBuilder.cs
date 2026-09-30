@@ -199,7 +199,10 @@ namespace AvekiScrum.Application.Boards.Dailys
                     title = story.Title,
                     azureStatus = FirstNonEmpty(source?.State, source?.StateEnum.ToString(), story.Stage.ToString()),
                     lastChangedDate = FormatDateTime(lastChangedDate),
-                    createdDate = FormatDate(source?.CreatedDate ?? story.CreatedDate),
+                    // Full timestamp, not just the date - the sprint-inflow "Nytillkomna kort"
+                    // group on Dailys distinguishes same-day cards by time of day, and a date-only
+                    // value would make every card created "today" look identical.
+                    createdDate = FormatDateTime(source?.CreatedDate ?? story.CreatedDate),
                     addedDuringSprint = IsInSprint(source?.CreatedDate ?? story.CreatedDate, selectedSprint),
                     developer = story.Developer,
                     developmentPartner = source?.DevelopmentPartner,

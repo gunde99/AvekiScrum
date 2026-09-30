@@ -1,4 +1,4 @@
-import type { DailyPullRequestDto, DailysResponse, DailyStoryDto, DailyTaskDto } from "../../api/dailys";
+import type { DailyPullRequestDto, DailysResponse, DailyStoryDto, DailyTaskDto, SprintInflowChangeDto } from "../../api/dailys";
 import type { WorkItemDetail } from "../../api/workitems";
 import { fullPersonName, personKey, samePerson, uniqueNames } from "../../lib/personNames";
 
@@ -936,34 +936,60 @@ export function sprintInflowCutoff(sprintStart: string): Date {
   return new Date(`${sprintStart}T13:00:00`);
 }
 
-/** Cards created after the inflow cutoff - the "new cards" group. Each row's roleText says when. */
-export function buildNewCardsGroup(stories: DailyStoryDto[], cutoff: Date): StoryGroup | null {
-  const created = stories
-    .filter((s) => s.createdDate && new Date(s.createdDate) > cutoff)
-    .map((s) => ({ ...s, roleText: `Tillkom ${fmtDateTime(s.createdDate)}` }));
-  if (created.length === 0) return null;
-  return { id: "inflow-new", label: "Nytillkomna kort i sprinten", mode: "none", stories: created };
+/** The last segment of an Azure DevOps iteration path ("Utveckling\myCarta\Backlog" -> "Backlog") -
+ *  short enough to read inline in a role-text sentence instead of the whole area/iteration path. */
+function shortIterationName(path: string | null | undefined): string | null {
+  if (!path) return null;
+  const parts = path.split("\\");
+  return parts[parts.length - 1] || path;
 }
 
-/** One card whose Story Points changed net after the inflow cutoff - see /api/dailys/story-points-changes. */
-export interface StoryPointsChange {
-  id: number;
-  oldStoryPoints: number;
-  newStoryPoints: number;
-  changedAt: string;
+function spChangeText(change: SprintInflowChangeDto | undefined): string | null {
+  if (!change || change.oldStoryPoints == null || change.newStoryPoints == null) return null;
+  return `SP ändrades ${change.oldStoryPoints} → ${change.newStoryPoints} (${fmtDateTime(change.spChangedAt)})`;
 }
 
-/** The "SP changed" group - cards already on the board before the cutoff whose points were
- *  re-estimated afterwards. Each row's roleText spells out the old/new value and when it happened. */
-export function buildSpChangedGroup(stories: DailyStoryDto[], changes: StoryPointsChange[]): StoryGroup | null {
-  const byId = new Map(stories.map((s) => [s.id, s]));
-  const changed = changes
-    .map((c) => {
-      const story = byId.get(c.id);
-      if (!story) return null;
-      return { ...story, roleText: `SP ändrades ${c.oldStoryPoints} → ${c.newStoryPoints} (${fmtDateTime(c.changedAt)})` };
-    })
-    .filter((s): s is DailyStoryDto & { roleText: string } => s !== null);
-  if (changed.length === 0) return null;
-  return { id: "inflow-sp-changed", label: "Story points ändrade under sprinten", mode: "none", stories: changed };
+/**
+ * Splits non-PO board stories into the two sprint-inflow groups. A card counts as "new" to the
+ * sprint one of two ways - created after the cutoff (known client-side, from its own createdDate),
+ * or moved into the current iteration from elsewhere after the cutoff (the `changes` lookup, from
+ * /api/dailys/sprint-inflow-changes) - and either way, if it also had a Story Points change, that's
+ * folded into the same row rather than repeated in the second group. The "SP changed" group is then
+ * only the cards that were already in the sprint before the cutoff and stayed put, but got
+ * re-pointed - the one signal that needs the server round-trip on its own.
+ */
+export function buildSprintInflowGroups(
+  stories: DailyStoryDto[],
+  cutoff: Date,
+  changes: SprintInflowChangeDto[],
+): { newCardsGroup: StoryGroup | null; spChangedGroup: StoryGroup | null } {
+  const changeById = new Map(changes.map((c) => [c.id, c]));
+  const newCards: (DailyStoryDto & { roleText?: string })[] = [];
+  const spChangedOnly: (DailyStoryDto & { roleText?: string })[] = [];
+
+  for (const s of stories) {
+    const change = changeById.get(s.id);
+    const spText = spChangeText(change);
+    const createdAfterCutoff = !!s.createdDate && new Date(s.createdDate) > cutoff;
+
+    if (createdAfterCutoff) {
+      const reason = `Skapat i sprinten ${fmtDateTime(s.createdDate)}`;
+      newCards.push({ ...s, roleText: spText ? `${reason} · ${spText}` : reason });
+    } else if (change?.movedIntoSprintAt) {
+      const from = shortIterationName(change.movedFrom);
+      const reason = `Flyttades in i sprinten ${fmtDateTime(change.movedIntoSprintAt)}${from ? ` (från ${from})` : ""}`;
+      newCards.push({ ...s, roleText: spText ? `${reason} · ${spText}` : reason });
+    } else if (spText) {
+      spChangedOnly.push({ ...s, roleText: spText });
+    }
+  }
+
+  return {
+    newCardsGroup:
+      newCards.length > 0 ? { id: "inflow-new", label: "Nytillkomna kort i sprinten", mode: "none", stories: newCards } : null,
+    spChangedGroup:
+      spChangedOnly.length > 0
+        ? { id: "inflow-sp-changed", label: "Story points ändrade under sprinten", mode: "none", stories: spChangedOnly }
+        : null,
+  };
 }
