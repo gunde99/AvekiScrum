@@ -52,15 +52,13 @@ namespace AvekiScrum.Application.Boards.Dailys
             if (detail.StartsWith("Release-branch: Kort taggade med", StringComparison.OrdinalIgnoreCase)) return "Fel branch";
             if (detail.StartsWith("Release-branch: PR mot", StringComparison.OrdinalIgnoreCase)) return "Saknar release-tagg";
             if (detail.StartsWith("PR skapad och fördelad", StringComparison.OrdinalIgnoreCase)) return "Utveckling ej klar";
-            if (detail.StartsWith("Test startat innan utveckling", StringComparison.OrdinalIgnoreCase)) return "Test för tidigt";
-            if (detail.StartsWith("Test startat innan PR", StringComparison.OrdinalIgnoreCase)) return "Test innan PR klar";
             if (detail.StartsWith("Test väntar", StringComparison.OrdinalIgnoreCase)) return "Test väntar";
-            if (detail.StartsWith("PR övergiven", StringComparison.OrdinalIgnoreCase)) return "PR övergiven";
             if (detail.StartsWith("Testkort", StringComparison.OrdinalIgnoreCase) && detail.Contains("blockerat")) return "Testkort blockerat";
             if (detail.StartsWith("PR saknar reviewer", StringComparison.OrdinalIgnoreCase)) return "PR saknar reviewer";
             if (detail.StartsWith("Kort stängt men task", StringComparison.OrdinalIgnoreCase)) return "Task öppen";
             if (detail.StartsWith("Kort stängt men PR", StringComparison.OrdinalIgnoreCase)) return "PR ej klar";
             if (detail.StartsWith("Kortets status är Closed", StringComparison.OrdinalIgnoreCase)) return "Stängt utan åtgärd";
+            if (detail.StartsWith("Alla tasks är klara", StringComparison.OrdinalIgnoreCase)) return "Redo att stänga";
             return detail;
         }
 
@@ -171,49 +169,25 @@ namespace AvekiScrum.Application.Boards.Dailys
             IReadOnlyDictionary<(Guid RepoId, int PullRequestId), PullRequestDetails> pullRequestDetails,
             List<string> warnings)
         {
-            var sourceClosedNoAction = source?.StateEnum is WorkItemState.Closed or WorkItemState.Done
+            var sourceClosed = source?.StateEnum is WorkItemState.Closed or WorkItemState.Done;
+
+            var sourceClosedNoAction = sourceClosed
                 && (devTasks.Count == 0 || devTasks.All(IsNotStarted));
             if (sourceClosedNoAction)
                 warnings.Add("Kortets status är Closed men det finns ingen development-task.");
-
-            // Kept short and generic (no embedded IDs) on purpose: these read as quick-glance
-            // keywords rather than reports, and staying generic lets the same wording dedupe
-            // across multiple PRs/tasks that hit the same condition instead of listing each once.
-            var hasIncompleteDev = devTasks.Any(task => !IsDevelopmentComplete(task));
-            if (hasIncompleteDev && testTasks.Any(IsTestInProgress))
-                warnings.Add("Test startat innan utveckling är klar");
 
             var activePullRequests = pullRequests
                 .Where(pr => IsPullRequestActive(pr, pullRequestDetails))
                 .ToList();
 
             // Ingen varning för PR under granskning medan utveckling pågår. Att lägga upp en del för
-            // granskning och fortsätta med nästa är hur teamet arbetar, inte ett fel.
-
-            if (!pullRequests.Any(pr => IsPullRequestCompleted(pr, pullRequestDetails)) && testTasks.Any(IsTestInProgress))
-                warnings.Add("Test startat innan PR är klar");
+            // granskning och fortsätta med nästa är hur teamet arbetar, inte ett fel. Av samma skäl
+            // finns ingen varning för att testa innan utveckling/PR är helt klar - delvis testning
+            // medan resten av kortet pågår är hur teamet jobbar, inte en avvikelse.
 
             var sourceResolved = source?.StateEnum is WorkItemState.Resolved or WorkItemState.Closed or WorkItemState.Done;
             if (!sourceResolved && testTasks.Any(IsTestInProgress))
                 warnings.Add("Test väntar på att huvudkortet blir Resolved");
-
-            // En övergiven PR är i sig inget problem - man byter approach, öppnar en ny mot samma
-            // gren. Det som betyder något är om grenen blev utan PR när den övergavs. Att PR mot
-            // main/master och release-grenar verkligen finns kontrolleras separat, via taggningen.
-            foreach (var abandoned in pullRequests.Where(pr => IsPullRequestAbandoned(pr, pullRequestDetails)))
-            {
-                var branch = TargetBranchOf(abandoned, pullRequestDetails);
-                var hasLivePullRequest = pullRequests.Any(pr =>
-                    !IsPullRequestAbandoned(pr, pullRequestDetails)
-                    && string.Equals(TargetBranchOf(pr, pullRequestDetails), branch, StringComparison.OrdinalIgnoreCase));
-
-                if (!hasLivePullRequest)
-                {
-                    warnings.Add(string.IsNullOrWhiteSpace(branch)
-                        ? "PR övergiven utan ersättare"
-                        : $"PR övergiven utan ersättare mot {branch}");
-                }
-            }
 
             foreach (var test in testTasks.Where(task => task.IsBlocked))
                 warnings.Add($"Testkort {test.Key} blockerat");
@@ -230,7 +204,8 @@ namespace AvekiScrum.Application.Boards.Dailys
                     warnings.Add("PR saknar reviewer trots att allt är stängt");
             }
 
-            var sourceClosed = source?.StateEnum is WorkItemState.Closed or WorkItemState.Done;
+            // De flesta avvikelser nedan är bara värda att agera på om huvudkortet redan är Closed -
+            // är det inte det, är det bara ett kort som fortfarande jobbas på, inte ett glömt kort.
             if (sourceClosed)
             {
                 var openTasks = devTasks
@@ -244,14 +219,30 @@ namespace AvekiScrum.Application.Boards.Dailys
                 if (openTasks.Count > 0)
                     warnings.Add($"Kort stängt men task öppen: {string.Join(", ", openTasks)}");
 
+                // En övergiven PR är i sig inget problem - man byter approach, öppnar en ny mot samma
+                // gren. Den ignoreras helt här, i stället för att räknas som att PR-steget är
+                // oavslutat.
                 var incompletePullRequests = pullRequests
-                    .Where(pr => !IsPullRequestCompleted(pr, pullRequestDetails))
+                    .Where(pr => !IsPullRequestCompleted(pr, pullRequestDetails) && !IsPullRequestAbandoned(pr, pullRequestDetails))
                     .Select(pr => pr.PullRequestId)
                     .Distinct()
                     .ToList();
 
                 if (incompletePullRequests.Count > 0)
                     warnings.Add("Kort stängt men PR ej klar");
+            }
+            else if (source != null)
+            {
+                // Spegelvändningen av ovanstående: huvudkortet själv är det som släpar efter, inte
+                // en task eller en PR. En övergiven PR räknas som "klar" här av samma skäl som den
+                // ignoreras helt ovan - den ska inte kunna hindra att kortet stängs.
+                var allTasks = devTasks.Concat(testTasks).Concat(documentationTasks).ToList();
+                var allTasksClosed = allTasks.Count > 0 && allTasks.All(IsClosedTask);
+                var noOutstandingPullRequests = pullRequests.All(pr =>
+                    IsPullRequestCompleted(pr, pullRequestDetails) || IsPullRequestAbandoned(pr, pullRequestDetails));
+
+                if (allTasksClosed && noOutstandingPullRequests)
+                    warnings.Add("Alla tasks är klara och inga PR kvar - huvudkortet kan stängas.");
             }
         }
 
@@ -339,18 +330,6 @@ namespace AvekiScrum.Application.Boards.Dailys
             PullRequestCardVm pullRequest,
             IReadOnlyDictionary<(Guid RepoId, int PullRequestId), PullRequestDetails> details)
             => GetPullRequestStatus(pullRequest, details) is "abandoned" or "aborted";
-
-        /// <summary>Grenen en PR går mot, utan refs/heads-prefix. Tom när detaljerna saknas.</summary>
-        private static string TargetBranchOf(
-            PullRequestCardVm pullRequest,
-            IReadOnlyDictionary<(Guid RepoId, int PullRequestId), PullRequestDetails> details)
-        {
-            details.TryGetValue((pullRequest.RepoId, pullRequest.PullRequestId), out var detail);
-            var branch = detail?.TargetBranch ?? "";
-            return branch.StartsWith("refs/heads/", StringComparison.OrdinalIgnoreCase)
-                ? branch["refs/heads/".Length..]
-                : branch;
-        }
 
         private static bool HasRequiredReviewer(
             PullRequestCardVm pullRequest,

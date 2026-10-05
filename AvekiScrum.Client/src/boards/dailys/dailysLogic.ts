@@ -366,21 +366,39 @@ function serverAlertLevel(s: DailyStoryDto): AlertLevel {
 }
 
 /**
- * What the triangle shows: everything the card is flagged for, card hygiene included.
+ * What the badge shows: everything the card is flagged for, card hygiene included.
+ *
+ * Hygiene gets its own, gentler glyph (Notice) rather than the warning triangle - it is advice
+ * ("story points still missing"), not a fault, and folding it into the same triangle as a genuine
+ * flow problem was most of why the board read as "everything is a warning".
  */
 export function effectiveAlertLevel(s: DailyStoryDto): AlertLevel {
-  return serverAlertLevel(s) ?? (korthygienWarnings(s).length > 0 ? "Warning" : null);
+  return serverAlertLevel(s) ?? (korthygienWarnings(s).length > 0 ? "Notice" : null);
 }
 
 /**
- * What tints the row and colours the group's accent - only the flow problems the server reports.
+ * Mirrors the "Testkort ... blockerat" wording from AddDeviationWarnings in
+ * DailyDashboardFlowAnalyzer.cs. A blocked test task is a normal state to be sitting in - the
+ * triangle may still show, but it shouldn't tint the whole row the same way a genuine fault does.
+ */
+function isColoringWarning(detail: string): boolean {
+  return !(detail.startsWith("Testkort") && detail.includes("blockerat"));
+}
+
+/**
+ * What tints the row and colours the group's accent - only the flow problems the server reports,
+ * and only the ones serious enough to act on (see isColoringWarning).
  *
- * Card hygiene deliberately stops at the triangle. A missing acceptance criterion is advice; a card
+ * Card hygiene deliberately stops at the badge. A missing acceptance criterion is advice; a card
  * that has been closed with an open task is a fault. Tinting both the same way makes most of the
  * board amber, and a colour that is everywhere has stopped saying anything.
  */
 export function rowAlertLevel(s: DailyStoryDto): AlertLevel {
-  return serverAlertLevel(s);
+  const level = serverAlertLevel(s);
+  if (!level) return null;
+
+  const details = s.alertDetails ?? [];
+  return details.length > 0 && details.every((detail) => !isColoringWarning(detail)) ? null : level;
 }
 
 /** Everything the card is being flagged for, in one list. */

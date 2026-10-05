@@ -1,0 +1,41 @@
+Hej!
+
+
+Här är svaren, och viktigast: det handlar inte om att ge appen mer behörighet. Det handlar om motsatsen — att gå från en delad servicekonto-token (som har full åtkomst, oavsett vem som jobbar) till att appen agerar som den inloggade användaren, med exakt de rättigheter den personen redan har i Azure DevOps. Admin consent-steget bekräftar bara vilka scope SPA:n får be om — det ger inte appen egen åtkomst utöver det.
+
+
+== Vad tjänsten gör
+
+AvekiScrum är vårt interna Scrum-verktyg (planering, dailys, review, retro) som ersätter Azure DevOps webbgränssnitt för utvecklingsteamen och supportteamet. Samma data som redan finns i Azure DevOps, bara i ett gränssnitt anpassat för våra flöden.
+
+
+== Vem äger den
+
+Jag (Miro Cepciansky) är utvecklare och systemägare. Förankrad hos: Chica och Elin.
+
+
+== Var den körs och hur den exponeras
+
+Drift på egen IIS-server, en site på scrum.aveki.se, enbart tillgänglig på vårt intranät — ingen extern/internetexponering. API och klient (React) serveras från samma origin, så ingen separat publik yta.
+
+
+== Vilken information den hanterar och hur känslig den är
+
+Samma information som redan ligger i Azure DevOps: sprintplanering, backlog-poster, daily-/retro-anteckningar i Wikin. Inloggning sker via Entra ID, vilket ger appen namn/e-post på användaren (samma uppgifter som redan finns i AD). Ingen kunddata, inga hemliga uppgifter, inga nya datatyper utöver det som redan hanteras i Azure DevOps idag.
+
+
+== Vilka rättigheter den behöver
+
+Enbart delegerade behörigheter mot Azure DevOps-API:t: vso.work_full, vso.project, vso.wiki, vso.wiki_write, vso.code, vso.identity, vso.profile, samt User.Read mot Graph (för namn/bild). Jag har medvetet valt bort user_impersonation, som ger full åtkomst till hela Azure DevOps REST-API:t — ovanstående sju scope är precis vad verktyget använder och inget mer.
+
+
+== Varför delegerat ≠ mer behörighet
+
+Idag går alla anrop via en delad PAT, vilket betyder att varje ändring i Azure DevOps registreras som PAT-ägaren oavsett vem som faktiskt klickade. Med delegerad inloggning blir det tvärtom mer begränsat per person: appen kan aldrig göra något en viss användare inte redan har rätt att göra själv i Azure DevOps — den bara agerar i användarens eget namn i stället för att låtsas vara en delad teknisk identitet. Konsekvensen av godkännandet är alltså bättre spårbarhet, inte bredare åtkomst.
+
+
+Säg till om ni vill ha ett kort möte för att gå igenom det, annars hoppas jag detta räcker för att gå vidare.
+
+
+Tack!
+/Miro
