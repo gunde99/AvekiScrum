@@ -1,0 +1,758 @@
+/* AvekiDokumentation → Uppgradering. Builds on the sup-* list/form styles from SupportViews.css. */
+
+.upg-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.upg-status {
+  display: inline-block;
+  padding: 1px var(--space-2);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.upg-status--Active {
+  background: color-mix(in srgb, var(--color-info) 12%, transparent);
+  border-color: color-mix(in srgb, var(--color-info) 35%, transparent);
+  color: var(--color-info-text);
+}
+
+.upg-status--Conflict {
+  background: color-mix(in srgb, var(--aveki-orange) 15%, transparent);
+  border-color: var(--aveki-orange);
+  color: var(--aveki-orange);
+}
+
+.upg-status--Merged {
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
+  border-color: color-mix(in srgb, var(--color-success) 40%, transparent);
+  color: var(--color-success);
+}
+
+/* ---- Ny uppgradering ---- */
+
+.upg-new {
+  max-width: 960px;
+}
+
+.upg-new__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.upg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.upg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.upg-chip--on {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.upg-modules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-1) var(--space-4);
+}
+
+.upg-module label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--space-2);
+  align-items: baseline;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.upg-module label:hover {
+  background: var(--color-bg-subtle);
+}
+
+.upg-module--always label {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.upg-module__title {
+  font-weight: 600;
+}
+
+.upg-module__applies,
+.upg-module__rel {
+  grid-column: 2;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.upg-module__rel {
+  font-style: italic;
+}
+
+/* ---- Editor ---- */
+
+.upg-editor {
+  padding: var(--space-4);
+}
+
+.upg-back {
+  border: none;
+  background: none;
+  padding: 0;
+  margin-bottom: var(--space-3);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.upg-back:hover {
+  color: var(--color-primary);
+}
+
+.upg-editor__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+
+.upg-editor__title {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.upg-editor__title span {
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.upg-editor__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-1);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.upg-editor__actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.upg-danger {
+  color: var(--color-danger);
+}
+
+.upg-notice {
+  margin-bottom: var(--space-3);
+}
+
+.upg-import {
+  position: relative;
+  margin-bottom: var(--space-3);
+  padding: var(--space-3) var(--space-5) var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--color-success) 40%, transparent);
+  background: color-mix(in srgb, var(--color-success) 8%, var(--color-bg));
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.upg-import--error {
+  border-color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 8%, var(--color-bg));
+}
+
+.upg-import ul {
+  margin: var(--space-1) 0;
+  padding-left: var(--space-5);
+}
+
+.upg-import__close {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  border: none;
+  background: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: var(--color-text-muted);
+}
+
+/* Höjden sätts av UpgradeEditor (resten av fönstret) - kolumnerna scrollar var för sig. */
+.upg-editor__body {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: var(--space-5);
+  min-height: 0;
+}
+
+.upg-toc {
+  height: 100%;
+  min-height: 0;
+  padding-right: var(--space-2);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  font-size: 0.86rem;
+}
+
+.upg-toc__release {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-1);
+}
+
+.upg-toc__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.upg-toc__item span:first-child {
+  flex: 1;
+}
+
+.upg-toc__item:hover,
+.upg-toc__item--active {
+  background: var(--color-bg-subtle);
+}
+
+.upg-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.upg-dot--changed {
+  background: var(--aveki-orange);
+}
+
+.upg-wiki-changed {
+  color: var(--color-info-text);
+  font-weight: 700;
+}
+
+.upg-toc__history {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.upg-history {
+  margin: 0;
+  padding-left: var(--space-4);
+  font-size: 0.78rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.upg-history span {
+  display: block;
+  color: var(--color-text-muted);
+}
+
+.upg-doc {
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px var(--space-3) var(--space-6) 4px;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+}
+
+.upg-doc__release {
+  margin: var(--space-5) 0 var(--space-2);
+  font-size: 1.1rem;
+  color: var(--color-text-muted);
+}
+
+.upg-sec {
+  margin-bottom: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+  scroll-margin-top: var(--space-3);
+}
+
+.upg-sec--editing {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 15%, transparent);
+}
+
+.upg-sec__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+
+.upg-sec__title {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.upg-applies {
+  padding: 1px var(--space-2);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--aveki-yellow) 30%, transparent);
+  color: var(--color-text);
+}
+
+.upg-applies--all {
+  background: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+}
+
+.upg-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 1px var(--space-2);
+  border-radius: 999px;
+}
+
+.upg-badge--changed {
+  background: color-mix(in srgb, var(--aveki-orange) 15%, transparent);
+  color: var(--aveki-orange);
+}
+
+.upg-badge--wiki {
+  background: color-mix(in srgb, var(--color-info) 12%, transparent);
+  color: var(--color-info-text);
+}
+
+.upg-sec__edit {
+  margin-left: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg);
+  padding: 2px var(--space-3);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.upg-sec__edit:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.upg-editor__split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.upg-editor__textarea {
+  width: 100%;
+  min-height: 420px;
+  box-sizing: border-box;
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.upg-editor__preview {
+  min-width: 0;
+  max-height: 640px;
+  overflow: auto;
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.upg-editor__preview-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.upg-editor__buttons {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.upg-editor__hint {
+  margin-right: auto;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+/* ---- Rendered wiki markdown ---- */
+
+.upg-md {
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.upg-md h2 {
+  font-size: 1.02rem;
+  margin: var(--space-4) 0 var(--space-2);
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.upg-md h3 {
+  font-size: 0.82rem;
+  margin: var(--space-3) 0 var(--space-1);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.upg-md > :first-child {
+  margin-top: 0;
+}
+
+.upg-md table {
+  border-collapse: collapse;
+  margin: var(--space-2) 0;
+  font-size: 0.85rem;
+  width: 100%;
+}
+
+.upg-md th,
+.upg-md td {
+  border: 1px solid var(--color-border);
+  padding: var(--space-1) var(--space-2);
+  text-align: left;
+  vertical-align: top;
+}
+
+.upg-md th {
+  background: var(--color-bg-subtle);
+}
+
+.upg-md code {
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 0.85em;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--color-bg-subtle);
+}
+
+.upg-md pre {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  overflow-x: auto;
+}
+
+.upg-md pre code {
+  padding: 0;
+  background: none;
+}
+
+.upg-md blockquote {
+  margin: var(--space-2) 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 4px solid var(--aveki-orange);
+  background: color-mix(in srgb, var(--aveki-orange) 6%, transparent);
+}
+
+.upg-md blockquote p {
+  margin: var(--space-1) 0;
+}
+
+.upg-md img {
+  max-width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+/* ---- Conflicts ---- */
+
+.upg-conflicts {
+  margin-bottom: var(--space-5);
+  padding: var(--space-4);
+  border: 2px solid var(--aveki-orange);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--aveki-orange) 5%, var(--color-bg));
+}
+
+.upg-conflicts__intro {
+  margin-bottom: var(--space-3);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.upg-conflict {
+  margin-bottom: var(--space-4);
+}
+
+.upg-conflict__title {
+  margin: 0 0 var(--space-2);
+  font-size: 1rem;
+}
+
+.upg-conflict__cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.upg-conflict__col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.upg-conflict__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.upg-conflict__text {
+  width: 100%;
+  box-sizing: border-box;
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+}
+
+.upg-line--changed {
+  background: color-mix(in srgb, var(--aveki-yellow) 35%, transparent);
+}
+
+.upg-conflict__result {
+  min-height: 220px;
+}
+
+@media (max-width: 900px) {
+  .upg-editor__body,
+  .upg-editor__split,
+  .upg-conflict__cols {
+    grid-template-columns: 1fr;
+  }
+
+  /* En kolumn: ingen egen scroll - dokumentet flyter i sidan som vanligt. */
+  .upg-editor__body {
+    height: auto !important;
+  }
+
+  .upg-toc,
+  .upg-doc {
+    height: auto;
+    overflow: visible;
+  }
+}
+
+/* ---- Checklistan: klarmarkerade sektioner (bara i AvekiDokumentation, aldrig till wikin) ---- */
+
+.upg-sec {
+  position: relative;
+}
+
+.upg-sec--done {
+  border: 2px solid var(--color-success);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-success) 14%, transparent);
+}
+
+/* Grön slöja över innehållet - texten går att läsa men sektionen ser tydligt "avklarad" ut. */
+.upg-sec--done::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--color-success) 12%, transparent);
+  pointer-events: none;
+}
+
+.upg-sec--done .upg-md {
+  opacity: 0.72;
+}
+
+.upg-sec__done-mark {
+  position: absolute;
+  top: 58px;
+  right: 28px;
+  z-index: 1;
+  transform: rotate(-8deg);
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 76px;
+  font-weight: 900;
+  line-height: 1;
+  color: #fff;
+  background: var(--color-success);
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--color-success) 45%, transparent);
+  pointer-events: none;
+  animation: upg-done-pop 0.35s cubic-bezier(0.2, 1.5, 0.4, 1);
+}
+
+.upg-sec__foot {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--color-border);
+}
+
+.upg-done-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: 999px;
+  border: 2px solid var(--color-success);
+  background: var(--color-bg);
+  color: var(--color-success);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.upg-done-toggle:hover {
+  background: color-mix(in srgb, var(--color-success) 10%, var(--color-bg));
+}
+
+.upg-done-toggle__box {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  border: 2px solid var(--color-success);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.upg-done-toggle--on {
+  background: var(--color-success);
+  color: #fff;
+}
+
+.upg-done-toggle--on .upg-done-toggle__box {
+  border-color: #fff;
+  color: var(--color-success);
+  background: #fff;
+}
+
+.upg-done-toggle--on:hover {
+  background: color-mix(in srgb, var(--color-success) 85%, #000);
+}
+
+.upg-toc__done {
+  color: var(--color-success);
+  font-weight: 900;
+}
+
+.upg-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: var(--space-2);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.upg-progress__bar {
+  width: 90px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.upg-progress__bar span {
+  display: block;
+  height: 100%;
+  background: var(--color-success);
+  transition: width 0.3s ease;
+}
+
+.upg-progress--done {
+  color: var(--color-success);
+}
+
+@keyframes upg-done-pop {
+  from { transform: rotate(-30deg) scale(0.3); opacity: 0; }
+}

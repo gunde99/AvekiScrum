@@ -51,6 +51,12 @@
   color: var(--color-primary);
 }
 
+/* The review that is happening right now - the one of the three Development Partner buckets a
+   daily most wants to hear about. */
+.group-subgroup__label--reviewActive {
+  color: var(--color-info-text);
+}
+
 .group-subgroup__count {
   font-weight: 400;
   text-transform: none;

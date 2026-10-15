@@ -199,7 +199,10 @@ namespace AvekiScrum.Application.Boards.Dailys
                     title = story.Title,
                     azureStatus = FirstNonEmpty(source?.State, source?.StateEnum.ToString(), story.Stage.ToString()),
                     lastChangedDate = FormatDateTime(lastChangedDate),
-                    createdDate = FormatDate(source?.CreatedDate ?? story.CreatedDate),
+                    // Full timestamp, not just the date - the sprint-inflow "Nytillkomna kort"
+                    // group on Dailys distinguishes same-day cards by time of day, and a date-only
+                    // value would make every card created "today" look identical.
+                    createdDate = FormatDateTime(source?.CreatedDate ?? story.CreatedDate),
                     addedDuringSprint = IsInSprint(source?.CreatedDate ?? story.CreatedDate, selectedSprint),
                     developer = story.Developer,
                     developmentPartner = source?.DevelopmentPartner,
@@ -256,6 +259,9 @@ namespace AvekiScrum.Application.Boards.Dailys
                 completedDate = FormatDate(task.CompletedDate),
                 statusChangedDate = FormatDateTime(task.StatusChangedDate),
                 assignedDate = FormatDate(timeline?.AssignedDate),
+                blockedDate = FormatDateTime(timeline?.BlockedDate),
+                unblockedDate = FormatDateTime(timeline?.UnblockedDate),
+                changedDate = FormatDateTime(timeline?.LastChangedDate),
                 testEjOkExcludedDays = timeline?.TestEjOkExcludedDays,
                 leadDays = timeline?.LeadDays,
                 webUrl = WorkItemUrl(task.Id)
@@ -428,6 +434,12 @@ namespace AvekiScrum.Application.Boards.Dailys
                 .OrderBy(update => update.EffectiveChangedDate)
                 .ToList();
 
+            var (blockedDate, unblockedDate) = BlockedTransitions(orderedUpdates);
+            // Any revision at all - a comment, a tag, a field - is "something happened to the card".
+            var lastChangedDate = orderedUpdates
+                .Select(update => (DateTime?)update.EffectiveChangedDate!.Value.LocalDateTime)
+                .LastOrDefault();
+
             var assignedDate = orderedUpdates
                 .Where(update => !IsEmptyIdentity(update.Fields?.AssignedTo?.NewValue))
                 .Select(update => (DateTime?)update.EffectiveChangedDate!.Value.LocalDateTime)
@@ -453,7 +465,7 @@ namespace AvekiScrum.Application.Boards.Dailys
 
             if (!assignedDate.HasValue || !completedDate.HasValue)
             {
-                return new TestTaskTimeline(assignedDate, null, null);
+                return new TestTaskTimeline(assignedDate, null, null, blockedDate, unblockedDate, lastChangedDate);
             }
 
             var excludedDays = SumTagIntervalDays(
@@ -469,8 +481,48 @@ namespace AvekiScrum.Application.Boards.Dailys
             return new TestTaskTimeline(
                 assignedDate,
                 RoundDays(excludedDays),
-                RoundDays(leadDays));
+                RoundDays(leadDays),
+                blockedDate,
+                unblockedDate,
+                lastChangedDate);
         }
+
+        private const string BlockedField = "Microsoft.VSTS.CMMI.Blocked";
+
+        /// <summary>
+        /// When the task last became blocked, and when it was last unblocked. A test task's State
+        /// can sit at New for weeks while it waits on something (an integration build, say) behind
+        /// Blocked = Yes - it only becomes ready to test once Blocked goes back to No, so that is
+        /// when "time in status" should start counting, not the State change long before it.
+        /// </summary>
+        private static (DateTime? BlockedDate, DateTime? UnblockedDate) BlockedTransitions(
+            IReadOnlyList<WorkItemUpdate> orderedUpdates)
+        {
+            DateTime? blockedDate = null;
+            DateTime? unblockedDate = null;
+            foreach (var update in orderedUpdates)
+            {
+                if (update.Fields?.AdditionalFields == null ||
+                    !update.Fields.AdditionalFields.TryGetValue(BlockedField, out var change) ||
+                    change.ValueKind != JsonValueKind.Object)
+                    continue;
+
+                var wasBlocked = IsYes(change, "oldValue");
+                var isBlocked = IsYes(change, "newValue");
+                var at = update.EffectiveChangedDate!.Value.LocalDateTime;
+                if (isBlocked && !wasBlocked)
+                    blockedDate = at;
+                else if (wasBlocked && !isBlocked)
+                    unblockedDate = at;
+            }
+
+            return (blockedDate, unblockedDate);
+        }
+
+        private static bool IsYes(JsonElement change, string property)
+            => change.TryGetProperty(property, out var value) &&
+               value.ValueKind == JsonValueKind.String &&
+               string.Equals(value.GetString(), "Yes", StringComparison.OrdinalIgnoreCase);
 
         private static bool IsEmptyIdentity(IdentityRef? identity)
             => identity == null ||
@@ -553,6 +605,9 @@ namespace AvekiScrum.Application.Boards.Dailys
         private sealed record TestTaskTimeline(
             DateTime? AssignedDate,
             double? TestEjOkExcludedDays,
-            double? LeadDays);
+            double? LeadDays,
+            DateTime? BlockedDate,
+            DateTime? UnblockedDate,
+            DateTime? LastChangedDate);
     }
 }

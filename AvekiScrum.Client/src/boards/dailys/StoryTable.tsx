@@ -21,6 +21,7 @@ import {
   type SortDir,
   type SortKey,
 } from "./dailysLogic";
+import { useBoardSettings } from "../../settings/boardSettings";
 import "./StoryTable.css";
 
 const COLUMNS: { key: SortKey; label: string; align?: "center" }[] = [
@@ -170,6 +171,7 @@ export function StoryTable({ stories, onOpenWorkItem, onOpenValidation, onTaskDr
   const [sortKey, setSortKey] = useState<SortKey>("lastChangedDate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [openStories, setOpenStories] = useState<Set<number>>(new Set());
+  const { showWarnings } = useBoardSettings();
 
   function handleSort(key: SortKey) {
     if (key === sortKey) {
@@ -219,8 +221,8 @@ export function StoryTable({ stories, onOpenWorkItem, onOpenValidation, onTaskDr
         const isBug = story.type === "Bug";
         const progress = storyProg(story);
         // Only the server's own alerts tint the row - card hygiene stays a triangle. A signed-off
-        // card loses both.
-        const level = rowAlertLevel(story);
+        // card loses both, and so does every card while "Visa varningar" is off.
+        const level = showWarnings ? rowAlertLevel(story) : null;
         const alertCls = level === "Critical" ? "al-crit" : level === "Warning" ? "al-warn" : "";
 
         return (

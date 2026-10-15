@@ -41,6 +41,10 @@ builder.Services.Configure<AzureSettings>(builder.Configuration.GetSection("Azur
 builder.Services.Configure<TeamRoleConfig>(builder.Configuration.GetSection("TeamRoleConfig"));
 builder.Services.Configure<DailyFlowConfig>(builder.Configuration.GetSection("DailyFlow"));
 builder.Services.Configure<DailyCheckInSettings>(builder.Configuration.GetSection("DailyCheckIns"));
+builder.Services.Configure<TalkingPointSettings>(builder.Configuration.GetSection("TalkingPoints"));
+builder.Services.Configure<MeetingInfluencerSettings>(builder.Configuration.GetSection("MeetingInfluencers"));
+builder.Services.Configure<UpgradeDocumentationSettings>(builder.Configuration.GetSection("UpgradeDocumentation"));
+builder.Services.AddScoped<AvekiScrum.Application.Upgrade.UpgradeDocumentationService>();
 // Plain outbound client for the Teams webhook - no Azure DevOps auth on this one.
 builder.Services.AddHttpClient();
 
@@ -146,7 +150,9 @@ builder.Services.AddCors(options =>
         .SetIsOriginAllowed(origin => origin.StartsWith("http://localhost", StringComparison.OrdinalIgnoreCase)
             || origin.StartsWith("https://localhost", StringComparison.OrdinalIgnoreCase))
         .AllowAnyHeader()
-        .AllowAnyMethod());
+        .AllowAnyMethod()
+        // So a cross-origin download (the upgrade document's export) can read its file name.
+        .WithExposedHeaders("Content-Disposition"));
 });
 
 var app = builder.Build();
@@ -465,6 +471,79 @@ app.MapPost("/api/dailys/checkins", async (
 })
 .WithName("SaveDailyCheckIns");
 
+// Sprint inflow (Dailys' "Nytillkomna kort"/"SP ändrade" groups): for each given story, whether it
+// was moved into the current iteration after the cutoff (a card can enter a sprint either by being
+// created in it - which the client already knows from its own createdDate, no round-trip needed -
+// or by being re-assigned into it from elsewhere after planning) and/or had its Story Points changed
+// after the cutoff. Both signals come from the same revision history, so one GetWorkItemUpdatesAsync
+// call per candidate covers both - same pattern the test-task timeline pipeline already uses per
+// test task, run concurrently for the same reason ReleaseOpenItemsView's multi-sprint fetch does (a
+// sequential loop over even a modest number of stories was slow enough to notice). Loaded
+// asynchronously by the client after the main board renders, not part of /api/dailys itself, so a
+// slow history lookup never delays the board a team actually stands around waiting for.
+app.MapPost("/api/dailys/sprint-inflow-changes", async (
+    SprintInflowChangesRequest request,
+    IAzureDevOpsService azureDevOpsService,
+    CancellationToken ct) =>
+{
+    if (request.StoryIds is null || request.StoryIds.Count == 0)
+        return Results.Ok(Array.Empty<object>());
+    if (!DateTimeOffset.TryParse(request.CutoffUtc, out var cutoff))
+        return Results.BadRequest("Unparseable 'cutoffUtc'.");
+    if (string.IsNullOrWhiteSpace(request.CurrentIterationPath))
+        return Results.BadRequest("Missing 'currentIterationPath'.");
+
+    var checks = await Task.WhenAll(request.StoryIds.Select(async id =>
+    {
+        var updates = await azureDevOpsService.GetWorkItemUpdatesAsync(id, ct);
+        var revisions = updates.Value
+            .Select(u => new { Date = u.EffectiveChangedDate, u.Fields })
+            .Where(x => x.Date.HasValue)
+            .OrderBy(x => x.Date)
+            .ToList();
+
+        // Net Story Points change across the whole post-cutoff window - multiple edits can cancel
+        // out (bumped up, then back down), only worth flagging if the end result actually differs.
+        var spPostCutoff = revisions.Where(x => x.Date!.Value > cutoff && x.Fields?.StoryPoints != null).ToList();
+        double? oldStoryPoints = null, newStoryPoints = null;
+        DateTimeOffset? spChangedAt = null;
+        if (spPostCutoff.Count > 0)
+        {
+            var oldValue = spPostCutoff[0].Fields!.StoryPoints!.OldValue ?? 0;
+            var newValue = spPostCutoff[^1].Fields!.StoryPoints!.NewValue ?? 0;
+            if (Math.Abs(oldValue - newValue) >= 0.01)
+            {
+                oldStoryPoints = oldValue;
+                newStoryPoints = newValue;
+                spChangedAt = spPostCutoff[^1].Date;
+            }
+        }
+
+        // A card can bounce between iterations more than once after the cutoff - only the most
+        // recent move that actually landed it in the current sprint matters.
+        var movedIn = revisions
+            .Where(x => x.Date!.Value > cutoff && x.Fields?.IterationPath != null
+                        && string.Equals(x.Fields.IterationPath!.NewValue, request.CurrentIterationPath, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(x => x.Date)
+            .FirstOrDefault();
+
+        if (spChangedAt is null && movedIn is null) return null;
+
+        return new
+        {
+            id,
+            movedFrom = movedIn?.Fields?.IterationPath?.OldValue,
+            movedIntoSprintAt = movedIn?.Date?.ToString("o"),
+            oldStoryPoints,
+            newStoryPoints,
+            spChangedAt = spChangedAt?.ToString("o"),
+        };
+    }));
+
+    return Results.Ok(checks.Where(c => c != null));
+})
+.WithName("GetSprintInflowChanges");
+
 // Reads back what's been saved so far - not wired into any UI yet (the retro-facing view is still
 // being designed), but useful to inspect what a few sprints' worth of data actually looks like.
 app.MapGet("/api/dailys/checkins", async (
@@ -479,6 +558,115 @@ app.MapGet("/api/dailys/checkins", async (
     return Results.Ok(entries);
 })
 .WithName("GetDailyCheckIns");
+
+// "Saker att ta upp" - notes prepared ahead of time (often on a PO's request) that should be raised
+// with a specific person once the daily flow reaches them. See ITalkingPointRepository/
+// JsonFileTalkingPointRepository for storage, and DailyFlow.tsx for how these get woven into the
+// flow's own step order.
+var talkingPoints = app.MapGroup("/api/talking-points");
+
+// "Both" is a valid Scope/team-filter value but not a DeveloperTeam - these three helpers are the
+// one place that trio of strings ("Nord"/"Syd"/"Both") gets validated and parsed.
+static bool IsValidScope(string? scope) => scope is "Nord" or "Syd" or "Both";
+
+talkingPoints.MapGet("/", async (
+    string? team,
+    ITalkingPointRepository repository,
+    CancellationToken ct) =>
+{
+    // No 'team' at all -> everything, any scope (the settings modal's "Alla" filter). A concrete
+    // team returns just what's relevant to it (Scope == that team or "Both") - DailyFlow's own use.
+    if (string.IsNullOrWhiteSpace(team))
+        return Results.Ok(await repository.GetAllAsync(ct));
+    if (!Enum.TryParse<DeveloperTeam>(team, ignoreCase: true, out var developerTeam))
+        return Results.BadRequest($"Unknown team '{team}'. Expected 'Nord' or 'Syd'.");
+
+    var points = await repository.GetForTeamAsync(developerTeam, ct);
+    return Results.Ok(points);
+})
+.WithName("GetTalkingPoints");
+
+talkingPoints.MapPost("/", async (
+    CreateTalkingPointRequest request,
+    ITalkingPointRepository repository,
+    CancellationToken ct) =>
+{
+    if (!IsValidScope(request.Scope))
+        return Results.BadRequest($"Unknown scope '{request.Scope}'. Expected 'Nord', 'Syd' or 'Both'.");
+    if (string.IsNullOrWhiteSpace(request.AssigneeEmail))
+        return Results.BadRequest("Missing 'assigneeEmail'.");
+
+    var created = await repository.CreateAsync(new TalkingPoint
+    {
+        Scope = request.Scope,
+        BodyHtml = request.BodyHtml ?? "",
+        AssigneeEmail = request.AssigneeEmail,
+        AssigneeDisplayName = string.IsNullOrWhiteSpace(request.AssigneeDisplayName) ? request.AssigneeEmail : request.AssigneeDisplayName,
+        CreatedByEmail = request.CreatedByEmail ?? "",
+        CreatedByDisplayName = request.CreatedByDisplayName ?? "",
+        CreatedAt = DateTimeOffset.UtcNow,
+    }, ct);
+    return Results.Ok(created);
+})
+.WithName("CreateTalkingPoint");
+
+talkingPoints.MapPut("/{id}", async (
+    string id,
+    UpdateTalkingPointRequest request,
+    ITalkingPointRepository repository,
+    CancellationToken ct) =>
+{
+    if (!IsValidScope(request.Scope))
+        return Results.BadRequest($"Unknown scope '{request.Scope}'. Expected 'Nord', 'Syd' or 'Both'.");
+
+    var updated = await repository.UpdateAsync(
+        id, request.BodyHtml ?? "", request.AssigneeEmail ?? "",
+        string.IsNullOrWhiteSpace(request.AssigneeDisplayName) ? request.AssigneeEmail ?? "" : request.AssigneeDisplayName,
+        request.Scope, ct);
+    return updated is null ? Results.NotFound() : Results.Ok(updated);
+})
+.WithName("UpdateTalkingPoint");
+
+talkingPoints.MapPost("/{id}/raised", async (
+    string id,
+    SetTalkingPointRaisedRequest request,
+    ITalkingPointRepository repository,
+    CancellationToken ct) =>
+{
+    if (!IsValidScope(request.Team))
+        return Results.BadRequest($"Unknown team '{request.Team}'. Expected 'Nord', 'Syd' or 'Both'.");
+
+    var updated = await repository.SetRaisedAsync(id, request.Team, request.Raised, ct);
+    return updated is null ? Results.NotFound() : Results.Ok(updated);
+})
+.WithName("SetTalkingPointRaised");
+
+// The settings modal's "tänd/släck allt" bulk action - lets a mis-clicked round of checkoffs (or a
+// deliberate "start the list fresh") be undone in one call instead of one row at a time. Scoped the
+// same way as whatever list it was clicked from: "Nord"/"Syd" only touches items relevant to that
+// team, "Both" (the "Alla" filter) touches every item's flags for both teams.
+talkingPoints.MapPost("/raised-all", async (
+    SetAllTalkingPointsRaisedRequest request,
+    ITalkingPointRepository repository,
+    CancellationToken ct) =>
+{
+    if (!IsValidScope(request.Team))
+        return Results.BadRequest($"Unknown team '{request.Team}'. Expected 'Nord', 'Syd' or 'Both'.");
+
+    await repository.SetAllRaisedAsync(request.Team, request.Raised, ct);
+    return Results.Ok();
+})
+.WithName("SetAllTalkingPointsRaised");
+
+talkingPoints.MapDelete("/{id}", async (
+    string id,
+    ITalkingPointRepository repository,
+    CancellationToken ct) =>
+{
+    var removed = await repository.DeleteAsync(id, ct);
+    return removed ? Results.Ok() : Results.NotFound();
+})
+.WithName("DeleteTalkingPoint");
 
 // Feeds the sprint picker (the "sp1 · 2026-08-17 – 2026-09-04" text on the daily board, made
 // clickable). Rather than every iteration ever created, this is a window of three releases - the
@@ -649,6 +837,82 @@ app.MapGet("/api/refinement/search", async (
 })
 .WithName("SearchRefinementItems");
 
+// Teamavstämning's Scrum Master step (weeks 2+ of a sprint): work items tagged for both teams at
+// once, in whichever sprint is current right now. "Current" is resolved off Team Nord's own
+// iteration list - Nord and Syd share the same release/sprint cadence, just different area paths,
+// so either team's calendar gives the same answer.
+app.MapGet("/api/team-checkin/cross-team-items", async (
+    IAzureDevOpsService azureDevOpsService,
+    CancellationToken ct) =>
+{
+    var iterations = await azureDevOpsService.GetIterationsAsync(DeveloperTeam.Nord, ct);
+    var current = iterations.FirstOrDefault(i => i.IsCurrent);
+    if (current is null)
+        return Results.Ok(new { board = (object?)null, featureIds = Array.Empty<int>(), items = Array.Empty<object>() });
+
+    var nordAreas = await azureDevOpsService.GetTeamAreaPathsAsync(DeveloperTeam.Nord, ct);
+    var sydAreas = await azureDevOpsService.GetTeamAreaPathsAsync(DeveloperTeam.Syd, ct);
+    var areaPaths = nordAreas.Concat(sydAreas).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+    var backlog = await azureDevOpsService.GetTaggedRefinementItemsAsync(current.Path, areaPaths, "Berör båda teamen", ct);
+    return Results.Ok(backlog);
+})
+.WithName("GetCrossTeamTaggedItems");
+
+app.MapUpgradeDocumentation();
+
+// Teamavstämning's "Nästa veckas influencer": developers drawn by lottery to bring a short, freely
+// chosen contribution to a given meeting date. No date -> the full history (the lottery's fair
+// rotation reads it); a date -> just that meeting's influencers, shown as agenda point 2 that day.
+var influencers = app.MapGroup("/api/team-checkin/influencers");
+
+static bool IsValidMeetingDate(string? date) =>
+    DateOnly.TryParseExact(date, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out _);
+
+influencers.MapGet("/", async (
+    string? date,
+    IMeetingInfluencerRepository repository,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(date))
+        return Results.Ok(await repository.GetAllAsync(ct));
+    if (!IsValidMeetingDate(date))
+        return Results.BadRequest($"Invalid date '{date}'. Expected yyyy-MM-dd.");
+    return Results.Ok(await repository.GetForDateAsync(date, ct));
+})
+.WithName("GetMeetingInfluencers");
+
+influencers.MapPost("/", async (
+    AddMeetingInfluencerRequest request,
+    IMeetingInfluencerRepository repository,
+    CancellationToken ct) =>
+{
+    if (!IsValidMeetingDate(request.MeetingDate))
+        return Results.BadRequest($"Invalid meetingDate '{request.MeetingDate}'. Expected yyyy-MM-dd.");
+    if (string.IsNullOrWhiteSpace(request.Email))
+        return Results.BadRequest("Missing 'email'.");
+
+    var added = await repository.AddAsync(new MeetingInfluencer
+    {
+        MeetingDate = request.MeetingDate,
+        Email = request.Email.Trim(),
+        DisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? FormatDisplayName(request.Email) : request.DisplayName.Trim(),
+        DrawnAt = DateTimeOffset.UtcNow,
+    }, ct);
+    return Results.Ok(added);
+})
+.WithName("AddMeetingInfluencer");
+
+influencers.MapDelete("/{id}", async (
+    string id,
+    IMeetingInfluencerRepository repository,
+    CancellationToken ct) =>
+{
+    var removed = await repository.DeleteAsync(id, ct);
+    return removed ? Results.Ok() : Results.NotFound();
+})
+.WithName("DeleteMeetingInfluencer");
+
 app.MapGet("/api/sprint-goals", async (
     string team,
     IAzureDevOpsService azureDevOpsService,
@@ -661,6 +925,39 @@ app.MapGet("/api/sprint-goals", async (
     return Results.Ok(goals);
 })
 .WithName("GetSprintGoals");
+
+// The sprint-goals wiki page changes every sprint - lets it be repointed from the app itself
+// instead of editing appsettings.json and restarting. GET returns the effective url (override if
+// one's been saved, else the appsettings.json default) so the edit UI can show what's actually in
+// use, not just whether an override exists.
+app.MapGet("/api/sprint-goals/wiki-url", async (
+    string team,
+    ISprintGoalsWikiUrlStore store,
+    IConfiguration configuration,
+    CancellationToken ct) =>
+{
+    if (!Enum.TryParse<DeveloperTeam>(team, ignoreCase: true, out var developerTeam))
+        return Results.BadRequest($"Unknown team '{team}'. Expected 'Nord' or 'Syd'.");
+
+    var url = await store.GetOverrideAsync(developerTeam, ct) ?? configuration[$"PlanningBoard:SprintGoalsWikiUrls:{developerTeam}"] ?? "";
+    return Results.Ok(new { team = developerTeam.ToString(), url });
+})
+.WithName("GetSprintGoalsWikiUrl");
+
+app.MapPost("/api/sprint-goals/wiki-url", async (
+    SetSprintGoalsWikiUrlRequest request,
+    ISprintGoalsWikiUrlStore store,
+    CancellationToken ct) =>
+{
+    if (!Enum.TryParse<DeveloperTeam>(request.Team, ignoreCase: true, out var developerTeam))
+        return Results.BadRequest($"Unknown team '{request.Team}'. Expected 'Nord' or 'Syd'.");
+    if (string.IsNullOrWhiteSpace(request.Url))
+        return Results.BadRequest("Missing 'url'.");
+
+    await store.SetOverrideAsync(developerTeam, request.Url, ct);
+    return Results.Ok();
+})
+.WithName("SetSprintGoalsWikiUrl");
 
 app.MapGet("/api/team-members", (
     string team,
@@ -1916,11 +2213,36 @@ internal sealed record SaveDailyCheckInsRequest(
     string Date,
     List<DailyCheckInEntryRequest> Entries);
 
+internal sealed record SprintInflowChangesRequest(List<int> StoryIds, string CutoffUtc, string CurrentIterationPath);
+
 internal sealed record DailyCheckInEntryRequest(
     string Kind,
     string Key,
     string Label,
     double Score);
+
+internal sealed record CreateTalkingPointRequest(
+    string Scope,
+    string? BodyHtml,
+    string AssigneeEmail,
+    string? AssigneeDisplayName,
+    string? CreatedByEmail,
+    string? CreatedByDisplayName);
+
+internal sealed record UpdateTalkingPointRequest(
+    string Scope,
+    string? BodyHtml,
+    string? AssigneeEmail,
+    string? AssigneeDisplayName);
+
+/// <summary>Team is "Nord", "Syd", or "Both" (mark done/reset on both teams' flags at once).</summary>
+internal sealed record SetTalkingPointRaisedRequest(string Team, bool Raised);
+
+internal sealed record AddMeetingInfluencerRequest(string MeetingDate, string Email, string? DisplayName);
+
+internal sealed record SetSprintGoalsWikiUrlRequest(string Team, string Url);
+
+internal sealed record SetAllTalkingPointsRaisedRequest(string Team, bool Raised);
 
 internal sealed record WorkItemFieldUpdateRequest(
     string? Title,

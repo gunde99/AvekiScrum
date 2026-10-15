@@ -2,13 +2,23 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { BoardShell } from "../../components/BoardShell";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
 import { useToast } from "../../components/Toast";
-import { fetchDailys, fetchDailyPerson, TEAM_OPTIONS, type DailyStoryDto, type DailysResponse, type DeveloperTeamId } from "../../api/dailys";
+import {
+  fetchDailys,
+  fetchDailyPerson,
+  fetchSprintInflowChanges,
+  TEAM_OPTIONS,
+  type DailyStoryDto,
+  type DailysResponse,
+  type DeveloperTeamId,
+  type SprintInflowChangeDto,
+} from "../../api/dailys";
 import { fetchSprintGoals, type SprintGoal } from "../../api/sprintGoals";
 import { fetchTeamRoles } from "../../api/people";
 import { updateWorkItemFields } from "../../api/workitems";
 import { DailyFlow } from "./DailyFlow";
 import { FilterPanel, WORK_ITEM_TYPES, type TagFilterState, type WorkItemTypeKey } from "./FilterPanel";
 import { GroupCard } from "./GroupCard";
+import { useBoardSettings } from "../../settings/boardSettings";
 import { KpiStrip } from "./KpiStrip";
 import { SprintGoalModal } from "./SprintGoalModal";
 import { SprintPicker } from "./SprintPicker";
@@ -19,10 +29,12 @@ import {
   applyWorkItemSave,
   buildFlowParticipants,
   buildGroups,
+  buildSprintInflowGroups,
   DOD_TAG,
   isStaleClosed,
   matchesTestFilter,
   participantOnByDefault,
+  sprintInflowCutoff,
   withoutReviewTag,
   type GroupMode,
   type FlowLaneStage,
@@ -82,7 +94,7 @@ function writeParticipantChoices(team: DeveloperTeamId, choices: Record<string, 
 }
 
 interface DailysBoardProps {
-  onNavigate?: (board: "refinement" | "dailys" | "review" | "test") => void;
+  onNavigate?: (board: "team-home" | "refinement" | "dailys" | "review" | "test" | "teamcheckin") => void;
   /** Back to the start page, where AvekiSupport lives. */
   onHome?: () => void;
   /** Owned by App - see BoardShell's header, which is where this is actually chosen now. */
@@ -105,8 +117,9 @@ export function DailysBoard({ onNavigate, onHome, team, onTeamChange }: DailysBo
   const [searchText, setSearchText] = useState("");
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string> | null>(null);
   const [tagFilters, setTagFilters] = useState<Map<string, TagFilterState>>(new Map());
-  // On by default: settled work shouldn't weigh down the daily view once the team has seen it.
-  const [hideStaleClosed, setHideStaleClosed] = useState(true);
+  // Settings, not filters (BoardShell's ⚙️): whether the daily flow skips long-closed cards, and
+  // after how many working days a closed card counts as long-closed.
+  const { hideStaleClosed, staleClosedWorkingDays } = useBoardSettings();
   // Both types shown by default; unticking one hides that card type.
   const [selectedTypes, setSelectedTypes] = useState<Set<WorkItemTypeKey>>(new Set(["story", "bug"]));
   // Empty means "no test constraint" - any selected key narrows to cards matching at least one.
@@ -122,6 +135,11 @@ export function DailysBoard({ onNavigate, onHome, team, onTeamChange }: DailysBo
   const [dailyFlowActive, setDailyFlowActive] = useState(false);
   const [flowHighlightGroupId, setFlowHighlightGroupId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // Sprint-inflow tracking: per-card signals that need a server round-trip through Azure DevOps'
+  // revision history (a card moved into this iteration from elsewhere, or had its Story Points
+  // re-pointed) - "created after the cutoff" needs no such trip, see buildSprintInflowGroups.
+  // Fetched in the background once the board's own data is in, never blocking render.
+  const [inflowChanges, setInflowChanges] = useState<SprintInflowChangeDto[]>([]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -161,6 +179,30 @@ export function DailysBoard({ onNavigate, onHome, team, onTeamChange }: DailysBo
       });
     return () => controller.abort();
   }, [team]);
+
+  // Background check for sprint-inflow signals Azure DevOps' revision history has to answer: did
+  // this card get moved into the current iteration after the cutoff, and/or did its Story Points
+  // change after the cutoff. Checked for every non-PO card, not just ones that pre-date the cutoff -
+  // a card created after the cutoff can still have been re-pointed since, and that's worth showing
+  // too (see buildSprintInflowGroups).
+  useEffect(() => {
+    if (!data) return;
+    const cutoff = sprintInflowCutoff(data.meta.sprintStart);
+    const candidateIds = (data.teams[0]?.stories ?? []).filter((s) => !s.ownedByProductOwner).map((s) => s.id);
+    if (candidateIds.length === 0) {
+      setInflowChanges([]);
+      return;
+    }
+    const controller = new AbortController();
+    fetchSprintInflowChanges(candidateIds, cutoff.toISOString(), data.meta.sprintPath, controller.signal)
+      .then(setInflowChanges)
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        // A best-effort enrichment - the board works fine without it.
+        setInflowChanges([]);
+      });
+    return () => controller.abort();
+  }, [data]);
 
   // Drives which names get their own top-level "developer" group: this team's actual developer
   // roster, not just whoever happens to be attached to a card - a QA consultant testing a card,
@@ -262,22 +304,14 @@ export function DailysBoard({ onNavigate, onHome, team, onTeamChange }: DailysBo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stories, searchText, selectedStatuses, tagFilters, selectedTypes, testFilters]);
 
-  // Counts what this filter would remove from the daily flow. PO-owned cards are excluded because
-  // the board never shows them anyway - counting them made the label claim more hidden cards than
-  // it actually affects.
-  const staleClosedCount = useMemo(
-    () => stories.filter((s) => !s.ownedByProductOwner && isStaleClosed(s)).length,
-    [stories],
-  );
-
   // hideStaleClosed only trims what the daily flow steps through - a card closed days ago is
   // exactly the noise you don't want taking up a turn, but it's still real, recent work that
   // should count in the board's own KPIs and status groups above. Applied on top of the other
   // filters (search/tags/status/type/test), not instead of them, so the flow still respects
   // whatever the person running it is deliberately looking at.
   const dailyFlowStories = useMemo(
-    () => (hideStaleClosed ? filteredStories.filter((s) => !isStaleClosed(s)) : filteredStories),
-    [filteredStories, hideStaleClosed],
+    () => (hideStaleClosed ? filteredStories.filter((s) => !isStaleClosed(s, staleClosedWorkingDays)) : filteredStories),
+    [filteredStories, hideStaleClosed, staleClosedWorkingDays],
   );
 
   // PO-owned cards are intentionally excluded from the developer-focused board (they're not
@@ -362,14 +396,36 @@ export function DailysBoard({ onNavigate, onHome, team, onTeamChange }: DailysBo
 
   const groups = useMemo(() => buildBoardGroups(boardStories), [buildBoardGroups, boardStories]);
 
+  // Sprint inflow: what showed up (or changed) after planning already set the plan. Built from the
+  // full non-PO story set rather than boardStories, so narrowing the board's own filters (search,
+  // status, type) doesn't make this overview disappear along with it.
+  const inflowCutoff = useMemo(
+    () => (data ? sprintInflowCutoff(data.meta.sprintStart) : null),
+    [data],
+  );
+  const nonPoStories = useMemo(() => stories.filter((s) => !s.ownedByProductOwner), [stories]);
+  const { newCardsGroup, spChangedGroup } = useMemo(
+    () =>
+      inflowCutoff
+        ? buildSprintInflowGroups(nonPoStories, inflowCutoff, inflowChanges)
+        : { newCardsGroup: null, spChangedGroup: null },
+    [nonPoStories, inflowCutoff, inflowChanges],
+  );
+
   // The daily flow's own groups, built from dailyFlowStories (hideStaleClosed applied) rather than
   // boardStories - so a card the flow is skipping over doesn't still pad out its "X kort, Y klara"
-  // turn stats. The board above (groups, just above) is intentionally left out of this.
+  // turn stats. Outside the flow the board renders `groups` (just above), stale cards included.
   const dailyFlowBoardStories = useMemo(() => dailyFlowStories.filter((s) => !s.ownedByProductOwner), [dailyFlowStories]);
   const dailyFlowGroups = useMemo(
     () => buildBoardGroups(dailyFlowBoardStories),
     [buildBoardGroups, dailyFlowBoardStories],
   );
+
+  // The flow has no card table of its own: each turn highlights and opens the board's group card
+  // below. So while the flow runs, the board has to render the flow's groups - otherwise the turn
+  // says "1 kort" while the table under it still lists a card closed two weeks ago. Same builder,
+  // so the group ids the flow highlights match. KpiStrip keeps using boardStories either way.
+  const visibleGroups = dailyFlowActive ? dailyFlowGroups : groups;
 
   function toggleGroup(id: string) {
     setOpenGroups((prev) => {
@@ -740,9 +796,6 @@ export function DailysBoard({ onNavigate, onHome, team, onTeamChange }: DailysBo
             tagFilters={tagFilters}
             onCycleTag={cycleTag}
             onClearTags={() => setTagFilters(new Map())}
-            hideStaleClosed={hideStaleClosed}
-            onToggleStaleClosed={() => setHideStaleClosed((v) => !v)}
-            staleClosedCount={staleClosedCount}
             selectedTypes={selectedTypes}
             onToggleType={toggleType}
             testFilters={testFilters}
@@ -783,8 +836,42 @@ export function DailysBoard({ onNavigate, onHome, team, onTeamChange }: DailysBo
           )}
           <KpiStrip stories={boardStories} />
           <div className="dailys-board__groups">
-            {groups.length === 0 && <p className="dailys-board__status">Inga kort matchar filtret.</p>}
-            {groups.map((group) => (
+            {(newCardsGroup || spChangedGroup) && (
+              <div className="dailys-board__inflow">
+                {newCardsGroup && (
+                  <GroupCard
+                    key={newCardsGroup.id}
+                    group={newCardsGroup}
+                    isOpen={openGroups.has(newCardsGroup.id)}
+                    onToggle={() => toggleGroup(newCardsGroup.id)}
+                    onOpenWorkItem={setOpenWorkItemId}
+                    onOpenValidation={setOpenValidationId}
+                    onQuickApproveDod={quickApproveDod}
+                    onQuickSetState={quickSetState}
+                    onTaskDrop={handleTaskDrop}
+                    sprintGoalsByNumber={sprintGoalsByNumber}
+                    onOpenSprintGoal={setOpenSprintGoalNumber}
+                  />
+                )}
+                {spChangedGroup && (
+                  <GroupCard
+                    key={spChangedGroup.id}
+                    group={spChangedGroup}
+                    isOpen={openGroups.has(spChangedGroup.id)}
+                    onToggle={() => toggleGroup(spChangedGroup.id)}
+                    onOpenWorkItem={setOpenWorkItemId}
+                    onOpenValidation={setOpenValidationId}
+                    onQuickApproveDod={quickApproveDod}
+                    onQuickSetState={quickSetState}
+                    onTaskDrop={handleTaskDrop}
+                    sprintGoalsByNumber={sprintGoalsByNumber}
+                    onOpenSprintGoal={setOpenSprintGoalNumber}
+                  />
+                )}
+              </div>
+            )}
+            {visibleGroups.length === 0 && <p className="dailys-board__status">Inga kort matchar filtret.</p>}
+            {visibleGroups.map((group) => (
               <GroupCard
                 key={group.id}
                 group={group}

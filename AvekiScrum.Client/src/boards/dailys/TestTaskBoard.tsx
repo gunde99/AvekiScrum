@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PersonAvatar } from "../../components/PersonAvatar";
 import { useToast } from "../../components/Toast";
 import { getWorkItemTypeConfig } from "../../components/workitem/workItemTypeConfig";
 import { fetchAllPeople, type PersonOption } from "../../api/people";
 import { updateWorkItemFields } from "../../api/workitems";
+import { useBoardSettings } from "../../settings/boardSettings";
 import type { DailyStoryDto } from "../../api/dailys";
 import { fullPersonName, type SortDir } from "./dailysLogic";
 import {
@@ -17,6 +18,7 @@ import {
   statusAge,
   statusBadgeClass,
   testResultFromTags,
+  testSizeTag,
   PRIORITY_EMOJI,
   PRIORITY_LABELS,
   TEST_GROUP_MODE_LABELS,
@@ -28,7 +30,12 @@ import {
   type TestStatusBucket,
   type TestTaskRow,
 } from "./testBoardLogic";
+import { TestCardTitle } from "./TestCardTitle";
 import "./TestTaskBoard.css";
+
+// Every modal the boards can open over a test board - see the ↑/↓ handler in TestTaskBoard.
+const MODAL_SELECTOR =
+  "[role='dialog'], [role='alertdialog'], .wi-modal-overlay, .sg-modal-overlay, .link-cards-overlay, .board-settings__overlay";
 
 /** One extra iteration's stories, folded in alongside allStories - see TestBoard.tsx's iteration
  *  filter, which is the only place that populates this today. */
@@ -89,9 +96,21 @@ export function TestTaskBoard({
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<Set<TestStatusBucket> | null>(null);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [collapsedInitialized, setCollapsedInitialized] = useState(false);
+  // One category open at a time, so the board reads top to bottom in a daily: undefined means "the
+  // first one" (the default, and what a group-mode/filter change that removes the open one falls
+  // back to), null means the person closed them all.
+  const [openGroupKey, setOpenGroupKey] = useState<string | null | undefined>(undefined);
+  const headerRefs = useRef(new Map<string, HTMLButtonElement>());
+  // The toolbar's three sub-panels - all collapsed by default so the board opens on the cards
+  // themselves instead of a wall of buttons. Independent toggles, not an accordion: filtering and
+  // grouping are unrelated questions, no reason opening one should close the other.
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [showGroupPanel, setShowGroupPanel] = useState(false);
+  const [showStatsPanel, setShowStatsPanel] = useState(false);
   const { showToast } = useToast();
+  // Rows or header-cards - a board setting (BoardShell's ⚙️), so the standalone Test tab, the daily
+  // flow's test-lead turn and Teamavstämning all follow the same choice.
+  const { testCardLayout, showTestStatusAge, showTestLastChanged } = useBoardSettings();
 
   useEffect(() => {
     let cancelled = false;
@@ -140,24 +159,40 @@ export function TestTaskBoard({
     return g.map((group) => ({ ...group, tasks: sortTestTasks(group.tasks, sortKey, sortDir) }));
   }, [visible, groupMode, sortKey, sortDir]);
 
-  // Seeded once per mount from each group's own "collapse by default" - after that the person's
-  // own clicks win, including across a group-mode switch (re-collapsing "Klart" every time you
-  // change how it's grouped would undo the one click that opened it).
-  useEffect(() => {
-    if (collapsedInitialized) return;
-    const initial = new Set(groups.filter((g) => g.collapsedByDefault).map((g) => g.key));
-    if (initial.size > 0) setCollapsed(initial);
-    setCollapsedInitialized(true);
-  }, [groups, collapsedInitialized]);
+  const activeGroupKey =
+    openGroupKey === null ? null : groups.some((g) => g.key === openGroupKey) ? openGroupKey! : groups[0]?.key ?? null;
 
   function toggleGroup(key: string) {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+    setOpenGroupKey(activeGroupKey === key ? null : key);
   }
+
+  // ↑/↓ step through the categories, opening the next one and closing the one before - the way a
+  // team walks the board in a daily without anyone reaching for the mouse. Skipped while typing
+  // (search box, a tester/priority picker) and with modifiers held, so normal keyboard use stays.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.defaultPrevented) return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.isContentEditable || ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName))) return;
+      // A modal on top (a work item, the settings, a confirm) owns the keyboard while it's open.
+      if (document.querySelector(MODAL_SELECTOR)) return;
+      if (groups.length === 0) return;
+
+      const index = groups.findIndex((g) => g.key === activeGroupKey);
+      const nextIndex =
+        index === -1
+          ? e.key === "ArrowDown" ? 0 : groups.length - 1
+          : Math.min(groups.length - 1, Math.max(0, index + (e.key === "ArrowDown" ? 1 : -1)));
+      e.preventDefault();
+      const nextKey = groups[nextIndex].key;
+      setOpenGroupKey(nextKey);
+      // After the previous one has folded away, so the header lands where it will actually be.
+      requestAnimationFrame(() => headerRefs.current.get(nextKey)?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [groups, activeGroupKey]);
 
   function toggleStatus(bucket: TestStatusBucket) {
     setStatusFilter((prev) => {
@@ -204,6 +239,9 @@ export function TestTaskBoard({
   }
 
   const unassignedCount = visible.filter((t) => !t.assignedTo).length;
+  // Shown on the collapsed "Filter" button so a narrowed view stays legible even with the panel
+  // that did the narrowing tucked away.
+  const hasActiveFilter = search.trim().length > 0 || (statusFilter !== null && statusFilter.size < availableStatuses.length);
 
   // A freshly-mounted <select> only focuses on its own - opening the actual dropdown still took a
   // second click. showPicker() (Chrome/Edge 121+, Firefox 130+) opens it immediately; where it
@@ -223,210 +261,341 @@ export function TestTaskBoard({
 
   return (
     <div className={"test-board" + (embedded ? " test-board--embedded" : "")}>
-      <div className="test-board__toolbar">
-        <div className="test-board__group" role="group" aria-label="Gruppera på">
-          <span className="test-board__group-label">Gruppera på</span>
-          <div className="test-board__group-body">
-            {(Object.keys(TEST_GROUP_MODE_LABELS) as TestGroupMode[]).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                className={"test-board__tab" + (mode === groupMode ? " test-board__tab--active" : "")}
-                onClick={() => setGroupMode(mode)}
-              >
-                {TEST_GROUP_MODE_LABELS[mode]}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="test-board__group" role="group" aria-label="Sortera på">
-          <span className="test-board__group-label">Sortera</span>
-          <div className="test-board__group-body">
-            {(Object.keys(TEST_SORT_LABELS) as TestSortKey[]).map((key) => (
-              <button
-                key={key}
-                type="button"
-                className={"test-board__tab" + (key === sortKey ? " test-board__tab--active" : "")}
-                onClick={() => toggleSort(key)}
-              >
-                {TEST_SORT_LABELS[key]}
-                {key === sortKey && <span className="test-board__sort-arrow">{sortDir === "asc" ? " ▲" : " ▼"}</span>}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <input
-          type="search"
-          className="test-board__search"
-          placeholder="Sök titel, #id…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="test-board__toolbar test-board__toolbar--compact">
+        <button
+          type="button"
+          className={"test-board__toggle" + (showFilterPanel ? " test-board__toggle--active" : "") + (hasActiveFilter ? " test-board__toggle--marked" : "")}
+          onClick={() => setShowFilterPanel((v) => !v)}
+        >
+          🔍 Filter{hasActiveFilter && <span className="test-board__toggle-dot" title="Ett filter är aktivt" />}
+        </button>
+        <button
+          type="button"
+          className={"test-board__toggle" + (showGroupPanel ? " test-board__toggle--active" : "")}
+          onClick={() => setShowGroupPanel((v) => !v)}
+        >
+          ▤ Gruppera <span className="test-board__toggle-sub">{TEST_GROUP_MODE_LABELS[groupMode]}</span>
+        </button>
+        <button
+          type="button"
+          className={"test-board__toggle" + (showStatsPanel ? " test-board__toggle--active" : "")}
+          onClick={() => setShowStatsPanel((v) => !v)}
+        >
+          📊 Statistik <span className="test-board__toggle-sub">{visible.length} kort</span>
+        </button>
       </div>
 
-      {availableStatuses.length > 1 && (
-        <div className="test-board__statusbar">
-          {availableStatuses.map((bucket) => {
-            const active = (statusFilter ?? new Set(availableStatuses)).has(bucket);
-            const count = all.filter((r) => classifyTestStatus(r) === bucket).length;
-            return (
-              <button
-                key={bucket}
-                type="button"
-                className={
-                  "test-board__status" +
-                  (statusBadgeClass(bucket) ? ` test-board__status--${statusBadgeClass(bucket)}` : "") +
-                  (active ? " test-board__status--active" : "")
-                }
-                onClick={() => toggleStatus(bucket)}
-                title={TEST_STATUS_LABELS[bucket]}
-              >
-                <span className="test-board__status-count">{count}</span>
-                <span className="test-board__status-label">{TEST_STATUS_LABELS[bucket]}</span>
-              </button>
-            );
-          })}
+      {showFilterPanel && (
+        <div className="test-board__panel">
+          <input
+            type="search"
+            className="test-board__search"
+            placeholder="Sök titel, #id…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            autoFocus
+          />
+          {availableStatuses.length > 1 && (
+            <div className="test-board__statusbar">
+              {availableStatuses.map((bucket) => {
+                const active = (statusFilter ?? new Set(availableStatuses)).has(bucket);
+                const count = all.filter((r) => classifyTestStatus(r) === bucket).length;
+                return (
+                  <button
+                    key={bucket}
+                    type="button"
+                    className={
+                      "test-board__status" +
+                      (statusBadgeClass(bucket) ? ` test-board__status--${statusBadgeClass(bucket)}` : "") +
+                      (active ? " test-board__status--active" : "")
+                    }
+                    onClick={() => toggleStatus(bucket)}
+                    title={TEST_STATUS_LABELS[bucket]}
+                  >
+                    <span className="test-board__status-count">{count}</span>
+                    <span className="test-board__status-label">{TEST_STATUS_LABELS[bucket]}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
-      <div className="test-board__summary">
-        <span className="df-stat">
-          <strong>{visible.length}</strong> test-tasks
-        </span>
-        <span className="df-stat">
-          <strong>{unassignedCount}</strong> utan ägare
-        </span>
-        {all.length !== visible.length && <span className="df-hint">{all.length - visible.length} dolda av filter</span>}
-      </div>
+      {showGroupPanel && (
+        <div className="test-board__panel">
+          <div className="test-board__group" role="group" aria-label="Gruppera på">
+            <span className="test-board__group-label">Gruppera på</span>
+            <div className="test-board__group-body">
+              {(Object.keys(TEST_GROUP_MODE_LABELS) as TestGroupMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className={"test-board__tab" + (mode === groupMode ? " test-board__tab--active" : "")}
+                  onClick={() => setGroupMode(mode)}
+                >
+                  {TEST_GROUP_MODE_LABELS[mode]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="test-board__group" role="group" aria-label="Sortera på">
+            <span className="test-board__group-label">Sortera</span>
+            <div className="test-board__group-body">
+              {(Object.keys(TEST_SORT_LABELS) as TestSortKey[]).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={"test-board__tab" + (key === sortKey ? " test-board__tab--active" : "")}
+                  onClick={() => toggleSort(key)}
+                >
+                  {TEST_SORT_LABELS[key]}
+                  {key === sortKey && <span className="test-board__sort-arrow">{sortDir === "asc" ? " ▲" : " ▼"}</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showStatsPanel && (
+        <div className="test-board__panel">
+          <div className="test-board__summary">
+            <span className="df-stat">
+              <strong>{visible.length}</strong> test-tasks
+            </span>
+            <span className="df-stat">
+              <strong>{unassignedCount}</strong> utan ägare
+            </span>
+            {all.length !== visible.length && <span className="df-hint">{all.length - visible.length} dolda av filter</span>}
+          </div>
+        </div>
+      )}
 
       {visible.length === 0 ? (
         <p className="daily-flow__empty">Inga test-tasks matchar urvalet.</p>
       ) : (
         groups.map((group) => {
-          const isCollapsed = collapsed.has(group.key);
+          const isCollapsed = group.key !== activeGroupKey;
           return (
-            <div key={group.key} className="test-board__group-section">
-              <button type="button" className="test-board__group-header" onClick={() => toggleGroup(group.key)}>
+            <div key={group.key} className={"test-board__group-section" + (isCollapsed ? "" : " test-board__group-section--open")}>
+              <button
+                type="button"
+                className="test-board__group-header"
+                onClick={() => toggleGroup(group.key)}
+                aria-expanded={!isCollapsed}
+                ref={(el) => {
+                  if (el) headerRefs.current.set(group.key, el);
+                  else headerRefs.current.delete(group.key);
+                }}
+              >
                 <span className={"test-board__chevron" + (isCollapsed ? "" : " test-board__chevron--open")}>▶</span>
                 {group.label} ({group.tasks.length})
               </button>
               {!isCollapsed && (
-                <ul className="daily-flow__list test-board__task-list">
+                <ul className={testCardLayout === "cards" ? "test-board__card-grid" : "daily-flow__list test-board__task-list"}>
                   {group.tasks.map((t) => {
                     const bucket = classifyTestStatus(t);
                     const verdict = testResultFromTags(t.tags);
-                    const age = statusAge(ageSourceDate(t, bucket), ageChangeLabel(bucket));
-                    return (
-                      <li key={t.id}>
-                        <div className="df-row df-row--test">
-                          <span
-                            className={
-                              "daily-flow__list-status" +
-                              (statusBadgeClass(bucket) ? ` daily-flow__list-status--${statusBadgeClass(bucket)}` : "")
-                            }
+                    const age = statusAge(ageSourceDate(t, bucket), ageChangeLabel(t, bucket));
+                    const changed = t.changedDate ? statusAge(t.changedDate, "Senast ändrad") : null;
+                    const tone = statusBadgeClass(bucket);
+                    const size = testSizeTag(t.tags);
+                    const storyType = getWorkItemTypeConfig(t.storyType);
+
+                    // The pieces both layouts share - the rows lay them out on one line, the cards
+                    // put the title on top and these underneath. Same controls either way, so
+                    // assigning a tester or changing priority works identically in both.
+                    const statusPill = (
+                      <span className={"daily-flow__list-status" + (tone ? ` daily-flow__list-status--${tone}` : "")}>
+                        {verdict === "notok" ? "Test ej OK" : verdict === "ok" ? "Test OK" : t.status || "Ny"}
+                      </span>
+                    );
+                    const idButton = (
+                      <button
+                        type="button"
+                        className="daily-flow__list-id df-row__id"
+                        onClick={() => onOpenWorkItem(t.id)}
+                        title="Öppna testkortet"
+                      >
+                        #{t.id}
+                      </button>
+                    );
+                    const priorityControl = (
+                      <span className="test-board__priority">
+                        <button
+                          type="button"
+                          className={"test-board__priority-btn" + (t.priority ? ` test-board__priority-btn--p${t.priority}` : "")}
+                          onClick={() => setPriorityEditingFor(priorityEditingFor === t.id ? null : t.id)}
+                          disabled={busyPriorityTaskId === t.id}
+                          title="Klicka för att ändra prioritet"
+                        >
+                          {t.priority ? `${PRIORITY_EMOJI[t.priority]} P${t.priority}` : "– Prio"}
+                        </button>
+                        {priorityEditingFor === t.id && (
+                          <select
+                            className="df-assign__select"
+                            ref={openPickerOnMount}
+                            defaultValue={t.priority ?? ""}
+                            onBlur={() => setPriorityEditingFor(null)}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setPriorityEditingFor(null);
+                              if (value) void handlePriorityChange(t, Number(value));
+                            }}
                           >
-                            {verdict === "notok" ? "Test ej OK" : verdict === "ok" ? "Test OK" : t.status || "Ny"}
-                          </span>
-                          <button
-                            type="button"
-                            className="daily-flow__list-id df-row__id"
-                            onClick={() => onOpenWorkItem(t.id)}
-                            title="Öppna testkortet"
-                          >
-                            #{t.id}
-                          </button>
-                          <span className="test-board__priority">
-                            <button
-                              type="button"
-                              className={"test-board__priority-btn" + (t.priority ? ` test-board__priority-btn--p${t.priority}` : "")}
-                              onClick={() => setPriorityEditingFor(priorityEditingFor === t.id ? null : t.id)}
-                              disabled={busyPriorityTaskId === t.id}
-                              title="Klicka för att ändra prioritet"
-                            >
-                              {t.priority ? `${PRIORITY_EMOJI[t.priority]} P${t.priority}` : "– Prio"}
-                            </button>
-                            {priorityEditingFor === t.id && (
-                              <select
-                                className="df-assign__select"
-                                ref={openPickerOnMount}
-                                defaultValue={t.priority ?? ""}
-                                onBlur={() => setPriorityEditingFor(null)}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  setPriorityEditingFor(null);
-                                  if (value) void handlePriorityChange(t, Number(value));
-                                }}
-                              >
-                                <option value="">– Ingen –</option>
-                                {[1, 2, 3, 4].map((p) => (
-                                  <option key={p} value={p}>
-                                    {PRIORITY_EMOJI[p]} {PRIORITY_LABELS[p]}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
-                          </span>
-                          <span className="df-row__person">
-                            <button
-                              type="button"
-                              className="df-assign"
-                              onClick={() => setPickerFor(pickerFor === t.id ? null : t.id)}
-                              title="Välj testare"
-                              disabled={busyTaskId === t.id}
-                            >
-                              <PersonAvatar name={t.assignedTo} size={20} />
-                              <span className="test-board__person-copy">
-                                <small>Testare</small>
-                                <span className={"daily-flow__list-owner" + (t.assignedTo ? "" : " df-assign__empty")}>
-                                  {busyTaskId === t.id ? "Sparar…" : fullPersonName(t.assignedTo) || "Ej tilldelad"}
-                                </span>
-                              </span>
-                            </button>
-                            {pickerFor === t.id && (
-                              <select
-                                className="df-assign__select"
-                                ref={openPickerOnMount}
-                                defaultValue=""
-                                onBlur={() => setPickerFor(null)}
-                                onChange={(e) => {
-                                  const person = people.find((p) => p.email === e.target.value);
-                                  setPickerFor(null);
-                                  if (person) void handleAssign(t, person);
-                                }}
-                              >
-                                <option value="">– välj testare –</option>
-                                {people.map((p) => (
-                                  <option key={p.email} value={p.email}>
-                                    {p.displayName}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
-                          </span>
-                          <span
-                            className="df-row__person test-board__developer"
-                            title={"Huvudkortets utvecklare: " + (fullPersonName(t.storyDeveloper) || "Ej tilldelad")}
-                          >
-                            <PersonAvatar name={t.storyDeveloper} size={20} />
-                            <span className="test-board__person-copy">
-                              <small>Utvecklare</small>
-                              <span className={"daily-flow__list-owner" + (t.storyDeveloper ? "" : " df-assign__empty")}>
-                                {fullPersonName(t.storyDeveloper) || "Ej tilldelad"}
-                              </span>
+                            <option value="">– Ingen –</option>
+                            {[1, 2, 3, 4].map((p) => (
+                              <option key={p} value={p}>
+                                {PRIORITY_EMOJI[p]} {PRIORITY_LABELS[p]}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </span>
+                    );
+                    const testerControl = (
+                      <span className="df-row__person">
+                        <button
+                          type="button"
+                          className="df-assign"
+                          onClick={() => setPickerFor(pickerFor === t.id ? null : t.id)}
+                          title="Välj testare"
+                          disabled={busyTaskId === t.id}
+                        >
+                          <PersonAvatar name={t.assignedTo} size={20} />
+                          <span className="test-board__person-copy">
+                            <small>Testare</small>
+                            <span className={"daily-flow__list-owner" + (t.assignedTo ? "" : " df-assign__empty")}>
+                              {busyTaskId === t.id ? "Sparar…" : fullPersonName(t.assignedTo) || "Ej tilldelad"}
                             </span>
                           </span>
+                        </button>
+                        {pickerFor === t.id && (
+                          <select
+                            className="df-assign__select"
+                            ref={openPickerOnMount}
+                            defaultValue=""
+                            onBlur={() => setPickerFor(null)}
+                            onChange={(e) => {
+                              const person = people.find((p) => p.email === e.target.value);
+                              setPickerFor(null);
+                              if (person) void handleAssign(t, person);
+                            }}
+                          >
+                            <option value="">– välj testare –</option>
+                            {people.map((p) => (
+                              <option key={p.email} value={p.email}>
+                                {p.displayName}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </span>
+                    );
+                    const developerInfo = (
+                      <span
+                        className="df-row__person test-board__developer"
+                        title={"Huvudkortets utvecklare: " + (fullPersonName(t.storyDeveloper) || "Ej tilldelad")}
+                      >
+                        <PersonAvatar name={t.storyDeveloper} size={20} />
+                        <span className="test-board__person-copy">
+                          <small>Utvecklare</small>
+                          <span className={"daily-flow__list-owner" + (t.storyDeveloper ? "" : " df-assign__empty")}>
+                            {fullPersonName(t.storyDeveloper) || "Ej tilldelad"}
+                          </span>
+                        </span>
+                      </span>
+                    );
+                    // The two times are separate settings (BoardShell's ⚙️) - the cell stays even
+                    // when both are off, so the row layout's columns don't shift.
+                    const ageInfo = (
+                      <span className="test-board__times">
+                        {showTestStatusAge && (
                           <span className={`test-board__status-age test-board__status-age--${age.tone}`} title={age.title}>
                             <small>{bucket === "assignedNotStarted" ? "Sedan tilldelning" : "I statusen"}</small>
                             <strong>{age.text}</strong>
                           </span>
+                        )}
+                        {showTestLastChanged && changed && (
+                          <span className="test-board__status-age test-board__last-changed" title={changed.title}>
+                            <small>Ändrad</small>
+                            <strong>{changed.text === "Nyss" ? "nyss" : `${changed.text} sedan`}</strong>
+                          </span>
+                        )}
+                      </span>
+                    );
+                    const sprintTag = showSprintTags && t.sprintLabel && (
+                      <span className="test-board__sprint-tag" title={`Från ${t.sprintLabel}`}>
+                        {t.sprintLabel}
+                      </span>
+                    );
+                    const storyIcon = (
+                      <span className="test-board__story-icon" style={{ color: storyType.color }}>
+                        {storyType.icon}
+                      </span>
+                    );
+
+                    if (testCardLayout === "cards") {
+                      return (
+                        <li key={t.id} className={`test-card test-card--${tone}`}>
+                          <div className="test-card__head">
+                            <div className="test-card__head-row">
+                              {statusPill}
+                              {sprintTag}
+                              <span className="test-card__head-spacer" />
+                              {size && (
+                                <span className={`test-board__size test-board__size--${size.toLowerCase()}`} title="Storlek på testet">
+                                  {size}
+                                </span>
+                              )}
+                              {idButton}
+                            </div>
+                            <TestCardTitle title={t.title} onOpen={() => onOpenWorkItem(t.id)} />
+                          </div>
+                          <button
+                            type="button"
+                            className="test-card__parent"
+                            onClick={() => onOpenWorkItem(t.storyId)}
+                            title={`Öppna #${t.storyId} ${t.storyTitle}`}
+                          >
+                            {storyIcon}
+                            <span className="test-board__story-id">#{t.storyId}</span>
+                            <span className="test-card__parent-title">{t.storyTitle}</span>
+                          </button>
+                          <div className="test-card__people">
+                            {testerControl}
+                            {developerInfo}
+                          </div>
+                          <div className="test-card__foot">
+                            {priorityControl}
+                            {ageInfo}
+                          </div>
+                        </li>
+                      );
+                    }
+
+                    return (
+                      <li key={t.id}>
+                        <div className="df-row df-row--test">
+                          {statusPill}
+                          {idButton}
+                          {/* Always rendered, even with no size tag - it owns a fixed grid column
+                              (see .test-board .df-row--test), so leaving it out when empty would
+                              shift every column after it instead of just leaving blank space. */}
+                          <span
+                            className={`test-board__size${size ? ` test-board__size--${size.toLowerCase()}` : " test-board__size--empty"}`}
+                            title={size ? "Storlek på testet" : undefined}
+                          >
+                            {size ?? ""}
+                          </span>
+                          {priorityControl}
+                          {testerControl}
+                          {developerInfo}
+                          {ageInfo}
                           <span className="df-row__title" title={`${t.title} (${t.storyTitle})`}>
-                            {showSprintTags && t.sprintLabel && (
-                              <span className="test-board__sprint-tag" title={`Från ${t.sprintLabel}`}>
-                                {t.sprintLabel}
-                              </span>
-                            )}
+                            {sprintTag}
                             <span>{t.title}</span>
                             <button
                               type="button"
@@ -434,9 +603,7 @@ export function TestTaskBoard({
                               onClick={() => onOpenWorkItem(t.storyId)}
                               title={`Öppna #${t.storyId} ${t.storyTitle}`}
                             >
-                              <span className="test-board__story-icon" style={{ color: getWorkItemTypeConfig(t.storyType).color }}>
-                                {getWorkItemTypeConfig(t.storyType).icon}
-                              </span>
+                              {storyIcon}
                               <span className="test-board__story-id">#{t.storyId}</span> {t.storyTitle}
                             </button>
                           </span>

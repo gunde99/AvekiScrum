@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using AvekiScrum.Application.Abstractions;
+using AvekiScrum.Application.Abstractions.Repositories;
 using AvekiScrum.Application.Configuration;
 using AvekiScrum.Application.Helpers;
 using AvekiScrum.Application.Models.DTOs;
@@ -34,6 +35,7 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
         private readonly IMediator _mediator;
         private readonly IConfiguration _configuration;
         private readonly AzureSettings _settings;
+        private readonly ISprintGoalsWikiUrlStore _sprintGoalsWikiUrlStore;
 
         public AzureDevOpsService(
             IAzureDevOpsGitClient git,
@@ -45,7 +47,8 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             IMediator mediator,
             ILogger<AzureDevOpsService> logger,
             IConfiguration configuration,
-            IOptions<AzureSettings> settings)
+            IOptions<AzureSettings> settings,
+            ISprintGoalsWikiUrlStore sprintGoalsWikiUrlStore)
         {
             _git = git;
             _boards = boards;
@@ -57,6 +60,7 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
             _logger = logger;
             _configuration = configuration;
             _settings = settings.Value;
+            _sprintGoalsWikiUrlStore = sprintGoalsWikiUrlStore;
         }
 
         // -------------------- TEAM --------------------
@@ -872,7 +876,11 @@ namespace AvekiScrum.Infrastructure.AzureDevOps
 
         public async Task<IReadOnlyList<PlanningSprintGoal>> GetSprintGoalsAsync(DeveloperTeam team, CancellationToken ct = default)
         {
-            var wikiUrl = _configuration[$"PlanningBoard:SprintGoalsWikiUrls:{team}"];
+            // The wiki page changes every sprint - an override saved from the app (see
+            // ISprintGoalsWikiUrlStore) wins over the appsettings.json default, so repointing it
+            // doesn't need a config edit and restart each time.
+            var wikiUrl = await _sprintGoalsWikiUrlStore.GetOverrideAsync(team, ct)
+                ?? _configuration[$"PlanningBoard:SprintGoalsWikiUrls:{team}"];
             if (string.IsNullOrWhiteSpace(wikiUrl))
                 return Array.Empty<PlanningSprintGoal>();
 

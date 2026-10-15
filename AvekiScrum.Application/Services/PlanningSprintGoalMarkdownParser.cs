@@ -75,15 +75,31 @@ namespace AvekiScrum.Application.Services
                 return Array.Empty<PlanningSprintGoal>();
 
             var section = FindSection(markdown, TeamHeadings(team));
-            if (section == null)
-                return Array.Empty<PlanningSprintGoal>();
 
             if (team == DeveloperTeam.Nord)
             {
-                var htmlGoals = ParseNordHtmlTable(section, out var foundNordTable);
-                if (foundNordTable)
-                    return htmlGoals;
+                if (section != null)
+                {
+                    var htmlGoals = ParseNordHtmlTable(section, out var foundNordTable);
+                    if (foundNordTable)
+                        return htmlGoals;
+                }
+                else
+                {
+                    // The "myCarta" heading can be lost without anyone noticing: Azure DevOps' wiki
+                    // editor turns "#myCarta" into a work item mention as you type ("#46682", a
+                    // Test Case titled "myCarta WebMap - ..."), which still *renders* as a heading
+                    // starting with "myCarta" - so the page looks right while the anchor is gone.
+                    // Nord's Nr/Epic/Mål/Beskrivning/Work Item table is unique to Nord, so it is a
+                    // safe second anchor on its own.
+                    var htmlGoals = ParseNordHtmlTable(markdown, out var foundNordTable);
+                    if (foundNordTable)
+                        return htmlGoals;
+                }
             }
+
+            if (section == null)
+                return Array.Empty<PlanningSprintGoal>();
 
             return ParseTable(section, team);
         }
@@ -107,9 +123,11 @@ namespace AvekiScrum.Application.Services
             var headings = DocumentHeadingPattern.Matches(existing)
                 .Cast<Match>()
                 .ToArray();
+            // Same StartsWith relaxation as FindSection - a heading with a PO-added suffix
+            // ("myCarta - under arbete") still needs to be found as the existing section to
+            // replace, not treated as missing and duplicated.
             var targetIndex = Array.FindIndex(headings, match =>
-                headingsForTeam.Any(heading => string.Equals(
-                    CleanCell(match.Groups["title"].Value),
+                headingsForTeam.Any(heading => CleanCell(match.Groups["title"].Value).StartsWith(
                     heading,
                     StringComparison.OrdinalIgnoreCase)));
 
@@ -161,8 +179,12 @@ namespace AvekiScrum.Application.Services
                     if (!found)
                     {
                         var title = CleanCell(match.Groups["title"].Value);
-                        found = headings.Any(heading => string.Equals(
-                            title,
+                        // StartsWith, not exact equality: the PO periodically appends a status
+                        // suffix to the heading itself (e.g. "myCarta" -> "myCarta - under
+                        // arbete"), which an exact match would silently stop finding entirely -
+                        // exactly what broke Team Nord's sprint goals. The configured heading is
+                        // still the stable anchor; anything appended after it is just commentary.
+                        found = headings.Any(heading => title.StartsWith(
                             heading,
                             StringComparison.OrdinalIgnoreCase));
                         if (found)

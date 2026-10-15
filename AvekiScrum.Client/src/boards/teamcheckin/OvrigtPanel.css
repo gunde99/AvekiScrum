@@ -1,0 +1,14 @@
+.tcb-ovrigt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  padding: var(--space-6);
+}
+
+.tcb-ovrigt__photo {
+  max-width: 420px;
+  width: 100%;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}

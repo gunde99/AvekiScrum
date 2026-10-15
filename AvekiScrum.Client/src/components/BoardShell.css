@@ -143,6 +143,28 @@
   transform: scale(1.05);
 }
 
+/* Deliberately quieter than the theme toggle next to it - no border, dimmed until hovered - so it
+   reads as a minor utility, not a fifth nav tab. */
+.board-shell__settings-gear {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.95rem;
+  opacity: 0.55;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.board-shell__settings-gear:hover {
+  opacity: 1;
+  background: var(--color-bg-subtle);
+}
+
 .board-shell__content {
   flex: 1;
   padding: var(--space-5) var(--space-6);

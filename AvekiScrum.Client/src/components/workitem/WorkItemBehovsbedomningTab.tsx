@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { confirmDialog } from "../ConfirmDialog";
 import {
   createHelptextStory,
   createWorkItemTasks,
@@ -76,7 +77,14 @@ export function WorkItemBehovsbedomningTab({ detail, onUpdated, onOkChange, deci
   /** Switches an already-created category back to "behövs ej" by deleting its card. Azure keeps
    *  it in the recycle bin, so this is recoverable. */
   async function removeNow(category: NeedCategory, existing: WorkItemRelationRef) {
-    if (!window.confirm(`Ta bort #${existing.id} "${existing.title}"?\n\nKortet hamnar i papperskorgen i Azure DevOps och går att återställa där.`))
+    if (
+      !(await confirmDialog({
+        title: `Ta bort #${existing.id}?`,
+        message: `"${existing.title}" hamnar i papperskorgen i Azure DevOps och går att återställa där.`,
+        confirmText: "Ta bort",
+        danger: true,
+      }))
+    )
       return;
     setBusyRow(category.key);
     setError(null);

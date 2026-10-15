@@ -37,6 +37,28 @@ export interface SprintGoal {
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:5273";
 
+/** The sprint-goals wiki page changes every sprint - lets it be repointed from the app itself
+ *  instead of editing appsettings.json and restarting the Api. See ScrumMasterView's inline editor. */
+export async function fetchSprintGoalsWikiUrl(team: DeveloperTeamId, signal?: AbortSignal): Promise<string> {
+  const response = await apiFetch(`${API_BASE_URL}/api/sprint-goals/wiki-url?team=${team}`, { signal });
+  if (!response.ok) {
+    throw new Error(`Failed to load sprint goals wiki url for team ${team}: HTTP ${response.status}`);
+  }
+  const body = (await response.json()) as { url: string };
+  return body.url;
+}
+
+export async function setSprintGoalsWikiUrl(team: DeveloperTeamId, url: string): Promise<void> {
+  const response = await apiFetch(`${API_BASE_URL}/api/sprint-goals/wiki-url`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ team, url }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to save sprint goals wiki url for team ${team}: HTTP ${response.status}`);
+  }
+}
+
 export async function fetchSprintGoals(team: DeveloperTeamId, signal?: AbortSignal): Promise<SprintGoal[]> {
   const response = await apiFetch(`${API_BASE_URL}/api/sprint-goals?team=${team}`, { signal });
   if (!response.ok) {

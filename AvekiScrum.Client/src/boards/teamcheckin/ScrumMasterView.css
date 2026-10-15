@@ -1,0 +1,176 @@
+.tcb-sm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.tcb-sm__hint {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+.tcb-sm__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.tcb-sm__team-toggle {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.tcb-sm__wikiurl {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+  font-size: 0.8rem;
+}
+
+.tcb-sm__wikiurl-label {
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.tcb-sm__wikiurl-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.tcb-sm__wikiurl-input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.8rem;
+}
+
+.tcb-sm__goals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.tcb-sm__goal {
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-top: 3px solid var(--aveki-orange);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.tcb-sm__goal-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  padding-bottom: var(--space-2);
+  margin-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tcb-sm__goal-desc {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-muted);
+  font-size: 0.92rem;
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.tcb-sm__goal-meta {
+  display: flex;
+  gap: var(--space-3);
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-2);
+}
+
+.tcb-sm__goal-section {
+  margin-top: var(--space-3);
+}
+
+.tcb-sm__goal-section-title {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--aveki-orange);
+  margin-bottom: var(--space-2);
+}
+
+.tcb-sm__checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.85rem;
+}
+
+.tcb-sm__checklist li {
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-sm);
+  transition: background-color 0.12s ease;
+}
+
+.tcb-sm__checklist li:hover {
+  background: color-mix(in srgb, var(--aveki-orange) 14%, transparent);
+}
+
+.tcb-sm__checklist-done {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+.tcb-sm__subgoals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.tcb-sm__subgoal {
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  cursor: default;
+}
+
+.tcb-sm__subgoal:hover {
+  background: color-mix(in srgb, var(--aveki-orange) 16%, var(--color-bg-subtle));
+  border-left-color: var(--aveki-orange);
+}
+
+.tcb-sm__subgoal-title {
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.tcb-sm__subgoal-desc {
+  margin: 3px 0 0;
+  font-size: 0.83rem;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.tcb-sm__cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}

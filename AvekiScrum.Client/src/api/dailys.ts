@@ -27,6 +27,12 @@ export interface DailyTaskDto {
    *  an assigned-but-not-started test task, where what matters is how long it's sat with someone
    *  rather than how long since its Azure state last changed. */
   assignedDate: string | null;
+  /** From the test task's history (test tasks only - optional, since a person-scoped refresh
+   *  skips the history calls): when Blocked last went Yes, when it last went back to No, and the
+   *  latest revision of any kind. */
+  blockedDate?: string | null;
+  unblockedDate?: string | null;
+  changedDate?: string | null;
   webUrl: string;
 }
 
@@ -212,6 +218,44 @@ export async function saveDailyCheckIns(request: {
   if (!response.ok) {
     throw new Error(await describeFailure(response, "Kunde inte spara incheckningssiffrorna"));
   }
+}
+
+/** What happened to one already-on-the-board card after the sprint-inflow cutoff - see
+ *  /api/dailys/sprint-inflow-changes. A card can carry either signal, both, or (if it's absent from
+ *  the response entirely) neither - the fields of whichever signal didn't fire are all null. */
+export interface SprintInflowChangeDto {
+  id: number;
+  /** The iteration path it moved out of, if `movedIntoSprintAt` is set. */
+  movedFrom: string | null;
+  /** Set when the card's IterationPath was changed into the current sprint after the cutoff - i.e.
+   *  it arrived by being moved in from elsewhere, not by being created in this sprint. */
+  movedIntoSprintAt: string | null;
+  oldStoryPoints: number | null;
+  newStoryPoints: number | null;
+  spChangedAt: string | null;
+}
+
+/** Checks which of the given (already-on-the-board) cards were moved into `currentIterationPath`
+ *  and/or had their Story Points changed, after `cutoffUtc` - used to build the Dailys board's
+ *  sprint-inflow groups ("Nytillkomna kort"/"Story points ändrade"). Walks each card's Azure DevOps
+ *  revision history server-side, so it's loaded in the background, not on initial render. */
+export async function fetchSprintInflowChanges(
+  storyIds: number[],
+  cutoffUtc: string,
+  currentIterationPath: string,
+  signal?: AbortSignal,
+): Promise<SprintInflowChangeDto[]> {
+  if (storyIds.length === 0) return [];
+  const response = await apiFetch(`${API_BASE_URL}/api/dailys/sprint-inflow-changes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ storyIds, cutoffUtc, currentIterationPath }),
+    signal,
+  });
+  if (!response.ok) {
+    throw new Error(await describeFailure(response, "Kunde inte hämta sprintinflödet"));
+  }
+  return (await response.json()) as SprintInflowChangeDto[];
 }
 
 /** The sprints the picker offers: the release the sprint at `around` belongs to, plus the release

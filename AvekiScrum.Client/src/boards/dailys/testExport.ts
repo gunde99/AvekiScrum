@@ -153,7 +153,7 @@ export async function buildTestBoardExportHtml(rows: TestTaskRow[], options: Tes
           rowIndex++;
           const bucket = classifyTestStatus(t);
           const verdict = testResultFromTags(t.tags);
-          const age = statusAge(ageSourceDate(t, bucket), ageChangeLabel(bucket));
+          const age = statusAge(ageSourceDate(t, bucket), ageChangeLabel(t, bucket));
           const badgeText = verdict === "notok" ? "Test ej OK" : verdict === "ok" ? "Test OK" : t.status || "Ny";
           const priorityHtml = t.priority
             ? `<span class="prio prio--p${t.priority}" title="${escapeHtml(PRIORITY_LABELS[t.priority] ?? "")}">${PRIORITY_EMOJI[t.priority]} P${t.priority}</span>`

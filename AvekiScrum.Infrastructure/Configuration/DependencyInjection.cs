@@ -36,6 +36,13 @@ namespace AvekiScrum.Infrastructure.Configuration
             services.AddSingleton<ITeamRoleProvider, TeamRoleProvider>();
             // Singleton: it only guards its own per-team file locks, no per-request state.
             services.AddSingleton<IDailyCheckInRepository, JsonFileDailyCheckInRepository>();
+            services.AddSingleton<ITalkingPointRepository, JsonFileTalkingPointRepository>();
+            services.AddSingleton<IMeetingInfluencerRepository, JsonFileMeetingInfluencerRepository>();
+            services.AddSingleton<IUpgradeCheckoutRepository, JsonFileUpgradeCheckoutRepository>();
+            // Its own typed client (not AzureDevOpsRestClient) - see WikiGitClient for why.
+            services.AddHttpClient<IWikiGitClient, WikiGitClient>()
+                .AddHttpMessageHandler<AzureDevOpsAuthHandler>();
+            services.AddSingleton<ISprintGoalsWikiUrlStore, JsonFileSprintGoalsWikiUrlStore>();
 
             // Default credential. AvekiScrum.Api replaces this with the delegated one when
             // Auth:Mode is "Entra".
