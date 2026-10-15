@@ -250,18 +250,35 @@ ul.test-board__task-list {
   overflow-y: visible;
 }
 
+/* One category open at a time (see openGroupKey in TestTaskBoard.tsx). The open one gets a
+   background that runs from its header down behind all of its cards, so it reads as one block, and
+   a stronger header - the closed ones stay quiet, but answer hover with the same background. */
 .test-board__group-section {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  border-radius: var(--radius-md);
+  transition: background-color 0.15s ease;
+}
+
+.test-board__group-section--open {
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+  background: color-mix(in srgb, var(--color-primary) 7%, var(--color-bg-subtle));
+  box-shadow: inset 3px 0 0 var(--color-primary);
+}
+
+.test-board__group-section--open > ul {
+  padding: 0 var(--space-3);
 }
 
 .test-board__group-header {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-1) 0;
+  padding: var(--space-2) var(--space-3);
   border: none;
+  border-radius: var(--radius-md);
   background: none;
   color: var(--color-text-muted);
   font-size: 0.75rem;
@@ -270,6 +287,32 @@ ul.test-board__task-list {
   letter-spacing: 0.02em;
   cursor: pointer;
   text-align: left;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.test-board__group-header:hover {
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-bg-subtle));
+  color: var(--color-text);
+}
+
+.test-board__group-section--open > .test-board__group-header {
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: var(--color-text);
+}
+
+.test-board__group-section--open > .test-board__group-header:hover {
+  background: none;
+}
+
+.test-board__group-section--open .test-board__chevron {
+  color: var(--color-primary);
+}
+
+.test-board__group-header:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
 }
 
 .test-board__chevron {
@@ -447,4 +490,175 @@ ul.test-board__task-list {
     padding-top: var(--space-1);
     border-top: 1px solid var(--color-border);
   }
+}
+
+/* ─── Card layout (board setting "Kort med rubrik") ──────────────────────────────────────────
+   The row layout puts the title last because its length varies, which is also why it is hard to
+   read at a glance. Here the title leads: each card is framed by its status colour, the header
+   holds what the test is about, and who/how-long sits underneath - what a team scanning the board
+   in a daily needs first. Built from the same pieces as the rows (see TestTaskBoard.tsx). */
+.test-board__card-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-3);
+}
+
+.test-card {
+  --test-card-tone: var(--color-border);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--test-card-tone);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  font-size: 0.82rem;
+  overflow: hidden;
+}
+
+.test-card--ok { --test-card-tone: var(--color-success); }
+.test-card--notok { --test-card-tone: var(--color-danger); }
+.test-card--blocked { --test-card-tone: var(--aveki-yellow); }
+.test-card--inprogress { --test-card-tone: var(--color-info); }
+
+.test-card__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3) var(--space-2);
+  background: color-mix(in srgb, var(--test-card-tone) 16%, var(--color-bg));
+  border-bottom: 1px solid color-mix(in srgb, var(--test-card-tone) 45%, transparent);
+}
+
+.test-card__head-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.test-card__head-spacer {
+  flex: 1;
+}
+
+/* One line by default, so every header in a row is the same height; a longer title is clipped and
+   followed by a clickable "…" that unfolds it (see TestCardTitle.tsx). */
+.test-card__title-row {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.test-card__title {
+  flex: 0 1 auto;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+.test-card__title-row--expanded .test-card__title {
+  white-space: normal;
+}
+
+.test-card__more {
+  flex: none;
+  margin-left: 1px;
+  padding: 0 var(--space-1);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--color-primary);
+  cursor: pointer;
+}
+
+.test-card__more:hover {
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+}
+
+.test-card__title:hover {
+  text-decoration: underline;
+}
+
+.test-card__parent {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-2) var(--space-3) 0;
+  background: none;
+  border: none;
+  font: inherit;
+  color: var(--color-text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.test-card__parent:hover .test-card__parent-title {
+  text-decoration: underline;
+}
+
+.test-card__parent-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.test-card__people {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+.test-card__foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px dashed var(--color-border);
+}
+
+.test-board__times {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* "When did anything last happen" - context, not a warning, so it never takes the aging colours
+   "I statusen" uses. */
+.test-board__last-changed strong {
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.test-card__foot .test-board__times {
+  align-items: flex-end;
+}
+
+.test-card__foot .test-board__status-age {
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--space-1);
 }

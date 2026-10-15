@@ -577,8 +577,6 @@ export function collectReviewTargets(stories: DailyStoryDto[]): ReviewTarget[] {
 }
 
 // ─── "Stale closed" (settled work that no longer needs daily airtime) ─────
-/** A card closed this many working days ago or fewer still shows on the board. */
-export const CLOSED_STALE_WORKING_DAYS = 2;
 
 function parseLocalDate(iso: string): Date | null {
   // Deliberately not `new Date(iso)`: a bare "2026-08-17" is parsed as UTC midnight, which lands
@@ -607,15 +605,18 @@ export function workingDaysSince(iso: string | null | undefined, now: Date = new
 
 /**
  * True for cards that have been closed long enough that the team has already seen them go by in
- * a daily or two. Weekends don't count, so a Friday close is still fresh on Tuesday.
+ * a daily or two. Weekends don't count, so with the default of one working day a Thursday close is
+ * still there for Friday's daily and gone by Monday's (the limit is a board setting).
  */
-export function isStaleClosed(story: DailyStoryDto, now: Date = new Date()): boolean {
+export function isStaleClosed(story: DailyStoryDto, staleAfterWorkingDays: number, now: Date = new Date()): boolean {
   const status = (story.azureStatus || "").toLowerCase();
   if (status !== "closed" && status !== "done") return false;
-  const days = workingDaysSince(story.completedDate, now);
+  // No ClosedDate (and no done tasks to fall back on server-side): the newest change on the card is
+  // the latest it can have been closed, so it never hides a card earlier than it should.
+  const days = workingDaysSince(story.completedDate ?? story.lastChangedDate, now);
   // Undatable close - keep it visible rather than hiding something we can't reason about.
   if (days === null) return false;
-  return days > CLOSED_STALE_WORKING_DAYS;
+  return days > staleAfterWorkingDays;
 }
 
 export function fmtDate(iso: string | null | undefined): string {
@@ -689,7 +690,7 @@ export const UNASSIGNED_GROUP_LABEL = "Ej tilldelad";
 /** The 4 Utvecklingsflöde kanban lanes a dev task can be dragged between. */
 export type FlowLaneStage = "New" | "Active" | "Resolved" | "Done";
 
-export type DevRoleBucket = "owner" | "partner" | "involved" | "tester";
+export type DevRoleBucket = "owner" | "reviewActive" | "reviewNotStarted" | "reviewDone" | "involved" | "tester";
 
 export interface DevRoleSubGroup {
   key: DevRoleBucket;
@@ -786,12 +787,20 @@ export function applyPersonRefresh(
 
 const DEV_ROLE_BUCKET_LABELS: Record<DevRoleBucket, string> = {
   owner: "Huvudansvarig",
-  partner: "Development Partner",
+  reviewActive: "Development Partner – kodgranskning pågår",
+  reviewNotStarted: "Development Partner – kodgranskning ej påbörjad",
+  reviewDone: "Development Partner – kodgranskning klar",
   involved: "Inblandad i utvecklingen",
   tester: "Testare",
 };
 
-const DEV_ROLE_BUCKET_ORDER: DevRoleBucket[] = ["owner", "partner", "involved", "tester"];
+// Ongoing review before not-yet-started: what someone is reviewing right now is what a daily wants
+// to hear about first, and a finished review is the least there is left to say.
+const DEV_ROLE_BUCKET_ORDER: DevRoleBucket[] = ["owner", "reviewActive", "reviewNotStarted", "reviewDone", "involved", "tester"];
+
+function isPullRequestAbandoned(pr: DailyPullRequestDto): boolean {
+  return (pr.status || "").toLowerCase() === "abandoned";
+}
 
 /** Priority-ordered: a story only lands in the first bucket it matches, so someone who's both the
  *  owner and has a test task on their own card just shows up once, under "Huvudansvarig". */
@@ -799,8 +808,13 @@ function classifyDevRole(s: DailyStoryDto, dev: string): DevRoleBucket | null {
   if (samePerson(s.developer, dev)) return "owner";
 
   const isPartner = samePerson(s.developmentPartner, dev);
-  const isReviewer = (s.pullRequests || []).some((pr) => (pr.reviewers || []).some((r) => samePerson(r, dev)));
-  if (isPartner || isReviewer) return "partner";
+  const reviewerPrs = (s.pullRequests || []).filter((pr) => (pr.reviewers || []).some((r) => samePerson(r, dev)));
+  // An abandoned PR was never reviewed to the end and isn't waiting on anyone - it says nothing
+  // about where the review stands, so it's left out (a replacement PR, if any, is what counts).
+  const livePrs = reviewerPrs.filter((pr) => !isPullRequestAbandoned(pr));
+  if (livePrs.length > 0) return livePrs.every(isPullRequestDone) ? "reviewDone" : "reviewActive";
+  // Development Partner on the card (or only on abandoned PRs), but no review under way yet.
+  if (isPartner || reviewerPrs.length > 0) return "reviewNotStarted";
 
   const tasks = (s.tasks || []).filter((t) => samePerson(t.assignedTo, dev));
   if (tasks.some(isDevelopmentTask)) return "involved";
@@ -906,7 +920,9 @@ export function buildGroups(stories: DailyStoryDto[], mode: GroupMode, developer
 
     const bucketed: Record<DevRoleBucket, (DailyStoryDto & { roleText?: string })[]> = {
       owner: [],
-      partner: [],
+      reviewActive: [],
+      reviewNotStarted: [],
+      reviewDone: [],
       involved: [],
       tester: [],
     };

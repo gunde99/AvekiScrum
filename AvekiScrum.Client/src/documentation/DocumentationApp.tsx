@@ -2,14 +2,31 @@ import { useState } from "react";
 import { AppShell } from "../components/AppShell";
 import { DocumentationList } from "./DocumentationList";
 import { HelpTextSideBySide } from "./HelpTextSideBySide";
+import { UpgradeView } from "./upgrade/UpgradeView";
 import type { DocumentationHelpTextTask } from "../api/documentation";
 
-type DocumentationView = "konsult" | "dokumentator";
+type DocumentationView = "konsult" | "dokumentator" | "uppgradering";
 
 const NAV = [
   { id: "konsult", label: "Konsult" },
   { id: "dokumentator", label: "Dokumentatör" },
+  { id: "uppgradering", label: "Uppgradering" },
 ];
+
+const HEADINGS: Record<DocumentationView, { title: string; subtitle: string }> = {
+  konsult: {
+    title: "Hjälptexter att skriva",
+    subtitle: "Hjälptextkort som väntar på text - öppna ett för att skriva, med källkortet bredvid. Stäng kortet (sätt State till Closed) när texten är klar.",
+  },
+  dokumentator: {
+    title: "Hjälptexter att granska",
+    subtitle: "Hjälptextkort en konsult har stängt - redo att föras in i dokumentationssystemet.",
+  },
+  uppgradering: {
+    title: "Uppgraderingar - VA-banken",
+    subtitle: "Ta fram en kunds uppgraderingsdokument ur wikin och jobba med det antingen online eller offline. Dokumentet är redigerbart i båda lägena.",
+  },
+};
 
 interface DocumentationAppProps {
   onHome: () => void;
@@ -46,14 +63,12 @@ export function DocumentationApp({ onHome }: DocumentationAppProps) {
       activeId={view}
       onNavigate={(id) => setView(id as DocumentationView)}
       onHome={onHome}
-      title={view === "konsult" ? "Hjälptexter att skriva" : "Hjälptexter att granska"}
-      subtitle={
-        view === "konsult"
-          ? "Hjälptextkort som väntar på text - öppna ett för att skriva, med källkortet bredvid. Stäng kortet (sätt State till Closed) när texten är klar."
-          : "Hjälptextkort en konsult har stängt - redo att föras in i dokumentationssystemet."
-      }
+      title={HEADINGS[view].title}
+      subtitle={HEADINGS[view].subtitle}
     >
-      {view === "konsult" ? (
+      {view === "uppgradering" ? (
+        <UpgradeView />
+      ) : view === "konsult" ? (
         <DocumentationList
           onOpen={openTask}
           defaultScope="mine"

@@ -23,6 +23,7 @@ import { ReviewCard } from "./ReviewCard";
 import { ReviewPanelCard } from "./ReviewPanelCard";
 import { ReviewPreviewModal } from "./ReviewPreviewModal";
 import { groupByDeveloper, groupByStatus, laneOf, REVIEW_LANES, tagsForLane, type ReviewLane, type ReviewLaneKey } from "./reviewLogic";
+import { useBoardSettings } from "../../settings/boardSettings";
 import "./ReviewBoard.css";
 
 /**
@@ -55,6 +56,8 @@ export function ReviewBoard({ onNavigate, onHome, team, onTeamChange }: ReviewBo
   const [selectedSources, setSelectedSources] = useState<Set<string> | null>(null);
   const [tagFilters, setTagFilters] = useState<Map<string, TagFilterState>>(new Map());
   const [hideStaleClosed, setHideStaleClosed] = useState(false);
+  // Review's own filter, but it shares the "how long ago is long-closed" limit with Dailys.
+  const { staleClosedWorkingDays } = useBoardSettings();
   const [selectedTypes, setSelectedTypes] = useState<Set<WorkItemTypeKey>>(new Set(["story", "bug"]));
   const [testFilters, setTestFilters] = useState<Set<TestFilterKey>>(new Set());
   const [developerRoster, setDeveloperRoster] = useState<string[]>([]);
@@ -135,7 +138,7 @@ export function ReviewBoard({ onNavigate, onHome, team, onTeamChange }: ReviewBo
       if (s.ownedByProductOwner) return false;
       if (!activeStatuses.has(s.azureStatus)) return false;
       if (s.source && !activeSources.has(s.source)) return false;
-      if (hideStaleClosed && isStaleClosed(s)) return false;
+      if (hideStaleClosed && isStaleClosed(s, staleClosedWorkingDays)) return false;
       const typeKey: WorkItemTypeKey = s.type === "Bug" ? "bug" : "story";
       if (!selectedTypes.has(typeKey)) return false;
       if (testFilters.size > 0 && ![...testFilters].some((k) => matchesTestFilter(s, k))) return false;
@@ -145,7 +148,7 @@ export function ReviewBoard({ onNavigate, onHome, team, onTeamChange }: ReviewBo
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stories, searchText, selectedStatuses, selectedSources, tagFilters, hideStaleClosed, selectedTypes, testFilters]);
+  }, [stories, searchText, selectedStatuses, selectedSources, tagFilters, hideStaleClosed, staleClosedWorkingDays, selectedTypes, testFilters]);
 
   /** Cards still waiting for a decision - the ones the meeting prep is actually about. */
   const untagged = useMemo(() => filtered.filter((s) => laneOf(s) === null), [filtered]);
@@ -356,7 +359,8 @@ export function ReviewBoard({ onNavigate, onHome, team, onTeamChange }: ReviewBo
             onClearTags={() => setTagFilters(new Map())}
             hideStaleClosed={hideStaleClosed}
             onToggleStaleClosed={() => setHideStaleClosed((v) => !v)}
-            staleClosedCount={stories.filter((s) => !s.ownedByProductOwner && isStaleClosed(s)).length}
+            staleClosedCount={stories.filter((s) => !s.ownedByProductOwner && isStaleClosed(s, staleClosedWorkingDays)).length}
+            staleClosedWorkingDays={staleClosedWorkingDays}
             selectedTypes={selectedTypes}
             onToggleType={(type) =>
               setSelectedTypes((prev) => {

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { CLOSED_STALE_WORKING_DAYS, TEST_FILTER_LABELS, type TestFilterKey } from "./dailysLogic";
+import { TEST_FILTER_LABELS, type TestFilterKey } from "./dailysLogic";
 import "./FilterPanel.css";
 
 export type WorkItemTypeKey = "story" | "bug";
@@ -31,9 +31,13 @@ interface FilterPanelProps {
   tagFilters: Map<string, TagFilterState>;
   onCycleTag: (tag: string) => void;
   onClearTags: () => void;
-  hideStaleClosed: boolean;
-  onToggleStaleClosed: () => void;
-  staleClosedCount: number;
+  /** Opt-in: only the Review board passes these. On Dailys the same rule is a setting (BoardShell's
+   *  ⚙️ - see settings/boardSettings.ts), since it decides what the daily flow walks through rather
+   *  than narrowing what you're looking at right now. */
+  hideStaleClosed?: boolean;
+  onToggleStaleClosed?: () => void;
+  staleClosedCount?: number;
+  staleClosedWorkingDays?: number;
   selectedTypes: Set<WorkItemTypeKey>;
   onToggleType: (type: WorkItemTypeKey) => void;
   testFilters: Set<TestFilterKey>;
@@ -61,6 +65,7 @@ export function FilterPanel({
   hideStaleClosed,
   onToggleStaleClosed,
   staleClosedCount,
+  staleClosedWorkingDays,
   selectedTypes,
   onToggleType,
   testFilters,
@@ -174,15 +179,17 @@ export function FilterPanel({
         ))}
       </FilterGroup>
 
-      <FilterGroup label="Stängda kort" hint="Gäller bara daily-flödet - listan och statistiken ovan påverkas inte">
-        <label className="filter-panel__stale">
-          <input type="checkbox" checked={hideStaleClosed} onChange={onToggleStaleClosed} />
-          <span>
-            Uteslut ur daily-flödet: kort stängda mer än {CLOSED_STALE_WORKING_DAYS} arbetsdagar
-            {staleClosedCount > 0 && <span className="filter-panel__stale-count"> ({staleClosedCount} st)</span>}
-          </span>
-        </label>
-      </FilterGroup>
+      {onToggleStaleClosed && (
+        <FilterGroup label="Stängda kort">
+          <label className="filter-panel__stale">
+            <input type="checkbox" checked={!!hideStaleClosed} onChange={onToggleStaleClosed} />
+            <span>
+              Dölj kort stängda mer än {staleClosedWorkingDays} arbetsdag{staleClosedWorkingDays === 1 ? "" : "ar"}
+              {!!staleClosedCount && <span className="filter-panel__stale-count"> ({staleClosedCount} st)</span>}
+            </span>
+          </label>
+        </FilterGroup>
+      )}
 
       {tags.length > 0 && (
         <FilterGroup

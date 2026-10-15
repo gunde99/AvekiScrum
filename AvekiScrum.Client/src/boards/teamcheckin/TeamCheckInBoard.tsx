@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BoardShell } from "../../components/BoardShell";
 import { useToast } from "../../components/Toast";
-import { AGENDA, type AgendaStep } from "./agenda";
+import { buildAgenda, type AgendaStep, type AgendaStepId } from "./agenda";
 import { StepTransitionModal } from "./StepTransitionModal";
 import { EndMeetingModal } from "./EndMeetingModal";
 import { PlannerPanel } from "./PlannerPanel";
@@ -9,6 +9,11 @@ import { RolePlaceholderPanel } from "./RolePlaceholderPanel";
 import { OvrigtPanel } from "./OvrigtPanel";
 import { ScrumMasterView } from "./ScrumMasterView";
 import { ReleaseTestView } from "./ReleaseTestView";
+import { InfluencerLotteryPanel } from "./InfluencerLotteryPanel";
+import { TodaysInfluencersPanel } from "./TodaysInfluencersPanel";
+import { todayIso } from "./influencers";
+import { fetchMeetingInfluencers, type MeetingInfluencerDto } from "../../api/teamCheckIn";
+import { ensureAudio, playTone } from "./meetingAudio";
 import "./TeamCheckInBoard.css";
 
 // 60 minutes is a starting guess for how long a Teamavstämning actually runs - retune this one
@@ -17,42 +22,6 @@ import "./TeamCheckInBoard.css";
 const TOTAL_SECONDS = 60 * 60;
 const QUARTER_LEFT_SECONDS = 15 * 60;
 const FIVE_LEFT_SECONDS = 5 * 60;
-
-// Tones via the Web Audio API rather than shipped sound files - same approach as DailyFlow.tsx's
-// own timer, duplicated rather than shared since the two boards' timers otherwise have nothing in
-// common (this one is a flat countdown with no per-turn budget).
-let audioCtx: AudioContext | null = null;
-
-function ensureAudio(): AudioContext | null {
-  const AudioCtor = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!AudioCtor) return null;
-  if (!audioCtx) {
-    try {
-      audioCtx = new AudioCtor();
-    } catch {
-      audioCtx = null;
-    }
-  } else if (audioCtx.state === "suspended") {
-    void audioCtx.resume();
-  }
-  return audioCtx;
-}
-
-function playTone(freq: number, durMs: number, delayMs = 0) {
-  const ctx = ensureAudio();
-  if (!ctx) return;
-  const start = ctx.currentTime + delayMs / 1000;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = "sine";
-  osc.frequency.value = freq;
-  gain.gain.setValueAtTime(0.0001, start);
-  gain.gain.linearRampToValueAtTime(0.16, start + 0.02);
-  gain.gain.exponentialRampToValueAtTime(0.0001, start + durMs / 1000);
-  osc.connect(gain).connect(ctx.destination);
-  osc.start(start);
-  osc.stop(start + durMs / 1000 + 0.05);
-}
 
 function playQuarterLeftSignal() {
   playTone(880, 220);
@@ -69,8 +38,16 @@ function formatClock(totalSeconds: number): string {
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
-function renderPanel(step: AgendaStep) {
+function renderPanel(
+  step: AgendaStep,
+  todaysInfluencers: MeetingInfluencerDto[],
+  onInfluencersChanged: (meetingDate: string, influencers: MeetingInfluencerDto[]) => void,
+) {
   switch (step.id) {
+    case "veckans-influencers":
+      return <TodaysInfluencersPanel influencers={todaysInfluencers} />;
+    case "nasta-influencer":
+      return <InfluencerLotteryPanel onChanged={onInfluencersChanged} />;
     case "aktivitetsboarden":
       return <PlannerPanel />;
     case "scrum-master":
@@ -92,6 +69,12 @@ function isTypingTarget(el: Element | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (el as HTMLElement).isContentEditable;
 }
 
+/** A full-screen dialog (the influencer lottery's reel, say) owns the keyboard while it's open -
+ *  an arrow key must not swap the agenda step out from under it. */
+function isDialogOpen(): boolean {
+  return document.querySelector('[aria-modal="true"]') !== null;
+}
+
 interface TeamCheckInBoardProps {
   onNavigate?: (board: "team-home" | "refinement" | "dailys" | "review" | "test" | "teamcheckin") => void;
   onHome?: () => void;
@@ -111,7 +94,10 @@ interface TeamCheckInBoardProps {
 export function TeamCheckInBoard({ onNavigate, onHome }: TeamCheckInBoardProps) {
   const { showToast } = useToast();
   const [started, setStarted] = useState(false);
-  const [stepIndex, setStepIndex] = useState(0);
+  // Tracked by id rather than index: "Veckans influencers" can appear as point 2 after the board
+  // has loaded (its fetch resolves later), which would otherwise shift every later step's index.
+  const [stepId, setStepId] = useState<AgendaStepId>("laget-runt");
+  const [todaysInfluencers, setTodaysInfluencers] = useState<MeetingInfluencerDto[]>([]);
   const [remainingSeconds, setRemainingSeconds] = useState(TOTAL_SECONDS);
   const [timerEnabled, setTimerEnabled] = useState(true);
   const [transitioning, setTransitioning] = useState(false);
@@ -119,7 +105,34 @@ export function TeamCheckInBoard({ onNavigate, onHome }: TeamCheckInBoardProps) 
   const playedQuarterRef = useRef(false);
   const playedFiveRef = useRef(false);
 
-  const step = AGENDA[stepIndex];
+  const agenda = useMemo(() => buildAgenda(todaysInfluencers.map((i) => i.displayName)), [todaysInfluencers]);
+  const agendaRef = useRef(agenda);
+  agendaRef.current = agenda;
+  const stepIndex = Math.max(0, agenda.findIndex((s) => s.id === stepId));
+  const step = agenda[stepIndex];
+
+  // Anyone drawn at an earlier meeting to present today becomes agenda point 2.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchMeetingInfluencers(todayIso(), controller.signal)
+      .then(setTodaysInfluencers)
+      .catch(() => {
+        // Not worth interrupting the meeting over - the agenda just runs without point 2.
+      });
+    return () => controller.abort();
+  }, []);
+
+  function handleInfluencersChanged(meetingDate: string, influencers: MeetingInfluencerDto[]) {
+    if (meetingDate === todayIso()) setTodaysInfluencers(influencers);
+  }
+
+  function moveBy(delta: number) {
+    setStepId((current) => {
+      const list = agendaRef.current;
+      const i = Math.max(0, list.findIndex((s) => s.id === current));
+      return list[Math.min(Math.max(i + delta, 0), list.length - 1)].id;
+    });
+  }
 
   useEffect(() => {
     if (!started || !timerEnabled) return;
@@ -153,7 +166,7 @@ export function TeamCheckInBoard({ onNavigate, onHome }: TeamCheckInBoardProps) 
   // in a text field (search boxes, the wiki-url editor, …) so it doesn't fight the caret.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (isTypingTarget(document.activeElement)) return;
+      if (isTypingTarget(document.activeElement) || isDialogOpen()) return;
       if (e.key === "ArrowRight") goNext();
       else if (e.key === "ArrowLeft") goBack();
     }
@@ -164,22 +177,22 @@ export function TeamCheckInBoard({ onNavigate, onHome }: TeamCheckInBoardProps) 
 
   function goNext() {
     if (started && timerEnabled) ensureAudio();
-    setStepIndex((i) => Math.min(i + 1, AGENDA.length - 1));
+    moveBy(1);
   }
 
   function goBack() {
     if (started && timerEnabled) ensureAudio();
-    setStepIndex((i) => Math.max(i - 1, 0));
+    moveBy(-1);
   }
 
   function jumpTo(i: number) {
     if (started && timerEnabled) ensureAudio();
-    setStepIndex(i);
+    setStepId(agenda[i].id);
   }
 
   function handleStart() {
     setStarted(true);
-    setStepIndex(0);
+    setStepId(agenda[0].id);
     setRemainingSeconds(TOTAL_SECONDS);
     playedQuarterRef.current = false;
     playedFiveRef.current = false;
@@ -199,7 +212,7 @@ export function TeamCheckInBoard({ onNavigate, onHome }: TeamCheckInBoardProps) 
   function handleCloseEndMeeting() {
     setEndingMeeting(false);
     setStarted(false);
-    setStepIndex(0);
+    setStepId(agenda[0].id);
     setRemainingSeconds(TOTAL_SECONDS);
     playedQuarterRef.current = false;
     playedFiveRef.current = false;
@@ -233,7 +246,7 @@ export function TeamCheckInBoard({ onNavigate, onHome }: TeamCheckInBoardProps) 
           )}
 
           <ol className="tcb-agenda">
-            {AGENDA.map((s, i) => (
+            {agenda.map((s, i) => (
               <li
                 key={s.id}
                 className={
@@ -253,7 +266,7 @@ export function TeamCheckInBoard({ onNavigate, onHome }: TeamCheckInBoardProps) 
             <button type="button" className="daily-flow__btn" onClick={goBack} disabled={stepIndex === 0}>
               ← Föregående
             </button>
-            <button type="button" className="daily-flow__btn daily-flow__btn--primary" onClick={goNext} disabled={stepIndex === AGENDA.length - 1}>
+            <button type="button" className="daily-flow__btn daily-flow__btn--primary" onClick={goNext} disabled={stepIndex === agenda.length - 1}>
               Nästa →
             </button>
           </div>
@@ -267,7 +280,7 @@ export function TeamCheckInBoard({ onNavigate, onHome }: TeamCheckInBoardProps) 
 
         <div className="tcb-right">
           {!started && <div className="tcb-preview-banner">Förhandsgranskning - mötet är inte startat än</div>}
-          {renderPanel(step)}
+          {renderPanel(step, todaysInfluencers, handleInfluencersChanged)}
         </div>
       </div>
 

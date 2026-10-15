@@ -1,5 +1,5 @@
 import type { DailyStoryDto, DailyTaskDto } from "../../api/dailys";
-import { isStoryDone, isTestTask, UNASSIGNED_GROUP_LABEL, type SortDir } from "./dailysLogic";
+import { isProgressTaskDone, isStoryDone, isTestTask, UNASSIGNED_GROUP_LABEL, type SortDir } from "./dailysLogic";
 
 /** A test task's own status says where it is in its own lifecycle, but whether it can be picked up
  *  depends on its parent story having reached one of these. */
@@ -36,6 +36,9 @@ export interface TestTaskRow extends DailyTaskDto {
   storyWebUrl: string;
   parentReady: boolean;
   parentClosed: boolean;
+  /** Any other task on the parent - test, development or documentation - that isn't finished yet.
+   *  While there is one, the parent can't be closed, so a closed test task isn't "waiting" on it. */
+  parentHasOtherOpenTasks: boolean;
   /** Which sprint this row came from - set by TestTaskBoard when it merges in extra iterations
    *  (see its extraIterations prop), left undefined for a plain single-iteration board. Not set by
    *  buildTestTaskRows itself, since it has no notion of "which sprint" its input belongs to. */
@@ -58,6 +61,7 @@ export function buildTestTaskRows(stories: DailyStoryDto[]): TestTaskRow[] {
         storyWebUrl: s.webUrl,
         parentReady: TEST_READY_PARENT_STATES.has(s.azureStatus),
         parentClosed: isStoryDone(s),
+        parentHasOtherOpenTasks: (s.tasks ?? []).some((other) => other.id !== t.id && !isProgressTaskDone(other)),
       })),
   );
 }
@@ -137,7 +141,12 @@ export function classifyTestStatus(row: TestTaskRow): TestStatusBucket {
     // Closed but marked "didn't pass" is a contradiction someone should look at, not a normal
     // "done" - it means either the tag or the closure is wrong.
     if (verdict === "notok") return "anomaly";
-    return row.parentClosed ? "done" : "awaitingParentClose";
+    // "Väntar på att huvudkortet stängs" is only true once nothing else is left on it. With another
+    // test still running, or new development that will bring new tests, the parent can't be closed
+    // yet - listing this task as waiting on it just sent people looking for a card nobody can close.
+    // The test itself is finished, so it goes with the other finished ones.
+    if (row.parentClosed || row.parentHasOtherOpenTasks) return "done";
+    return "awaitingParentClose";
   }
   // Parent-readiness is checked before the task's own status/tags: a test task started early
   // (or tagged early) on a story that hasn't reached Resolved yet is still just "prepared", not
@@ -280,17 +289,39 @@ export function statusBadgeClass(bucket: TestStatusBucket): string {
   }
 }
 
-/** Which date "tid i status" is measured from. Normally the task's own last status change - but
- *  an assigned-and-not-started task hasn't changed status since it became ready; what's actually
- *  aging is how long it's sat with its tester, so that bucket measures from when it got assigned
- *  instead. */
+function laterOf(a: { date: string | null; label: string }, b: { date: string | null | undefined; label: string }) {
+  if (!b.date) return a;
+  if (!a.date) return { date: b.date, label: b.label };
+  return new Date(b.date).getTime() > new Date(a.date).getTime() ? { date: b.date, label: b.label } : a;
+}
+
+/** Which date "tid i status" is measured from, and the verb its tooltip uses for it.
+ *
+ *  Normally the task's own last status change - but an assigned-and-not-started task hasn't
+ *  changed status since it became ready; what's actually aging is how long it's sat with its
+ *  tester, so that bucket measures from when it got assigned instead. And a task that was blocked
+ *  wasn't ready while it was: its State can sit at New for weeks behind Blocked = Yes, so the clock
+ *  starts over when the block is lifted. A blocked task itself counts from when it got blocked. */
+function ageSource(row: TestTaskRow, bucket: TestStatusBucket): { date: string | null; label: string } {
+  if (bucket === "blocked") {
+    return row.blockedDate
+      ? { date: row.blockedDate, label: "Blockerades" }
+      : { date: row.statusChangedDate, label: "Statusen ändrades" };
+  }
+  const base =
+    bucket === "assignedNotStarted" && row.assignedDate
+      ? { date: row.assignedDate, label: "Tilldelad" }
+      : { date: row.statusChangedDate, label: "Statusen ändrades" };
+  return laterOf(base, { date: row.unblockedDate, label: "Blockeringen hävdes" });
+}
+
 export function ageSourceDate(row: TestTaskRow, bucket: TestStatusBucket): string | null {
-  return bucket === "assignedNotStarted" ? row.assignedDate ?? row.statusChangedDate : row.statusChangedDate;
+  return ageSource(row, bucket).date;
 }
 
 /** The verb statusAge's tooltip uses for whichever date ageSourceDate picked. */
-export function ageChangeLabel(bucket: TestStatusBucket): string {
-  return bucket === "assignedNotStarted" ? "Tilldelad" : "Statusen ändrades";
+export function ageChangeLabel(row: TestTaskRow, bucket: TestStatusBucket): string {
+  return ageSource(row, bucket).label;
 }
 
 export interface StatusAge {

@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import type { DailyStoryDto } from "../../api/dailys";
 import { alertDetailsFor, effectiveAlertLevel, korthygienWarnings } from "./dailysLogic";
 import { FloatingPopover } from "./FloatingPopover";
+import { useBoardSettings } from "../../settings/boardSettings";
 import "./AlertBadge.css";
 
 const ICONS: Record<string, string> = {
@@ -13,11 +14,13 @@ const ICONS: Record<string, string> = {
 export function AlertBadge({ story }: { story: DailyStoryDto }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLButtonElement>(null);
+  const { showWarnings } = useBoardSettings();
 
   // Both the level and the list come from dailysLogic, so the badge, the row tint and the group
   // accent can never disagree about whether this card is flagged.
   const level = effectiveAlertLevel(story);
-  if (!level) return <div className="alert-badge" />;
+  // The empty cell stays when warnings are switched off, so the columns don't shift.
+  if (!level || !showWarnings) return <div className="alert-badge" />;
 
   const hygiene = korthygienWarnings(story);
   const details = alertDetailsFor(story);

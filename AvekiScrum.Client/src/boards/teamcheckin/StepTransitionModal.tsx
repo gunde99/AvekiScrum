@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
+import { PersonAvatar } from "../../components/PersonAvatar";
 import type { AgendaStep } from "./agenda";
 import "./StepTransitionModal.css";
 
@@ -30,7 +31,16 @@ export function StepTransitionModal({ step, onDone }: StepTransitionModalProps) 
   return createPortal(
     <div className="tcb-transition-overlay" role="status" aria-live="polite">
       <div className="tcb-transition-card">
-        {step.photo ? (
+        {step.people && step.people.length > 0 ? (
+          <div className="tcb-transition-people">
+            {step.people.map((name) => (
+              <div key={name} className="tcb-transition-person">
+                <PersonAvatar name={name} size={160} />
+                <div className="tcb-transition-person__name">{name}</div>
+              </div>
+            ))}
+          </div>
+        ) : step.photo ? (
           <img className="tcb-transition-photo" src={step.photo} alt="" />
         ) : (
           <div className="tcb-transition-icon">{step.icon}</div>

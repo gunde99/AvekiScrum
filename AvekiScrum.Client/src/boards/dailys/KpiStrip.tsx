@@ -1,5 +1,6 @@
 import type { DailyStoryDto } from "../../api/dailys";
 import { pct, summarizeStories } from "./dailysLogic";
+import { useBoardSettings } from "../../settings/boardSettings";
 import "./KpiStrip.css";
 
 interface KpiStripProps {
@@ -10,7 +11,8 @@ export function KpiStrip({ stories }: KpiStripProps) {
   // Counted by Azure state, so these always add up to the total and always agree with what the
   // Status filter selected - filtering on Closed now really does report every card as klart.
   const { total, done, active, newCount, totalSP, doneSP } = summarizeStories(stories);
-  const alerts = stories.filter((s) => s.alertLevel === "Warning" || s.alertLevel === "Critical").length;
+  const { showWarnings } = useBoardSettings();
+  const alerts = !showWarnings ? 0 : stories.filter((s) => s.alertLevel === "Warning" || s.alertLevel === "Critical").length;
 
   const cards = [
     { label: "Kort totalt", val: total, sub: "i sprinten", accent: "info" as const },

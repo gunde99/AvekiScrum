@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { AppShell } from "./AppShell";
 import { TalkingPointsModal } from "./TalkingPointsModal";
+import { BoardSettingsModal } from "./BoardSettingsModal";
 import type { DeveloperTeamId } from "../api/dailys";
 
 const BOARDS = [
@@ -41,6 +42,7 @@ interface BoardShellProps {
 // logotype files are sourced.
 export function BoardShell({ activeBoard, title, subtitle, onNavigate, onHome, team, onTeamChange, children }: BoardShellProps) {
   const [showTalkingPoints, setShowTalkingPoints] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   return (
     <>
@@ -56,24 +58,36 @@ export function BoardShell({ activeBoard, title, subtitle, onNavigate, onHome, t
         team={team}
         onTeamChange={onTeamChange}
         headerExtra={
-          // Discreet on purpose - this is a personal SM tool bolted onto a shared board, not a
-          // feature every visitor needs to notice. A modal (not a nav tab/route) so opening it
-          // never unmounts whatever board - and its live state, e.g. a running daily flow - sits
-          // behind it.
-          <button
-            type="button"
-            className="board-shell__settings-gear"
-            onClick={() => setShowTalkingPoints(true)}
-            title="Saker att ta upp"
-            aria-label="Saker att ta upp"
-          >
-            ⚙️
-          </button>
+          // Discreet on purpose - "Saker att ta upp" is a personal SM tool bolted onto a shared
+          // board, not a feature every visitor needs to notice. Both are modals (not nav
+          // tabs/routes) so opening one never unmounts whatever board - and its live state, e.g. a
+          // running daily flow - sits behind it.
+          <>
+            <button
+              type="button"
+              className="board-shell__settings-gear"
+              onClick={() => setShowTalkingPoints(true)}
+              title="Saker att ta upp"
+              aria-label="Saker att ta upp"
+            >
+              📝
+            </button>
+            <button
+              type="button"
+              className="board-shell__settings-gear"
+              onClick={() => setShowSettings(true)}
+              title="Inställningar"
+              aria-label="Inställningar"
+            >
+              ⚙️
+            </button>
+          </>
         }
       >
         {children}
       </AppShell>
       {showTalkingPoints && <TalkingPointsModal team={team ?? "Nord"} onClose={() => setShowTalkingPoints(false)} />}
+      {showSettings && <BoardSettingsModal onClose={() => setShowSettings(false)} />}
     </>
   );
 }

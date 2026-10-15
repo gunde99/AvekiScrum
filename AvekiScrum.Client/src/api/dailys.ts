@@ -27,6 +27,12 @@ export interface DailyTaskDto {
    *  an assigned-but-not-started test task, where what matters is how long it's sat with someone
    *  rather than how long since its Azure state last changed. */
   assignedDate: string | null;
+  /** From the test task's history (test tasks only - optional, since a person-scoped refresh
+   *  skips the history calls): when Blocked last went Yes, when it last went back to No, and the
+   *  latest revision of any kind. */
+  blockedDate?: string | null;
+  unblockedDate?: string | null;
+  changedDate?: string | null;
   webUrl: string;
 }
 

@@ -42,6 +42,9 @@ builder.Services.Configure<TeamRoleConfig>(builder.Configuration.GetSection("Tea
 builder.Services.Configure<DailyFlowConfig>(builder.Configuration.GetSection("DailyFlow"));
 builder.Services.Configure<DailyCheckInSettings>(builder.Configuration.GetSection("DailyCheckIns"));
 builder.Services.Configure<TalkingPointSettings>(builder.Configuration.GetSection("TalkingPoints"));
+builder.Services.Configure<MeetingInfluencerSettings>(builder.Configuration.GetSection("MeetingInfluencers"));
+builder.Services.Configure<UpgradeDocumentationSettings>(builder.Configuration.GetSection("UpgradeDocumentation"));
+builder.Services.AddScoped<AvekiScrum.Application.Upgrade.UpgradeDocumentationService>();
 // Plain outbound client for the Teams webhook - no Azure DevOps auth on this one.
 builder.Services.AddHttpClient();
 
@@ -147,7 +150,9 @@ builder.Services.AddCors(options =>
         .SetIsOriginAllowed(origin => origin.StartsWith("http://localhost", StringComparison.OrdinalIgnoreCase)
             || origin.StartsWith("https://localhost", StringComparison.OrdinalIgnoreCase))
         .AllowAnyHeader()
-        .AllowAnyMethod());
+        .AllowAnyMethod()
+        // So a cross-origin download (the upgrade document's export) can read its file name.
+        .WithExposedHeaders("Content-Disposition"));
 });
 
 var app = builder.Build();
@@ -849,10 +854,64 @@ app.MapGet("/api/team-checkin/cross-team-items", async (
     var sydAreas = await azureDevOpsService.GetTeamAreaPathsAsync(DeveloperTeam.Syd, ct);
     var areaPaths = nordAreas.Concat(sydAreas).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
-    var backlog = await azureDevOpsService.GetTaggedRefinementItemsAsync(current.Path, areaPaths, "Berör både teamen", ct);
+    var backlog = await azureDevOpsService.GetTaggedRefinementItemsAsync(current.Path, areaPaths, "Berör båda teamen", ct);
     return Results.Ok(backlog);
 })
 .WithName("GetCrossTeamTaggedItems");
+
+app.MapUpgradeDocumentation();
+
+// Teamavstämning's "Nästa veckas influencer": developers drawn by lottery to bring a short, freely
+// chosen contribution to a given meeting date. No date -> the full history (the lottery's fair
+// rotation reads it); a date -> just that meeting's influencers, shown as agenda point 2 that day.
+var influencers = app.MapGroup("/api/team-checkin/influencers");
+
+static bool IsValidMeetingDate(string? date) =>
+    DateOnly.TryParseExact(date, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out _);
+
+influencers.MapGet("/", async (
+    string? date,
+    IMeetingInfluencerRepository repository,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(date))
+        return Results.Ok(await repository.GetAllAsync(ct));
+    if (!IsValidMeetingDate(date))
+        return Results.BadRequest($"Invalid date '{date}'. Expected yyyy-MM-dd.");
+    return Results.Ok(await repository.GetForDateAsync(date, ct));
+})
+.WithName("GetMeetingInfluencers");
+
+influencers.MapPost("/", async (
+    AddMeetingInfluencerRequest request,
+    IMeetingInfluencerRepository repository,
+    CancellationToken ct) =>
+{
+    if (!IsValidMeetingDate(request.MeetingDate))
+        return Results.BadRequest($"Invalid meetingDate '{request.MeetingDate}'. Expected yyyy-MM-dd.");
+    if (string.IsNullOrWhiteSpace(request.Email))
+        return Results.BadRequest("Missing 'email'.");
+
+    var added = await repository.AddAsync(new MeetingInfluencer
+    {
+        MeetingDate = request.MeetingDate,
+        Email = request.Email.Trim(),
+        DisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? FormatDisplayName(request.Email) : request.DisplayName.Trim(),
+        DrawnAt = DateTimeOffset.UtcNow,
+    }, ct);
+    return Results.Ok(added);
+})
+.WithName("AddMeetingInfluencer");
+
+influencers.MapDelete("/{id}", async (
+    string id,
+    IMeetingInfluencerRepository repository,
+    CancellationToken ct) =>
+{
+    var removed = await repository.DeleteAsync(id, ct);
+    return removed ? Results.Ok() : Results.NotFound();
+})
+.WithName("DeleteMeetingInfluencer");
 
 app.MapGet("/api/sprint-goals", async (
     string team,
@@ -2178,6 +2237,8 @@ internal sealed record UpdateTalkingPointRequest(
 
 /// <summary>Team is "Nord", "Syd", or "Both" (mark done/reset on both teams' flags at once).</summary>
 internal sealed record SetTalkingPointRaisedRequest(string Team, bool Raised);
+
+internal sealed record AddMeetingInfluencerRequest(string MeetingDate, string Email, string? DisplayName);
 
 internal sealed record SetSprintGoalsWikiUrlRequest(string Team, string Url);
 

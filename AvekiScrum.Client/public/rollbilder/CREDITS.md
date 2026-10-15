@@ -12,7 +12,7 @@ till samma filstorleksnivå som de andra bilderna här.
 | Fil | Motiv | Källa |
 |---|---|---|
 | `laget-runt.jpg` | Team runt ett mötesbord | Eget foto |
-| `utvecklingsansvarig.jpg` | Utvecklare som pekar på en kodskärm | Eget foto |
+| `utvecklingsansvarig.jpg` | Närbild på kod i en editor (bytt 2026-10-14, nedskalad från 5760×3840) | Eget bildval |
 | `mote-slut.jpg` | Tomt mötesrum med stolar i en ring (används i "Avsluta mötet"-rutan) | Eget foto |
 | `ovrigt.jpg` | "Are there any questions?" (används som Övrigt-punktens egen panel, inte bara flashen) | Eget bildval |
 | `appsec.jpg` | Laptop med texten "Cyber Security" på skärmen | cottonbro studio - https://www.pexels.com/photo/laptop-with-cyber-security-text-on-the-screen-5483240/ |

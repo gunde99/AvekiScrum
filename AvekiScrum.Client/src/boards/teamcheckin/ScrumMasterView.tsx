@@ -23,6 +23,9 @@ function resolveSprintWeek(startDateIso: string | undefined): SprintWeek {
 
 /** Wiki checklist rows sometimes already start with their own ☐/☑/[ ]/- marker; strip it so the
  *  rendered checkbox isn't doubled up - same helper as DailyFlow's GoalTurn. */
+/** Must match the Azure DevOps tag exactly - also hardcoded in the api's cross-team-items endpoint. */
+const CROSS_TEAM_TAG = "Berör båda teamen";
+
 function stripLeadingMarker(text: string): string {
   return text.replace(/^\s*(?:[☐☑☒✓✔]|\[[ xX]?\]|[-*])\s*/, "");
 }
@@ -31,7 +34,7 @@ function stripLeadingMarker(text: string): string {
  * The Scrum Master's own agenda step - the one role this board has real content for so far (see
  * RolePlaceholderPanel for the rest). Week 1 of a sprint: every sprint goal, one team at a time, in
  * full (description, owners, expert, deliverables, Definition of Done, sub-goals). Any other week:
- * work items tagged "Berör både teamen" in the current sprint, across both teams.
+ * work items tagged "Berör båda teamen" in the current sprint, across both teams.
  */
 export function ScrumMasterView() {
   const { showToast } = useToast();
@@ -70,7 +73,9 @@ export function ScrumMasterView() {
         } else {
           const backlog = await fetchCrossTeamTaggedItems();
           if (cancelled) return;
-          setItems(backlog.items);
+          // The endpoint also returns each match's Feature/Epic ancestors for context - only the
+          // tagged cards themselves belong in this list.
+          setItems(backlog.items.filter((i) => i.tags.some((t) => t.toLowerCase() === CROSS_TEAM_TAG.toLowerCase())));
         }
 
         // Warms up Release/Test-ansvarig's own (heavy) data now that this step's own load is done,
@@ -244,9 +249,9 @@ export function ScrumMasterView() {
 
   return (
     <div className="tcb-sm">
-      <div className="tcb-sm__hint">Kort taggade "Berör både teamen" i aktuell sprint</div>
+      <div className="tcb-sm__hint">Kort taggade "{CROSS_TEAM_TAG}" i aktuell sprint</div>
       {items.length === 0 ? (
-        <p className="dailys-board__status">Inga kort taggade "Berör både teamen" just nu.</p>
+        <p className="dailys-board__status">Inga kort taggade "{CROSS_TEAM_TAG}" just nu.</p>
       ) : (
         <div className="tcb-sm__cards">
           {items.map((item) => (

@@ -18,6 +18,7 @@ import { updateWorkItemFields } from "../../api/workitems";
 import { DailyFlow } from "./DailyFlow";
 import { FilterPanel, WORK_ITEM_TYPES, type TagFilterState, type WorkItemTypeKey } from "./FilterPanel";
 import { GroupCard } from "./GroupCard";
+import { useBoardSettings } from "../../settings/boardSettings";
 import { KpiStrip } from "./KpiStrip";
 import { SprintGoalModal } from "./SprintGoalModal";
 import { SprintPicker } from "./SprintPicker";
@@ -116,8 +117,9 @@ export function DailysBoard({ onNavigate, onHome, team, onTeamChange }: DailysBo
   const [searchText, setSearchText] = useState("");
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string> | null>(null);
   const [tagFilters, setTagFilters] = useState<Map<string, TagFilterState>>(new Map());
-  // On by default: settled work shouldn't weigh down the daily view once the team has seen it.
-  const [hideStaleClosed, setHideStaleClosed] = useState(true);
+  // Settings, not filters (BoardShell's ⚙️): whether the daily flow skips long-closed cards, and
+  // after how many working days a closed card counts as long-closed.
+  const { hideStaleClosed, staleClosedWorkingDays } = useBoardSettings();
   // Both types shown by default; unticking one hides that card type.
   const [selectedTypes, setSelectedTypes] = useState<Set<WorkItemTypeKey>>(new Set(["story", "bug"]));
   // Empty means "no test constraint" - any selected key narrows to cards matching at least one.
@@ -302,22 +304,14 @@ export function DailysBoard({ onNavigate, onHome, team, onTeamChange }: DailysBo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stories, searchText, selectedStatuses, tagFilters, selectedTypes, testFilters]);
 
-  // Counts what this filter would remove from the daily flow. PO-owned cards are excluded because
-  // the board never shows them anyway - counting them made the label claim more hidden cards than
-  // it actually affects.
-  const staleClosedCount = useMemo(
-    () => stories.filter((s) => !s.ownedByProductOwner && isStaleClosed(s)).length,
-    [stories],
-  );
-
   // hideStaleClosed only trims what the daily flow steps through - a card closed days ago is
   // exactly the noise you don't want taking up a turn, but it's still real, recent work that
   // should count in the board's own KPIs and status groups above. Applied on top of the other
   // filters (search/tags/status/type/test), not instead of them, so the flow still respects
   // whatever the person running it is deliberately looking at.
   const dailyFlowStories = useMemo(
-    () => (hideStaleClosed ? filteredStories.filter((s) => !isStaleClosed(s)) : filteredStories),
-    [filteredStories, hideStaleClosed],
+    () => (hideStaleClosed ? filteredStories.filter((s) => !isStaleClosed(s, staleClosedWorkingDays)) : filteredStories),
+    [filteredStories, hideStaleClosed, staleClosedWorkingDays],
   );
 
   // PO-owned cards are intentionally excluded from the developer-focused board (they're not
@@ -420,12 +414,18 @@ export function DailysBoard({ onNavigate, onHome, team, onTeamChange }: DailysBo
 
   // The daily flow's own groups, built from dailyFlowStories (hideStaleClosed applied) rather than
   // boardStories - so a card the flow is skipping over doesn't still pad out its "X kort, Y klara"
-  // turn stats. The board above (groups, just above) is intentionally left out of this.
+  // turn stats. Outside the flow the board renders `groups` (just above), stale cards included.
   const dailyFlowBoardStories = useMemo(() => dailyFlowStories.filter((s) => !s.ownedByProductOwner), [dailyFlowStories]);
   const dailyFlowGroups = useMemo(
     () => buildBoardGroups(dailyFlowBoardStories),
     [buildBoardGroups, dailyFlowBoardStories],
   );
+
+  // The flow has no card table of its own: each turn highlights and opens the board's group card
+  // below. So while the flow runs, the board has to render the flow's groups - otherwise the turn
+  // says "1 kort" while the table under it still lists a card closed two weeks ago. Same builder,
+  // so the group ids the flow highlights match. KpiStrip keeps using boardStories either way.
+  const visibleGroups = dailyFlowActive ? dailyFlowGroups : groups;
 
   function toggleGroup(id: string) {
     setOpenGroups((prev) => {
@@ -796,9 +796,6 @@ export function DailysBoard({ onNavigate, onHome, team, onTeamChange }: DailysBo
             tagFilters={tagFilters}
             onCycleTag={cycleTag}
             onClearTags={() => setTagFilters(new Map())}
-            hideStaleClosed={hideStaleClosed}
-            onToggleStaleClosed={() => setHideStaleClosed((v) => !v)}
-            staleClosedCount={staleClosedCount}
             selectedTypes={selectedTypes}
             onToggleType={toggleType}
             testFilters={testFilters}
@@ -873,8 +870,8 @@ export function DailysBoard({ onNavigate, onHome, team, onTeamChange }: DailysBo
                 )}
               </div>
             )}
-            {groups.length === 0 && <p className="dailys-board__status">Inga kort matchar filtret.</p>}
-            {groups.map((group) => (
+            {visibleGroups.length === 0 && <p className="dailys-board__status">Inga kort matchar filtret.</p>}
+            {visibleGroups.map((group) => (
               <GroupCard
                 key={group.id}
                 group={group}
